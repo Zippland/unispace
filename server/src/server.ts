@@ -111,6 +111,26 @@ export function createServer(config: Config, workDir: string) {
     return c.json(tree);
   });
 
+  app.post("/api/files/upload", async (c) => {
+    const formData = await c.req.formData();
+    const file = formData.get("file") as File | null;
+    if (!file) return c.json({ error: "file required" }, 400);
+
+    const subdir = (formData.get("path") as string) || "";
+    const targetDir = subdir ? resolve(workDir, subdir) : workDir;
+    if (!targetDir.startsWith(resolve(workDir)))
+      return c.json({ error: "Forbidden" }, 403);
+
+    const { mkdirSync, existsSync: ex } = await import("fs");
+    if (!ex(targetDir)) mkdirSync(targetDir, { recursive: true });
+
+    const fullPath = resolve(targetDir, file.name);
+    await Bun.write(fullPath, await file.arrayBuffer());
+
+    const relPath = fullPath.slice(resolve(workDir).length + 1);
+    return c.json({ ok: true, name: file.name, path: relPath });
+  });
+
   app.get("/api/files/read", async (c) => {
     const p = c.req.query("path");
     if (!p) return c.json({ error: "path required" }, 400);

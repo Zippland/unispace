@@ -47,6 +47,7 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   parts: MessagePart[];
+  files?: { path: string; name: string }[];
 }
 
 export interface SessionInfo {

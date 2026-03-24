@@ -320,7 +320,16 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
             <CopyIcon copied={copied} />
           </button>
           <div className="max-w-3xl rounded-2xl bg-[#eeece8] px-5 py-3">
-            <span className="text-[15px] leading-7 text-[#141413] whitespace-pre-wrap">{text}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {msg.files?.map((f) => (
+                <span key={f.path}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[#141413]/[0.04] px-2 py-0.5 text-[12px] font-medium text-[#141413]/70">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#6a9bcc]" />
+                  <span className="max-w-[200px] truncate">{f.name}</span>
+                </span>
+              ))}
+              {text && <span className="text-[15px] leading-7 text-[#141413] whitespace-pre-wrap">{text}</span>}
+            </div>
           </div>
         </div>
       </div>
@@ -385,6 +394,10 @@ export default function ChatPanel() {
   } = useStore();
 
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<{ path: string; name: string }[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const dragCounterRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -394,23 +407,124 @@ export default function ChatPanel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [currentMessages]);
 
+  // ── File attachment helpers ─────────────────────────────
+
+  function addAttachment(path: string, name: string) {
+    setAttachments((prev) =>
+      prev.some((a) => a.path === path) ? prev : [...prev, { path, name }],
+    );
+  }
+
+  function removeAttachment(path: string) {
+    setAttachments((prev) => prev.filter((a) => a.path !== path));
+  }
+
+  async function uploadAndAttach(file: File) {
+    setUploadingCount((c) => c + 1);
+    try {
+      const result = await api.uploadFile(serverUrl, file);
+      addAttachment(result.path, result.name);
+    } catch (e) {
+      console.error("Upload failed:", e);
+    }
+    setUploadingCount((c) => c - 1);
+  }
+
+  // ── Drag handlers on input area ─────────────────────────
+
+  function handleInputDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (dragCounterRef.current > 0) setIsDragging(true);
+  }
+
+  function handleInputDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      setIsDragging(false);
+      dragCounterRef.current = 0;
+    }
+  }
+
+  function handleInputDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+  }
+
+  async function handleInputDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    // Internal file drag from sidebar
+    if (e.dataTransfer.types.includes("x-unispace-drag")) {
+      try {
+        const data = JSON.parse(e.dataTransfer.getData("application/json"));
+        if (data.type === "file") {
+          addAttachment(data.path, data.name);
+        }
+      } catch {}
+      return;
+    }
+
+    // External file drag
+    for (const file of Array.from(e.dataTransfer.files)) {
+      uploadAndAttach(file);
+    }
+  }
+
+  // ── Paste handler ───────────────────────────────────────
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData.items;
+    for (const item of Array.from(items)) {
+      if (item.kind === "file") {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) uploadAndAttach(file);
+      }
+    }
+  }
+
+  // ── Send ────────────────────────────────────────────────
+
   async function sendMessage() {
-    if (!input.trim() || streaming) return;
-    const content = input.trim();
+    if ((!input.trim() && attachments.length === 0) || streaming) return;
+    const rawText = input.trim();
     setInput("");
+    setAttachments([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
+
+    // Build message content with file references
+    let content = rawText;
+    if (attachments.length > 0) {
+      const refs = attachments.map((a) => a.path).join(", ");
+      content = `[Attached files: ${refs}]\n\n${content}`;
+    }
+
+    const msgFiles = attachments.length > 0 ? [...attachments] : undefined;
 
     let sid = activeSessionId;
     if (!sid) {
       const data = await api.createSession(serverUrl);
       sid = data.id as string;
-      const title = content.length > 40 ? content.slice(0, 40) + "..." : content;
+      const title = rawText.length > 40 ? rawText.slice(0, 40) + "..." : rawText || attachments[0]?.name || "Session";
       addSession({ id: sid, createdAt: data.createdAt, messageCount: 0, title });
       setActiveSession(sid);
     }
     const sessionId = sid as string;
 
-    appendMessage(sessionId, { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", content }] });
+    appendMessage(sessionId, {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts: [{ type: "text", content: rawText }],
+      files: msgFiles,
+    });
     const asstId = crypto.randomUUID();
     appendMessage(sessionId, { id: asstId, role: "assistant", parts: [] });
     setStreaming(true);
@@ -494,22 +608,73 @@ export default function ChatPanel() {
         </main>
       )}
 
-      {/* Input (finance_agent style: rounded card + shadow) */}
+      {/* Input area */}
       <div className="bg-[#faf9f5] px-4 pb-5 pt-2 shrink-0">
         <div className="relative mx-auto flex max-w-3xl flex-col gap-2">
-          <div className="relative flex items-end gap-3 rounded-[20px] border border-[#e8e6dc]/80 bg-white p-3 shadow-[0_2px_12px_rgba(20,20,19,0.04)]">
+          <div
+            className={`relative flex items-end gap-3 rounded-[20px] border bg-white p-3 shadow-[0_2px_12px_rgba(20,20,19,0.04)] transition-colors ${
+              isDragging ? "border-[#d97757] bg-[#d97757]/[0.02]" : "border-[#e8e6dc]/80"
+            }`}
+            onDragEnter={handleInputDragEnter}
+            onDragLeave={handleInputDragLeave}
+            onDragOver={handleInputDragOver}
+            onDrop={handleInputDrop}
+          >
+            {/* Drop overlay */}
+            {isDragging && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[20px] bg-white/90">
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                  </svg>
+                  <span className="text-[13px] text-[#d97757] font-medium">Drop to attach</span>
+                </div>
+              </div>
+            )}
+
             <div className="min-w-0 flex-1">
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 placeholder="Reply..."
                 rows={1}
                 className="min-h-[44px] w-full resize-none border-0 bg-transparent px-3 py-2 text-sm leading-7 text-[#141413] outline-none placeholder:text-[#b0aea5]"
               />
+
+              {/* Attachment chips */}
+              {(attachments.length > 0 || uploadingCount > 0) && (
+                <div className="flex flex-wrap gap-1.5 px-3 pt-1 pb-0.5">
+                  {attachments.map((a) => (
+                    <span
+                      key={a.path}
+                      className="inline-flex items-center gap-1 rounded-md bg-[#141413]/[0.04] px-2 py-0.5 text-[12px] text-[#141413]/70"
+                    >
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#6a9bcc]" />
+                      <span className="max-w-[140px] truncate">{a.name}</span>
+                      <button
+                        onClick={() => removeAttachment(a.path)}
+                        className="ml-0.5 text-[#b0aea5] hover:text-[#d97757]"
+                      >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                  {uploadingCount > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-[#faf9f5] px-2 py-0.5 text-[12px] text-[#141413]/70">
+                      <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-[#e8e6dc] border-t-[#d97757]" />
+                      Uploading...
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center px-3 pb-0.5 pt-0.5">
-                <span className="text-[11px] text-[#8a8880]">Enter to send / Shift+Enter for newline</span>
+                <span className="text-[11px] text-[#8a8880]">Enter to send / Shift+Enter for newline / Drop files to attach</span>
               </div>
             </div>
             {streaming ? (
@@ -522,7 +687,7 @@ export default function ChatPanel() {
             ) : (
               <button
                 onClick={sendMessage}
-                disabled={!input.trim()}
+                disabled={!input.trim() && attachments.length === 0}
                 className="mb-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#141413] text-[#faf9f5] transition hover:bg-[#141413]/80 disabled:cursor-not-allowed disabled:bg-[#e8e6dc] disabled:text-[#b0aea5]"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

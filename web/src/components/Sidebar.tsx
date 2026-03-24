@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
 
@@ -62,10 +62,90 @@ interface SidebarProps {
 export default function Sidebar({ onOpenFile }: SidebarProps) {
   const { workDir, files, serverUrl, setFiles, setActiveSession, setActiveTab, removeSession } = useStore();
 
+  // ── Upload state ────────────────────────────────────────
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const dragCounterRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   async function refreshFiles() {
     setFiles(await api.fetchFiles(serverUrl));
   }
 
+  // ── Upload logic ────────────────────────────────────────
+  const handleUpload = useCallback(async (file: File) => {
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setUploadError(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 50MB.`);
+      setTimeout(() => setUploadError(""), 3000);
+      return;
+    }
+    setUploading(true);
+    try {
+      await api.uploadFile(serverUrl, file);
+      await refreshFiles();
+    } catch {
+      setUploadError("Upload failed");
+      setTimeout(() => setUploadError(""), 3000);
+    }
+    setUploading(false);
+  }, [serverUrl]);
+
+  // ── Drag handlers (copied from finance_agent) ───────────
+  const isExternalFileDrag = useCallback((e: React.DragEvent): boolean => {
+    return e.dataTransfer.types.includes("Files");
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isExternalFileDrag(e)) return;
+    dragCounterRef.current += 1;
+    if (dragCounterRef.current > 0) setIsDragging(true);
+  }, [isExternalFileDrag]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      setIsDragging(false);
+      dragCounterRef.current = 0;
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isExternalFileDrag(e)) {
+      e.dataTransfer.dropEffect = "copy";
+    } else {
+      e.dataTransfer.dropEffect = "none";
+    }
+  }, [isExternalFileDrag]);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    for (const file of droppedFiles) {
+      await handleUpload(file);
+    }
+  }, [handleUpload]);
+
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList) return;
+    for (const file of Array.from(fileList)) {
+      handleUpload(file);
+    }
+    e.target.value = "";
+  }, [handleUpload]);
+
+  // ── Session actions ─────────────────────────────────────
   function handleNewSession() {
     setActiveSession(null);
     setActiveTab(null);
@@ -78,7 +158,6 @@ export default function Sidebar({ onOpenFile }: SidebarProps) {
     refreshFiles();
   }
 
-  // Split files into system and user
   const systemFiles = files.filter((f) => SYSTEM_NAMES.has(f.name));
   const userFiles = files.filter((f) => !SYSTEM_NAMES.has(f.name));
 
@@ -103,7 +182,46 @@ export default function Sidebar({ onOpenFile }: SidebarProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div
+        className="flex-1 overflow-y-auto min-h-0 relative"
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {/* Drop overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 border-2 border-dashed border-[#d97757] rounded-lg m-2">
+            <div className="flex flex-col items-center gap-1.5">
+              <svg className="h-6 w-6 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+              </svg>
+              <span className="text-[13px] text-[#d97757] font-medium">Drop to upload</span>
+            </div>
+          </div>
+        )}
+
+        {/* Upload error */}
+        {uploadError && (
+          <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-lg bg-[#d97757]/[0.06] px-3 py-2 text-[12px] text-[#d97757]">
+            <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+            </svg>
+            {uploadError}
+          </div>
+        )}
+
+        {/* Upload progress */}
+        {uploading && (
+          <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg bg-[#faf9f5] px-3 py-2">
+            <div className="h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-[#e8e6dc] border-t-[#d97757]" />
+            <span className="text-[12px] text-[#6b6963]">Uploading...</span>
+          </div>
+        )}
+
+        {/* Hidden file input */}
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileInput} />
+
         {/* ── System section ────────────────────────────────── */}
         <div className="px-4 pt-4 pb-1.5">
           <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold text-[#b0aea5] uppercase tracking-widest">
@@ -126,30 +244,45 @@ export default function Sidebar({ onOpenFile }: SidebarProps) {
           )}
         </div>
 
-        {/* ── Divider ──────────────────────────────────────── */}
-        {userFiles.length > 0 && (
-          <>
+        {/* ── Files section (always visible for drag-drop target) ── */}
+        <>
             <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
               <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold text-[#b0aea5] uppercase tracking-widest">
                 Files
               </span>
-              <button
-                onClick={refreshFiles}
-                className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413] hover:bg-[#141413]/[0.04]"
-                title="Refresh"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757] hover:bg-[#d97757]/[0.06]"
+                  title="Upload file"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                  </svg>
+                </button>
+                <button
+                  onClick={refreshFiles}
+                  className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413] hover:bg-[#141413]/[0.04]"
+                  title="Refresh"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="px-2 pb-2">
-              {userFiles.map((f) => (
-                <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
-              ))}
+              {userFiles.length === 0 ? (
+                <p className="text-[11px] text-[#b0aea5] px-3 py-3 text-center">
+                  Drop files here or click upload
+                </p>
+              ) : (
+                userFiles.map((f) => (
+                  <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
+                ))
+              )}
             </div>
           </>
-        )}
       </div>
     </div>
   );
@@ -266,6 +399,13 @@ function FileNode({
       <div
         className="flex items-center gap-1.5 py-[3px] px-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
         style={{ paddingLeft: depth * 16 + 8 }}
+        draggable={file.type === "file"}
+        onDragStart={(e) => {
+          if (file.type !== "file") return;
+          e.dataTransfer.setData("application/json", JSON.stringify({ type: "file", path: file.path, name: file.name }));
+          e.dataTransfer.setData("x-unispace-drag", "file");
+          e.dataTransfer.effectAllowed = "copy";
+        }}
         onClick={() =>
           file.type === "directory"
             ? setExpanded(!expanded)

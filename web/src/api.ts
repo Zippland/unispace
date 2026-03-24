@@ -77,6 +77,19 @@ export async function deleteFile(url: string, path: string) {
   if (!res.ok) throw new Error("Failed to delete");
 }
 
+export async function uploadFile(
+  url: string,
+  file: File,
+  subdir?: string,
+): Promise<{ name: string; path: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  if (subdir) form.append("path", subdir);
+  const res = await fetch(`${url}/api/files/upload`, { method: "POST", body: form });
+  if (!res.ok) throw new Error("Upload failed");
+  return res.json();
+}
+
 export async function fetchSessionMessages(url: string, sessionId: string) {
   const res = await fetch(`${url}/api/sessions/${sessionId}/messages`);
   return res.json();
