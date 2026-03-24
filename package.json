@@ -1,0 +1,9 @@
+{
+  "name": "unispace",
+  "private": true,
+  "scripts": {
+    "dev:server": "bun --watch server/src/index.ts",
+    "dev:web": "cd web && bun run dev",
+    "dev": "bun run dev:server & bun run dev:web"
+  }
+}
