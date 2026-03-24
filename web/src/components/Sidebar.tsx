@@ -333,6 +333,7 @@ function SessionsFolder({
   onDelete: (path: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<{ path: string; name: string } | null>(null);
 
   return (
     <div>
@@ -381,7 +382,7 @@ function SessionsFolder({
                   )}
                 </div>
                 <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(s.path); }}
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget({ path: s.path, name: s.name }); }}
                   className="opacity-0 group-hover:opacity-100 flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
                   title="Delete session"
                 >
@@ -394,6 +395,15 @@ function SessionsFolder({
           </div>
         );
       })()}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete session"
+          message={`Delete "${deleteTarget.name}" and its history permanently?`}
+          onConfirm={() => { onDelete(deleteTarget.path); setDeleteTarget(null); }}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -494,10 +504,23 @@ function FileNode({
   onOpenFile: (path: string, name: string) => void;
 }) {
   const [expanded, setExpanded] = useState(depth < 1);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const { serverUrl, setFiles, closeFile } = useStore();
+
+  async function handleDelete() {
+    try {
+      await api.deleteFile(serverUrl, file.path);
+      closeFile(file.path);
+      const files = await api.fetchFiles(serverUrl);
+      setFiles(files);
+    } catch {}
+    setConfirmDelete(false);
+  }
+
   return (
     <div>
       <div
-        className="flex items-center gap-1.5 py-[3px] px-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
+        className="group flex items-center gap-1.5 py-[3px] px-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
         style={{ paddingLeft: depth * 16 + 8 }}
         draggable={file.type === "file"}
         onDragStart={(e) => {
@@ -513,28 +536,65 @@ function FileNode({
         }
       >
         {file.type === "directory" ? (
-          file.name === "skills" ? (
-            <svg className="h-3.5 w-3.5 shrink-0 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
-            </svg>
-          ) : (
-            <FolderIcon open={expanded} className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
-          )
+          <FolderIcon open={expanded} className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
         ) : (
           <FileIcon className="h-3.5 w-3.5 shrink-0 text-[#d5d3ca]" />
         )}
-        <span
-          className={`truncate ${
-            file.type === "directory" ? "text-[#141413] font-medium" : "text-[#6b6963]"
-          }`}
-        >
+        <span className={`truncate flex-1 ${file.type === "directory" ? "text-[#141413] font-medium" : "text-[#6b6963]"}`}>
           {file.name}
         </span>
+        {file.type === "file" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+            className="opacity-0 group-hover:opacity-100 flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
+            title="Delete"
+          >
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
       {expanded &&
         file.children?.map((c) => (
           <FileNode key={c.path} file={c} depth={depth + 1} onOpenFile={onOpenFile} />
         ))}
+
+      {/* Delete confirm */}
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete file"
+          message={`Delete ${file.name} permanently?`}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Confirm dialog (shared) ───────────────────────────────────
+
+function ConfirmDialog({ title, message, onConfirm, onCancel }: {
+  title: string; message: string; onConfirm: () => void; onCancel: () => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-50 bg-[#141413]/20 backdrop-blur-sm" onClick={onCancel} />
+      <div className="fixed left-1/2 top-1/2 z-50 w-[340px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-[0_16px_48px_rgba(20,20,19,0.15)]">
+        <h3 className="font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold text-[#141413] mb-1.5">{title}</h3>
+        <p className="text-[13px] text-[#6b6963] mb-5">{message}</p>
+        <div className="flex justify-end gap-2">
+          <button onClick={onCancel}
+            className="rounded-lg border border-[#e8e6dc] px-4 py-1.5 text-[13px] text-[#6b6963] hover:bg-[#faf9f5]">
+            Cancel
+          </button>
+          <button onClick={onConfirm}
+            className="rounded-lg bg-[#d97757] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#c4684a]">
+            Delete
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
