@@ -460,12 +460,18 @@ function SkillNode({
       <div
         className="flex items-center gap-1.5 py-[3px] px-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
         style={{ paddingLeft: depth * 14 + 14 }}
-        draggable={!isDir}
+        draggable={!isDir || isTopLevel}
         onDragStart={(e) => {
-          if (isDir) return;
-          e.dataTransfer.setData("application/json", JSON.stringify({ type: "file", path: file.path, name: file.name }));
-          e.dataTransfer.setData("x-unispace-drag", "file");
-          e.dataTransfer.effectAllowed = "copy";
+          if (isTopLevel && isDir) {
+            // Drag skill folder as a skill reference
+            e.dataTransfer.setData("application/json", JSON.stringify({ type: "skill", path: file.path, name: file.name }));
+            e.dataTransfer.setData("x-unispace-drag", "skill");
+            e.dataTransfer.effectAllowed = "copy";
+          } else if (!isDir) {
+            e.dataTransfer.setData("application/json", JSON.stringify({ type: "file", path: file.path, name: file.name }));
+            e.dataTransfer.setData("x-unispace-drag", "file");
+            e.dataTransfer.effectAllowed = "copy";
+          }
         }}
         onClick={() => isDir ? setExpanded(!expanded) : onOpenFile(file.path, file.name)}
       >

@@ -308,7 +308,7 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
   if (msg.role === "user") {
     const rawContent = msg.parts[0]?.content || "";
     // Strip [Attached files: ...] prefix from display (it's for the LLM, not the user)
-    const text = rawContent.replace(/^\[Attached files:[^\]]*\]\s*/s, "").trim();
+    const text = rawContent.replace(/^\[Attached files:[^\]]*\]\s*/s, "").replace(/^\[Referenced skills:[^\]]*\]\s*/s, "").trim();
     const handleCopy = () => {
       navigator.clipboard.writeText(text);
       setCopied(true);
@@ -326,7 +326,7 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
               {msg.files?.map((f) => (
                 <span key={f.path}
                   className="inline-flex items-center gap-1.5 rounded-md bg-[#141413]/[0.04] px-2 py-0.5 text-[12px] font-medium text-[#141413]/70">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#6a9bcc]" />
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${f.kind === "skill" ? "bg-[#d97757]" : "bg-[#6a9bcc]"}`} />
                   <span className="max-w-[200px] truncate">{f.name}</span>
                 </span>
               ))}
@@ -396,7 +396,7 @@ export default function ChatPanel() {
   } = useStore();
 
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<{ path: string; name: string }[]>([]);
+  const [attachments, setAttachments] = useState<{ path: string; name: string; kind: "file" | "skill" }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
   const dragCounterRef = useRef(0);
@@ -411,9 +411,9 @@ export default function ChatPanel() {
 
   // ── File attachment helpers ─────────────────────────────
 
-  function addAttachment(path: string, name: string) {
+  function addAttachment(path: string, name: string, kind: "file" | "skill" = "file") {
     setAttachments((prev) =>
-      prev.some((a) => a.path === path) ? prev : [...prev, { path, name }],
+      prev.some((a) => a.path === path) ? prev : [...prev, { path, name, kind }],
     );
   }
 
@@ -463,12 +463,12 @@ export default function ChatPanel() {
     setIsDragging(false);
     dragCounterRef.current = 0;
 
-    // Internal file drag from sidebar
+    // Internal drag from sidebar (file or skill)
     if (e.dataTransfer.types.includes("x-unispace-drag")) {
       try {
         const data = JSON.parse(e.dataTransfer.getData("application/json"));
-        if (data.type === "file") {
-          addAttachment(data.path, data.name);
+        if (data.type === "file" || data.type === "skill") {
+          addAttachment(data.path, data.name, data.type);
         }
       } catch {}
       return;
@@ -505,11 +505,15 @@ export default function ChatPanel() {
     // Build message content with file references
     let content = rawText;
     if (attachments.length > 0) {
-      const refs = attachments.map((a) => a.path).join(", ");
-      content = `[Attached files: ${refs}]\n\n${content}`;
+      const fileRefs = attachments.filter((a) => a.kind === "file").map((a) => a.path);
+      const skillRefs = attachments.filter((a) => a.kind === "skill").map((a) => a.name);
+      const parts: string[] = [];
+      if (fileRefs.length) parts.push(`[Attached files: ${fileRefs.join(", ")}]`);
+      if (skillRefs.length) parts.push(`[Referenced skills: ${skillRefs.join(", ")}]`);
+      content = parts.join("\n") + (rawText ? `\n\n${rawText}` : "");
     }
 
-    const msgFiles = attachments.length > 0 ? [...attachments] : undefined;
+    const msgFiles = attachments.length > 0 ? attachments.map(({ path, name, kind }) => ({ path, name, kind })) : undefined;
 
     let sid = activeSessionId;
     if (!sid) {
@@ -654,7 +658,7 @@ export default function ChatPanel() {
                       key={a.path}
                       className="inline-flex items-center gap-1 rounded-md bg-[#141413]/[0.04] px-2 py-0.5 text-[12px] text-[#141413]/70"
                     >
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#6a9bcc]" />
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.kind === "skill" ? "bg-[#d97757]" : "bg-[#6a9bcc]"}`} />
                       <span className="max-w-[140px] truncate">{a.name}</span>
                       <button
                         onClick={() => removeAttachment(a.path)}
