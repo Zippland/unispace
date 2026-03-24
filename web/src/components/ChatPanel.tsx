@@ -404,7 +404,8 @@ export default function ChatPanel() {
     if (!sid) {
       const data = await api.createSession(serverUrl);
       sid = data.id as string;
-      addSession({ id: sid, createdAt: data.createdAt, messageCount: 0 });
+      const title = content.length > 40 ? content.slice(0, 40) + "..." : content;
+      addSession({ id: sid, createdAt: data.createdAt, messageCount: 0, title });
       setActiveSession(sid);
     }
     const sessionId = sid as string;

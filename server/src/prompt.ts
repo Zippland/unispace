@@ -19,7 +19,13 @@ Your workspace is \`${dir}/\`. All configuration and state lives here:
 - Use search / find_files to explore before modifying unfamiliar code.
 - Make precise, minimal edits.
 - Track complex multi-step work with task_create / task_update.
-- Explain changes briefly after making them.`;
+- Explain changes briefly after making them.
+
+## Tool Call Guidelines
+- Before calling tools, you may briefly state your intent, but NEVER predict the result.
+- Before modifying a file, read it first.
+- Do not assume a file exists — use list_dir or read_file to verify.
+- If a tool call fails, analyze the error before retrying.`;
 }
 
 function environment(workDir: string): string {

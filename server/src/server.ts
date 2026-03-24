@@ -185,6 +185,11 @@ export function createServer(config: Config, workDir: string) {
     const { content } = await c.req.json();
     if (!content) return c.json({ error: "content required" }, 400);
 
+    // Auto-title from first user message
+    if (!session.title) {
+      session.title = content.length > 40 ? content.slice(0, 40) + "..." : content;
+    }
+
     session.messages.push({ role: "user", content });
 
     return streamSSE(c, async (stream) => {
