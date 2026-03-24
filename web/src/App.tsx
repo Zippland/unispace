@@ -4,7 +4,7 @@ import * as api from "./api";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
 import FileViewer from "./components/FileViewer";
-import SettingsDialog from "./components/SettingsDialog";
+import { ConfigDialog, SoulDialog } from "./components/SettingsDialog";
 import DevPanel from "./components/DevPanel";
 
 const SYSTEM_FILES = new Set(["config.json", "SOUL.md"]);
@@ -90,7 +90,8 @@ export default function App() {
 
   const [urlInput, setUrlInput] = useState(serverUrl);
   const [checking, setChecking] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [soulOpen, setSoulOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
@@ -124,11 +125,9 @@ export default function App() {
 
   const handleOpenFile = useCallback(
     async (path: string, name: string) => {
-      // System files → open GUI settings
-      if (SYSTEM_FILES.has(name)) {
-        setSettingsOpen(true);
-        return;
-      }
+      // System files → open dedicated dialogs
+      if (name === "config.json") { setConfigOpen(true); return; }
+      if (name === "SOUL.md") { setSoulOpen(true); return; }
 
       // Session files → switch to that session's chat
       if (path.startsWith("sessions/") && path.endsWith(".jsonl")) {
@@ -307,7 +306,8 @@ export default function App() {
         </button>
       )}
 
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <ConfigDialog open={configOpen} onClose={() => setConfigOpen(false)} />
+      <SoulDialog open={soulOpen} onClose={() => setSoulOpen(false)} />
     </div>
   );
 }
