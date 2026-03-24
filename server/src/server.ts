@@ -21,13 +21,13 @@ interface FileEntry {
   path: string;
   type: "file" | "directory";
   children?: FileEntry[];
+  updatedAt?: number;
 }
 
 const IGNORE = new Set([
   "node_modules", ".git", "dist", ".next", "__pycache__",
   ".DS_Store", ".env", "bun.lock", "package-lock.json",
   ".cache", ".vscode", ".idea",
-  "sessions", "config.json", "SOUL.md",
 ]);
 
 async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> {
@@ -80,8 +80,22 @@ export function createServer(config: Config, workDir: string) {
     return c.json({ ok: true });
   });
 
-  // Files
-  app.get("/api/files", async (c) => c.json(await listDir(workDir)));
+  // Files (with enriched sessions directory)
+  app.get("/api/files", async (c) => {
+    const tree = await listDir(workDir);
+    // Enrich sessions directory: replace raw filenames with session titles
+    const sessDir = tree.find((e) => e.name === "sessions" && e.type === "directory");
+    if (sessDir?.children) {
+      const allSessions = listSessions();
+      sessDir.children = allSessions.map((s) => ({
+        name: s.title || s.id.slice(0, 8),
+        path: `sessions/${s.id}.jsonl`,
+        type: "file" as const,
+        updatedAt: s.updatedAt,
+      }));
+    }
+    return c.json(tree);
+  });
 
   app.get("/api/files/read", async (c) => {
     const p = c.req.query("path");

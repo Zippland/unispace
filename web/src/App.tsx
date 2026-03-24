@@ -4,6 +4,9 @@ import * as api from "./api";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
 import FileViewer from "./components/FileViewer";
+import SettingsDialog from "./components/SettingsDialog";
+
+const SYSTEM_FILES = new Set(["config.json", "SOUL.md"]);
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -85,6 +88,7 @@ export default function App() {
 
   const [urlInput, setUrlInput] = useState(serverUrl);
   const [checking, setChecking] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -110,8 +114,35 @@ export default function App() {
     setChecking(false);
   }
 
+  const {
+    setActiveSession, setActiveTab: setActiveTabStore,
+    messages: storeMessages, setSessionMessages,
+  } = useStore();
+
   const handleOpenFile = useCallback(
     async (path: string, name: string) => {
+      // System files → open GUI settings
+      if (SYSTEM_FILES.has(name)) {
+        setSettingsOpen(true);
+        return;
+      }
+
+      // Session files → switch to that session's chat
+      if (path.startsWith("sessions/") && path.endsWith(".jsonl")) {
+        const sessionId = path.replace("sessions/", "").replace(".jsonl", "");
+        setActiveSession(sessionId);
+        setActiveTabStore(null); // switch to chat
+        if (!storeMessages[sessionId] || storeMessages[sessionId].length === 0) {
+          try {
+            const raw = await api.fetchSessionMessages(serverUrl, sessionId);
+            if (raw.length > 0) {
+              setSessionMessages(sessionId, api.convertRawMessages(raw));
+            }
+          } catch {}
+        }
+        return;
+      }
+
       openFile(path, name);
       const ext = name.split(".").pop()?.toLowerCase() || "";
       if (
@@ -245,6 +276,8 @@ export default function App() {
           <ChatPanel />
         </div>
       )}
+
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

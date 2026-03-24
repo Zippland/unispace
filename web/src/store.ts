@@ -7,6 +7,7 @@ export interface FileEntry {
   path: string;
   type: "file" | "directory";
   children?: FileEntry[];
+  updatedAt?: number;
 }
 
 export type FileType = "image" | "markdown" | "code" | "csv" | "json" | "text";
