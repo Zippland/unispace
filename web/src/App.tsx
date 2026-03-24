@@ -5,8 +5,10 @@ import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
 import FileViewer from "./components/FileViewer";
 import SettingsDialog from "./components/SettingsDialog";
+import DevPanel from "./components/DevPanel";
 
 const SYSTEM_FILES = new Set(["config.json", "SOUL.md"]);
+const IS_DEV = import.meta.env.VITE_DEV_MODE === "true";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -89,6 +91,7 @@ export default function App() {
   const [urlInput, setUrlInput] = useState(serverUrl);
   const [checking, setChecking] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [devOpen, setDevOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -275,6 +278,33 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <ChatPanel />
         </div>
+      )}
+
+      {/* Dev panel (right edge, only in dev mode) */}
+      {IS_DEV && devOpen && (
+        <>
+          <ResizeHandle onResize={() => {}} />
+          <div className="w-[420px] shrink-0 h-full">
+            <DevPanel />
+          </div>
+        </>
+      )}
+
+      {/* Dev toggle button (bottom-right corner) */}
+      {IS_DEV && (
+        <button
+          onClick={() => setDevOpen(!devOpen)}
+          className={`fixed bottom-4 right-4 z-40 flex h-8 items-center gap-1.5 rounded-full px-3 text-[12px] font-medium shadow-md transition ${
+            devOpen
+              ? "bg-[#d97757] text-white"
+              : "bg-white text-[#d97757] border border-[#e8e6dc]"
+          }`}
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
+          DEV
+        </button>
       )}
 
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />

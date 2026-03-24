@@ -19,7 +19,7 @@ switch (command) {
     web();
     break;
   case "dev":
-    dev();
+    launch(true);
     break;
   case "help":
   case "--help":
@@ -27,7 +27,7 @@ switch (command) {
     help();
     break;
   case undefined:
-    dev(); // default: start both
+    launch(false);
     break;
   default:
     console.error(`  Unknown command: ${command}`);
@@ -135,10 +135,10 @@ function web() {
   });
 }
 
-// ── dev (server + web) ───────────────────────────────────────
+// ── launch (server + web, with optional dev mode) ─────────────
 
-function dev() {
-  console.log("\n  UniSpace (server + web)");
+function launch(devMode: boolean) {
+  console.log(`\n  UniSpace${devMode ? " [dev]" : ""}`);
   ensureInit();
 
   const config = loadConfig();
@@ -156,7 +156,6 @@ function dev() {
   );
   const port = config.server.port;
 
-  // Start API server
   const app = createServer(config, workDir);
   Bun.serve({ port, fetch: app.fetch });
 
@@ -164,14 +163,16 @@ function dev() {
   console.log(`  Work dir : ${workDir}`);
   console.log(`  API      : http://localhost:${port}`);
 
-  // Start Vite dev server
+  // Start Vite with VITE_DEV_MODE env for dev panel
   const webDir = join(REPO_ROOT, "web");
+  const env = { ...process.env, ...(devMode ? { VITE_DEV_MODE: "true" } : {}) };
   const vite = Bun.spawn(["bunx", "vite", "--port", "5173"], {
     cwd: webDir,
+    env,
     stdio: ["inherit", "inherit", "inherit"],
   });
 
-  console.log(`  Web      : http://localhost:5173\n`);
+  console.log(`  Web      : http://localhost:5173${devMode ? " (dev mode)" : ""}\n`);
 
   process.on("SIGINT", () => {
     vite.kill();
@@ -187,9 +188,9 @@ function help() {
 
   Usage:
     unispace                Start server + web UI (default)
-    unispace dev            Same as above
-    unispace start          Start API server only
-    unispace web            Start web UI only
+    unispace dev            Start with dev panel (system prompt & tools inspector)
+    unispace start          API server only
+    unispace web            Web UI only
     unispace onboard        Interactive workspace setup
     unispace help           Show this message
 

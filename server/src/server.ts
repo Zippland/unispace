@@ -13,6 +13,7 @@ import {
 } from "./session";
 import { createAgentRunner } from "./agent";
 import { createRegistry } from "./tools";
+import { buildSystemPrompt } from "./prompt";
 
 // ── File tree ─────────────────────────────────────────────────
 
@@ -64,6 +65,19 @@ export function createServer(config: Config, workDir: string) {
   // Discovery
   app.get("/api/health", (c) =>
     c.json({ status: "ok", name: "UniSpace", version: "0.2.0", workDir }),
+  );
+
+  // Debug
+  app.get("/api/debug/prompt", (c) => c.text(buildSystemPrompt(workDir)));
+
+  app.get("/api/debug/tools", (c) =>
+    c.json(
+      registry.definitions().map((t) => ({
+        name: t.function.name,
+        description: t.function.description,
+        parameters: t.function.parameters,
+      })),
+    ),
   );
 
   // Config
