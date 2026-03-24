@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { readdir } from "fs/promises";
 import { join, resolve } from "path";
-import type { Config } from "./config";
+import { type Config, loadConfig, saveConfig } from "./config";
 import {
   createSession,
   getSession,
@@ -27,6 +27,7 @@ const IGNORE = new Set([
   "node_modules", ".git", "dist", ".next", "__pycache__",
   ".DS_Store", ".env", "bun.lock", "package-lock.json",
   ".cache", ".vscode", ".idea",
+  "sessions", "config.json", "SOUL.md",
 ]);
 
 async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> {
@@ -65,6 +66,20 @@ export function createServer(config: Config, workDir: string) {
     c.json({ status: "ok", name: "UniSpace", version: "0.2.0", workDir }),
   );
 
+  // Config
+  app.get("/api/config", (c) => {
+    const cfg = loadConfig();
+    // Mask API key for display (show last 4 chars)
+    const masked = { ...cfg, model: { ...cfg.model } };
+    return c.json(masked);
+  });
+
+  app.put("/api/config", async (c) => {
+    const body = await c.req.json();
+    saveConfig(body);
+    return c.json({ ok: true });
+  });
+
   // Files
   app.get("/api/files", async (c) => c.json(await listDir(workDir)));
 
@@ -76,6 +91,31 @@ export function createServer(config: Config, workDir: string) {
       return c.json({ error: "Forbidden" }, 403);
     try {
       return c.text(await Bun.file(full).text());
+    } catch {
+      return c.json({ error: "Not found" }, 404);
+    }
+  });
+
+  app.put("/api/files/write", async (c) => {
+    const { path: p, content } = await c.req.json();
+    if (!p) return c.json({ error: "path required" }, 400);
+    const full = resolve(workDir, p);
+    if (!full.startsWith(resolve(workDir) + "/"))
+      return c.json({ error: "Forbidden" }, 403);
+    await Bun.write(full, content);
+    return c.json({ ok: true });
+  });
+
+  app.delete("/api/files/delete", async (c) => {
+    const p = c.req.query("path");
+    if (!p) return c.json({ error: "path required" }, 400);
+    const full = resolve(workDir, p);
+    if (!full.startsWith(resolve(workDir) + "/"))
+      return c.json({ error: "Forbidden" }, 403);
+    const { unlinkSync } = await import("fs");
+    try {
+      unlinkSync(full);
+      return c.json({ ok: true });
     } catch {
       return c.json({ error: "Not found" }, 404);
     }

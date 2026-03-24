@@ -60,6 +60,23 @@ export function rawFileUrl(url: string, path: string) {
   return `${url}/api/files/raw?path=${encodeURIComponent(path)}`;
 }
 
+export async function saveFile(url: string, path: string, content: string) {
+  const res = await fetch(`${url}/api/files/write`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, content }),
+  });
+  if (!res.ok) throw new Error("Failed to save");
+}
+
+export async function deleteFile(url: string, path: string) {
+  const res = await fetch(
+    `${url}/api/files/delete?path=${encodeURIComponent(path)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) throw new Error("Failed to delete");
+}
+
 export async function fetchSessionMessages(url: string, sessionId: string) {
   const res = await fetch(`${url}/api/sessions/${sessionId}/messages`);
   return res.json();
