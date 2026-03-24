@@ -1,0 +1,1 @@
+List all tasks with their current status. Use this frequently to track progress and decide what to work on next. Returns tasks with [ ] pending, [~] in_progress, and [x] done indicators.

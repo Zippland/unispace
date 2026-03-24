@@ -1,0 +1,10 @@
+Create a task to track a unit of work. Use this tool to break down complex multi-step tasks into discrete, trackable items.
+
+When to use:
+- The user's request requires 3 or more distinct steps
+- You want to demonstrate progress on a complex task
+- Multiple operations need to be coordinated
+
+When NOT to use:
+- Single, straightforward operations
+- Trivial tasks that can be done in one step

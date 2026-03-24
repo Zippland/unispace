@@ -1,0 +1,9 @@
+Reads a file from the local filesystem. You can access any file directly by using this tool.
+
+Usage:
+- The path can be relative to the working directory or absolute.
+- By default reads the entire file. Use offset/limit for large files.
+- Results are returned with line numbers (1-based) for easy reference in edits.
+- Any lines longer than 2000 characters will be truncated.
+- Always read a file before editing it to understand its contents.
+- You can read multiple files by calling this tool multiple times.

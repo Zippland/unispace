@@ -1,0 +1,7 @@
+Fast file pattern matching tool that finds files by name using glob patterns.
+
+- Supports glob patterns like "**/*.js", "src/**/*.ts", "*.{ts,tsx}"
+- Returns matching file paths sorted by name
+- Use this tool when you need to find files by name or extension patterns
+- Use search (grep) instead when you need to find files by their content
+- Maximum 1000 results returned per call

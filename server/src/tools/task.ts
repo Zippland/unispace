@@ -1,4 +1,5 @@
 import type { Tool } from "./index";
+import { loadDescription } from "./descriptions";
 
 // ── TaskStore (per-session, serializable) ─────────────────────
 
@@ -58,7 +59,7 @@ function fmtTask(t: Task): string {
 
 const taskCreate: Tool = {
   name: "task_create",
-  description: "Create a task to track a unit of work.",
+  description: loadDescription("task_create"),
   parameters: {
     type: "object",
     properties: {
@@ -75,7 +76,7 @@ const taskCreate: Tool = {
 
 const taskUpdate: Tool = {
   name: "task_update",
-  description: "Update a task's status or description.",
+  description: loadDescription("task_update"),
   parameters: {
     type: "object",
     properties: {
@@ -101,7 +102,7 @@ const taskUpdate: Tool = {
 
 const taskList: Tool = {
   name: "task_list",
-  description: "List all tasks with their status.",
+  description: loadDescription("task_list"),
   parameters: { type: "object", properties: {} },
   async execute(_input, ctx) {
     const tasks = ctx.taskStore.list();

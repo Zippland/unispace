@@ -1,4 +1,5 @@
 import type { Tool, ToolContext } from "./index";
+import { loadDescription } from "./descriptions";
 import { resolve } from "path";
 import { readFile, writeFile, mkdir, readdir } from "fs/promises";
 import { existsSync } from "fs";
@@ -7,14 +8,13 @@ import { existsSync } from "fs";
 
 const readFileTool: Tool = {
   name: "read_file",
-  description:
-    "Read file contents with line numbers. Use offset/limit for large files.",
+  description: loadDescription("read_file"),
   parameters: {
     type: "object",
     properties: {
-      path: { type: "string", description: "File path (relative or absolute)" },
-      offset: { type: "number", description: "Start line (1-based)" },
-      limit: { type: "number", description: "Max lines to read" },
+      path: { type: "string", description: "File path (relative to working directory or absolute)" },
+      offset: { type: "number", description: "Starting line number (1-based). Omit to start from the beginning." },
+      limit: { type: "number", description: "Maximum number of lines to read. Omit to read the entire file." },
     },
     required: ["path"],
   },
@@ -35,12 +35,12 @@ const readFileTool: Tool = {
 
 const writeFileTool: Tool = {
   name: "write_file",
-  description: "Create or overwrite a file with given content.",
+  description: loadDescription("write_file"),
   parameters: {
     type: "object",
     properties: {
-      path: { type: "string", description: "File path" },
-      content: { type: "string", description: "File content" },
+      path: { type: "string", description: "File path to write to (relative or absolute)" },
+      content: { type: "string", description: "The complete file content to write" },
     },
     required: ["path", "content"],
   },
@@ -57,14 +57,13 @@ const writeFileTool: Tool = {
 
 const editFileTool: Tool = {
   name: "edit_file",
-  description:
-    "Replace an exact unique string in a file. old_string must match exactly once.",
+  description: loadDescription("edit_file"),
   parameters: {
     type: "object",
     properties: {
-      path: { type: "string", description: "File path" },
-      old_string: { type: "string", description: "Exact string to find" },
-      new_string: { type: "string", description: "Replacement string" },
+      path: { type: "string", description: "File path to edit" },
+      old_string: { type: "string", description: "The exact string to find (must match file content exactly, including whitespace and indentation)" },
+      new_string: { type: "string", description: "The replacement string" },
     },
     required: ["path", "old_string", "new_string"],
   },
@@ -72,8 +71,8 @@ const editFileTool: Tool = {
     const fp = resolve(ctx.workDir, input.path);
     const content = await readFile(fp, "utf-8");
     const n = content.split(input.old_string).length - 1;
-    if (n === 0) throw new Error(`String not found in ${input.path}`);
-    if (n > 1) throw new Error(`${n} occurrences — must be unique in ${input.path}`);
+    if (n === 0) throw new Error(`old_string not found in ${input.path}`);
+    if (n > 1) throw new Error(`old_string found ${n} times in ${input.path} — provide more context to make it unique`);
     await writeFile(fp, content.replace(input.old_string, input.new_string), "utf-8");
     return `Edited: ${input.path}`;
   },
@@ -83,11 +82,11 @@ const editFileTool: Tool = {
 
 const listDirTool: Tool = {
   name: "list_dir",
-  description: "List files and directories at a given path.",
+  description: loadDescription("list_dir"),
   parameters: {
     type: "object",
     properties: {
-      path: { type: "string", description: "Directory path (default: workDir)" },
+      path: { type: "string", description: "Directory path (relative or absolute). Defaults to the working directory if omitted." },
     },
   },
   async execute(input, ctx) {
@@ -107,13 +106,12 @@ const listDirTool: Tool = {
 
 const bashTool: Tool = {
   name: "bash",
-  description:
-    "Execute a shell command. Use for tests, git, install, etc.",
+  description: loadDescription("bash"),
   parameters: {
     type: "object",
     properties: {
-      command: { type: "string", description: "Shell command" },
-      timeout: { type: "number", description: "Timeout ms (default: 30000)" },
+      command: { type: "string", description: "The bash command to execute" },
+      timeout: { type: "number", description: "Timeout in milliseconds (default: 30000)" },
     },
     required: ["command"],
   },
@@ -143,14 +141,13 @@ const bashTool: Tool = {
 
 const searchTool: Tool = {
   name: "search",
-  description:
-    "Grep for a regex pattern in files. Returns matching lines with paths and line numbers.",
+  description: loadDescription("search"),
   parameters: {
     type: "object",
     properties: {
-      pattern: { type: "string", description: "Regex pattern" },
-      path: { type: "string", description: "Directory or file (default: workDir)" },
-      include: { type: "string", description: "Glob filter (e.g. '*.ts')" },
+      pattern: { type: "string", description: "Regular expression pattern to search for" },
+      path: { type: "string", description: "Directory or file to search in. Defaults to the working directory." },
+      include: { type: "string", description: "Glob pattern to filter files (e.g. '*.ts', '*.{js,py}')" },
     },
     required: ["pattern"],
   },
@@ -181,12 +178,12 @@ const searchTool: Tool = {
 
 const findFilesTool: Tool = {
   name: "find_files",
-  description: "Find files matching a glob pattern.",
+  description: loadDescription("find_files"),
   parameters: {
     type: "object",
     properties: {
-      pattern: { type: "string", description: "Glob (e.g. '**/*.ts')" },
-      path: { type: "string", description: "Base directory (default: workDir)" },
+      pattern: { type: "string", description: "Glob pattern to match files (e.g. '**/*.ts', 'src/**/*.tsx')" },
+      path: { type: "string", description: "Base directory to search from. Defaults to the working directory." },
     },
     required: ["pattern"],
   },
