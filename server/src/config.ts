@@ -2,14 +2,16 @@ import { homedir } from "os";
 import { join } from "path";
 import {
   existsSync,
-  mkdirSync,
-  writeFileSync,
+  chmodSync,
+  cpSync,
   readFileSync,
+  writeFileSync,
 } from "fs";
 
 // ── Paths ─────────────────────────────────────────────────────
 
 const DEFAULT_DIR = join(homedir(), ".unispace");
+const TEMPLATE_DIR = join(import.meta.dir, "..", "workspace");
 
 export function getDir(): string {
   return process.env.UNISPACE_DIR || DEFAULT_DIR;
@@ -55,39 +57,15 @@ const DEFAULTS: Config = {
 
 // ── Init / onboard ────────────────────────────────────────────
 
-const DEFAULT_SOUL = `# SOUL.md
-# Customize the agent's personality and behavior here.
-
-## Guidelines
-- Be concise and direct
-- Prefer minimal, precise code changes
-- Explain reasoning when making non-obvious decisions
-`;
-
 export function ensureInit(): void {
   const dir = getDir();
 
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-    console.log(`  Created ${dir}`);
-  }
-
-  const cp = paths.config();
-  const isNew = !existsSync(cp);
-  if (isNew) {
-    writeFileSync(cp, JSON.stringify(DEFAULTS, null, 2));
-    console.log(`  Created ${cp}`);
-    console.log(`  → Edit this file to set your API key and preferences`);
-  }
-
-  for (const d of [paths.sessions(), paths.skills()]) {
-    if (!existsSync(d)) mkdirSync(d, { recursive: true });
-  }
-
-  const sp = paths.soul();
-  if (!existsSync(sp)) {
-    writeFileSync(sp, DEFAULT_SOUL);
-    console.log(`  Created ${sp}`);
+    // Copy template workspace to ~/.unispace/
+    cpSync(TEMPLATE_DIR, dir, { recursive: true });
+    chmodSync(dir, 0o700);
+    console.log(`  Initialized workspace from template → ${dir}`);
+    console.log(`  → Edit ${paths.config()} to set your API key`);
   }
 }
 

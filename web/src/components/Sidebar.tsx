@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
 
-// ── SVG Icons ─────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────
 
 function FolderIcon({ open, className }: { open?: boolean; className?: string }) {
   return open ? (
@@ -24,7 +24,34 @@ function FileIcon({ className }: { className?: string }) {
   );
 }
 
-// ── Resize handle (horizontal) ────────────────────────────────
+function GearIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  );
+}
+
+function ChatIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+    </svg>
+  );
+}
+
+function DocIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6V7.5Z" />
+    </svg>
+  );
+}
+
+// ── System file names ─────────────────────────────────────────
+
+const SYSTEM_NAMES = new Set(["config.json", "SOUL.md", "sessions"]);
 
 // ── Sidebar ───────────────────────────────────────────────────
 
@@ -33,71 +60,204 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onOpenFile }: SidebarProps) {
-  const { workDir, files, serverUrl, setFiles } = useStore();
+  const { workDir, files, serverUrl, setFiles, setActiveSession, setActiveTab, removeSession } = useStore();
 
   async function refreshFiles() {
     setFiles(await api.fetchFiles(serverUrl));
   }
 
+  function handleNewSession() {
+    setActiveSession(null);
+    setActiveTab(null);
+  }
+
+  async function handleDeleteSession(sessionPath: string) {
+    const id = sessionPath.replace("sessions/", "").replace(".jsonl", "");
+    await api.deleteSession(serverUrl, id);
+    removeSession(id);
+    refreshFiles();
+  }
+
+  // Split files into system and user
+  const systemFiles = files.filter((f) => SYSTEM_NAMES.has(f.name));
+  const userFiles = files.filter((f) => !SYSTEM_NAMES.has(f.name));
+
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="px-5 pt-5 pb-4 border-b border-[#e8e6dc]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#141413] shrink-0">
-              <svg className="h-4 w-4 text-[#faf9f5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <h1 className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413] leading-tight">
-                UniSpace
-              </h1>
-              <p className="text-[10px] text-[#b0aea5] font-mono truncate leading-tight mt-0.5">
-                {workDir}
-              </p>
-            </div>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#141413] shrink-0">
+            <svg className="h-4 w-4 text-[#faf9f5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <h1 className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413] leading-tight">
+              UniSpace
+            </h1>
+            <p className="text-[10px] text-[#b0aea5] font-mono truncate leading-tight mt-0.5">
+              {workDir}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* ── Workspace (files) ──────────────────────────────── */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="flex items-center justify-between px-4 pt-4 pb-1.5">
+        {/* ── System section ────────────────────────────────── */}
+        <div className="px-4 pt-4 pb-1.5">
           <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold text-[#b0aea5] uppercase tracking-widest">
-            Workspace
+            System
           </span>
-          <button onClick={refreshFiles}
-            className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413] hover:bg-[#141413]/[0.04]"
-            title="Refresh">
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-            </svg>
-          </button>
         </div>
-        <div className="px-2 pb-2">
-          {files.length === 0 ? (
-            <p className="text-[12px] text-[#b0aea5] px-3 py-6 text-center">
-              No files in workspace
-            </p>
-          ) : (
-            files.map((f) => (
-              <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
-            ))
+        <div className="px-2 pb-1">
+          {systemFiles.map((f) =>
+            f.name === "sessions" && f.type === "directory" ? (
+              <SessionsFolder
+                key={f.path}
+                folder={f}
+                onOpenFile={onOpenFile}
+                onNew={handleNewSession}
+                onDelete={handleDeleteSession}
+              />
+            ) : (
+              <SystemFileItem key={f.path} file={f} onClick={() => onOpenFile(f.path, f.name)} />
+            ),
           )}
         </div>
+
+        {/* ── Divider ──────────────────────────────────────── */}
+        {userFiles.length > 0 && (
+          <>
+            <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
+              <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold text-[#b0aea5] uppercase tracking-widest">
+                Files
+              </span>
+              <button
+                onClick={refreshFiles}
+                className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413] hover:bg-[#141413]/[0.04]"
+                title="Refresh"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                </svg>
+              </button>
+            </div>
+            <div className="px-2 pb-2">
+              {userFiles.map((f) => (
+                <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-// ── File tree node ────────────────────────────────────────────
+// ── System file item (config.json, SOUL.md) ───────────────────
+
+function SystemFileItem({ file, onClick }: { file: FileEntry; onClick: () => void }) {
+  const icon =
+    file.name === "config.json" ? (
+      <GearIcon className="h-3.5 w-3.5 shrink-0 text-[#d97757]" />
+    ) : file.name === "SOUL.md" ? (
+      <DocIcon className="h-3.5 w-3.5 shrink-0 text-[#6a9bcc]" />
+    ) : (
+      <FileIcon className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
+    );
+
+  return (
+    <div
+      onClick={onClick}
+      className="flex items-center gap-1.5 py-[5px] px-3 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
+    >
+      {icon}
+      <span className="text-[#6b6963]">{file.name}</span>
+    </div>
+  );
+}
+
+// ── Sessions folder (with +new and x delete) ──────────────────
+
+function SessionsFolder({
+  folder,
+  onOpenFile,
+  onNew,
+  onDelete,
+}: {
+  folder: FileEntry;
+  onOpenFile: (path: string, name: string) => void;
+  onNew: () => void;
+  onDelete: (path: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div>
+      {/* Folder header */}
+      <div className="flex items-center gap-1.5 py-[5px] px-3 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition">
+        <div className="flex-1 flex items-center gap-1.5 min-w-0" onClick={() => setExpanded(!expanded)}>
+          <ChatIcon className="h-3.5 w-3.5 shrink-0 text-[#788c5d]" />
+          <span className="text-[#141413] font-medium">sessions</span>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onNew(); }}
+          className="flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
+          title="New session"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Session entries */}
+      {expanded &&
+        folder.children?.map((s) => (
+          <div
+            key={s.path}
+            onClick={() => onOpenFile(s.path, s.name)}
+            className="group flex items-center gap-1.5 py-[4px] pr-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
+            style={{ paddingLeft: 28 }}
+          >
+            <div className="min-w-0 flex-1">
+              <span className="block truncate text-[#6b6963]">{s.name}</span>
+              {s.updatedAt && (
+                <span className="block text-[10px] text-[#b0aea5] leading-tight">
+                  {new Date(s.updatedAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(s.path); }}
+              className="opacity-0 group-hover:opacity-100 flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
+              title="Delete session"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+// ── File tree node (for user files) ───────────────────────────
 
 function FileNode({
-  file, depth, onOpenFile,
+  file,
+  depth,
+  onOpenFile,
 }: {
-  file: FileEntry; depth: number;
+  file: FileEntry;
+  depth: number;
   onOpenFile: (path: string, name: string) => void;
 }) {
   const [expanded, setExpanded] = useState(depth < 1);
@@ -110,30 +270,31 @@ function FileNode({
           file.type === "directory"
             ? setExpanded(!expanded)
             : onOpenFile(file.path, file.name)
-        }>
+        }
+      >
         {file.type === "directory" ? (
-          <FolderIcon open={expanded} className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
+          file.name === "skills" ? (
+            <svg className="h-3.5 w-3.5 shrink-0 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+            </svg>
+          ) : (
+            <FolderIcon open={expanded} className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
+          )
         ) : (
           <FileIcon className="h-3.5 w-3.5 shrink-0 text-[#d5d3ca]" />
         )}
-        <div className="min-w-0 flex-1">
-          <span className={`block truncate ${
+        <span
+          className={`truncate ${
             file.type === "directory" ? "text-[#141413] font-medium" : "text-[#6b6963]"
-          }`}>
-            {file.name}
-          </span>
-          {file.updatedAt && (
-            <span className="block text-[10px] text-[#b0aea5] leading-tight">
-              {new Date(file.updatedAt).toLocaleDateString(undefined, {
-                month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-              })}
-            </span>
-          )}
-        </div>
+          }`}
+        >
+          {file.name}
+        </span>
       </div>
-      {expanded && file.children?.map((c) => (
-        <FileNode key={c.path} file={c} depth={depth + 1} onOpenFile={onOpenFile} />
-      ))}
+      {expanded &&
+        file.children?.map((c) => (
+          <FileNode key={c.path} file={c} depth={depth + 1} onOpenFile={onOpenFile} />
+        ))}
     </div>
   );
 }
