@@ -51,7 +51,7 @@ function DocIcon({ className }: { className?: string }) {
 
 // ── System file names ─────────────────────────────────────────
 
-const SYSTEM_NAMES = new Set(["config.json", "SOUL.md", "sessions"]);
+const SYSTEM_NAMES = new Set(["config.json", "SOUL.md", "sessions", "skills"]);
 
 // ── Sidebar ───────────────────────────────────────────────────
 
@@ -238,6 +238,8 @@ export default function Sidebar({ onOpenFile }: SidebarProps) {
                 onNew={handleNewSession}
                 onDelete={handleDeleteSession}
               />
+            ) : f.name === "skills" && f.type === "directory" ? (
+              <SkillsFolder key={f.path} folder={f} onOpenFile={onOpenFile} />
             ) : (
               <SystemFileItem key={f.path} file={f} onClick={() => onOpenFile(f.path, f.name)} />
             ),
@@ -303,6 +305,12 @@ function SystemFileItem({ file, onClick }: { file: FileEntry; onClick: () => voi
   return (
     <div
       onClick={onClick}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("application/json", JSON.stringify({ type: "file", path: file.path || file.name, name: file.name }));
+        e.dataTransfer.setData("x-unispace-drag", "file");
+        e.dataTransfer.effectAllowed = "copy";
+      }}
       className="flex items-center gap-1.5 py-[5px] px-3 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
     >
       {icon}
@@ -386,6 +394,90 @@ function SessionsFolder({
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// ── Skills folder (recursive tree with bolt icons) ────────────
+
+function SkillsFolder({
+  folder,
+  onOpenFile,
+}: {
+  folder: FileEntry;
+  onOpenFile: (path: string, name: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-1.5 py-[5px] px-3 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <svg className="h-3.5 w-3.5 shrink-0 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+        </svg>
+        <span className="text-[#141413] font-medium">skills</span>
+        {folder.children && (
+          <span className="text-[10px] text-[#b0aea5]">{folder.children.length}</span>
+        )}
+      </div>
+      {expanded &&
+        folder.children?.map((child) => (
+          <SkillNode key={child.path} file={child} depth={1} isTopLevel={true} onOpenFile={onOpenFile} />
+        ))}
+    </div>
+  );
+}
+
+function SkillNode({
+  file,
+  depth,
+  isTopLevel,
+  onOpenFile,
+}: {
+  file: FileEntry;
+  depth: number;
+  isTopLevel: boolean;
+  onOpenFile: (path: string, name: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isDir = file.type === "directory";
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-1.5 py-[3px] px-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
+        style={{ paddingLeft: depth * 14 + 14 }}
+        draggable={!isDir}
+        onDragStart={(e) => {
+          if (isDir) return;
+          e.dataTransfer.setData("application/json", JSON.stringify({ type: "file", path: file.path, name: file.name }));
+          e.dataTransfer.setData("x-unispace-drag", "file");
+          e.dataTransfer.effectAllowed = "copy";
+        }}
+        onClick={() => isDir ? setExpanded(!expanded) : onOpenFile(file.path, file.name)}
+      >
+        {isDir ? (
+          isTopLevel ? (
+            <svg className="h-3.5 w-3.5 shrink-0 text-[#d97757]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+            </svg>
+          ) : (
+            <FolderIcon open={expanded} className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
+          )
+        ) : (
+          <FileIcon className="h-3 w-3 shrink-0 text-[#d5d3ca]" />
+        )}
+        <span className={`truncate ${isDir ? "text-[#141413] font-medium" : "text-[#6b6963]"}`}>
+          {file.name}
+        </span>
+      </div>
+      {expanded && isDir &&
+        file.children?.map((c) => (
+          <SkillNode key={c.path} file={c} depth={depth + 1} isTopLevel={false} onOpenFile={onOpenFile} />
+        ))}
     </div>
   );
 }
