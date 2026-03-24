@@ -233,9 +233,10 @@ export function createServer(config: Config, workDir: string) {
     const { content } = await c.req.json();
     if (!content) return c.json({ error: "content required" }, 400);
 
-    // Auto-title from first user message
+    // Auto-title from first user message (strip [Attached files: ...] prefix)
     if (!session.title) {
-      session.title = content.length > 40 ? content.slice(0, 40) + "..." : content;
+      const titleText = content.replace(/^\[Attached files:[^\]]*\]\s*/s, "").trim() || content;
+      session.title = titleText.length > 40 ? titleText.slice(0, 40) + "..." : titleText;
     }
 
     session.messages.push({ role: "user", content });

@@ -345,39 +345,47 @@ function SessionsFolder({
         </button>
       </div>
 
-      {/* Session entries */}
-      {expanded &&
-        folder.children?.map((s) => (
-          <div
-            key={s.path}
-            onClick={() => onOpenFile(s.path, s.name)}
-            className="group flex items-center gap-1.5 py-[4px] pr-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
-            style={{ paddingLeft: 28 }}
-          >
-            <div className="min-w-0 flex-1">
-              <span className="block truncate text-[#6b6963]">{s.name}</span>
-              {s.updatedAt && (
-                <span className="block text-[10px] text-[#b0aea5] leading-tight">
-                  {new Date(s.updatedAt).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(s.path); }}
-              className="opacity-0 group-hover:opacity-100 flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
-              title="Delete session"
-            >
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
+      {/* Session entries — sorted by updatedAt desc, max-height ~5 items with own scroll */}
+      {expanded && (() => {
+        const sorted = [...(folder.children || [])].sort(
+          (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+        );
+        return (
+          <div className="max-h-[200px] overflow-y-auto">
+            {sorted.map((s) => (
+              <div
+                key={s.path}
+                onClick={() => onOpenFile(s.path, s.name)}
+                className="group flex items-center gap-1.5 py-[4px] pr-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
+                style={{ paddingLeft: 28 }}
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-[#6b6963]">{s.name}</span>
+                  {s.updatedAt && (
+                    <span className="block text-[10px] text-[#b0aea5] leading-tight">
+                      {new Date(s.updatedAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(s.path); }}
+                  className="opacity-0 group-hover:opacity-100 flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
+                  title="Delete session"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
+        );
+      })()}
     </div>
   );
 }

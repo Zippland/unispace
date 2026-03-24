@@ -108,10 +108,23 @@ export function convertRawMessages(raw: any[]): ChatMessage[] {
     if (msg.role === "user") {
       // Skip tool results (they have tool_call_id)
       if (msg.tool_call_id) continue;
+      const raw = typeof msg.content === "string" ? msg.content : "";
+      // Parse [Attached files: path1, path2] prefix into structured files
+      const attachMatch = raw.match(/^\[Attached files:\s*([^\]]+)\]\s*/s);
+      let files: { path: string; name: string }[] | undefined;
+      let text = raw;
+      if (attachMatch) {
+        files = attachMatch[1].split(",").map((p: string) => {
+          const trimmed = p.trim();
+          return { path: trimmed, name: trimmed.split("/").pop() || trimmed };
+        });
+        text = raw.slice(attachMatch[0].length).trim();
+      }
       result.push({
         id: crypto.randomUUID(),
         role: "user",
-        parts: [{ type: "text", content: typeof msg.content === "string" ? msg.content : "" }],
+        parts: [{ type: "text", content: text }],
+        files,
       });
     } else if (msg.role === "assistant") {
       const parts: MessagePart[] = [];

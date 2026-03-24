@@ -306,7 +306,9 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
   const [copied, setCopied] = useState(false);
 
   if (msg.role === "user") {
-    const text = msg.parts[0]?.content || "";
+    const rawContent = msg.parts[0]?.content || "";
+    // Strip [Attached files: ...] prefix from display (it's for the LLM, not the user)
+    const text = rawContent.replace(/^\[Attached files:[^\]]*\]\s*/s, "").trim();
     const handleCopy = () => {
       navigator.clipboard.writeText(text);
       setCopied(true);
