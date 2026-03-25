@@ -8,6 +8,7 @@ export interface FileEntry {
   type: "file" | "directory";
   children?: FileEntry[];
   updatedAt?: number;
+  channel?: string;
 }
 
 export type FileType = "image" | "markdown" | "code" | "csv" | "json" | "text";
@@ -54,6 +55,7 @@ export interface SessionInfo {
   id: string;
   createdAt: number;
   title?: string;
+  channel?: string;
   messageCount: number;
 }
 

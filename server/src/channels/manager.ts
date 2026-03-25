@@ -117,7 +117,7 @@ export class ChannelManager {
     // Auto-title
     if (!session.title) {
       const titleText = content.replace(/^\[Attached files:[^\]]*\]\s*/s, "").trim() || content;
-      session.title = `📡 ${titleText.length > 36 ? titleText.slice(0, 36) + "..." : titleText}`;
+      session.title = titleText.length > 40 ? titleText.slice(0, 40) + "..." : titleText;
     }
 
     session.messages.push({ role: "user", content });

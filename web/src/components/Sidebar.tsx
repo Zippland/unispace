@@ -41,6 +41,14 @@ function ChatIcon({ className }: { className?: string }) {
   );
 }
 
+function ChannelBadge({ channel }: { channel: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded px-1 py-px text-[9px] font-medium leading-tight bg-[#7c9a5e]/10 text-[#7c9a5e]">
+      {channel}
+    </span>
+  );
+}
+
 function ChannelIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -379,7 +387,10 @@ function SessionsFolder({
                 style={{ paddingLeft: 28 }}
               >
                 <div className="min-w-0 flex-1">
-                  <span className="block truncate text-[#6b6963]">{s.name}</span>
+                  <span className="flex items-center gap-1 truncate text-[#6b6963]">
+                    {s.channel && <ChannelBadge channel={s.channel} />}
+                    {s.name}
+                  </span>
                   {s.updatedAt && (
                     <span className="block text-[10px] text-[#b0aea5] leading-tight">
                       {new Date(s.updatedAt).toLocaleDateString(undefined, {

@@ -23,6 +23,7 @@ interface FileEntry {
   type: "file" | "directory";
   children?: FileEntry[];
   updatedAt?: number;
+  channel?: string;
 }
 
 const IGNORE = new Set([
@@ -115,6 +116,7 @@ export function createServer(config: Config, workDir: string) {
         path: `sessions/${s.id}.jsonl`,
         type: "file" as const,
         updatedAt: s.updatedAt,
+        channel: s.channelKey?.split(":")[0],
       }));
     }
     return c.json(tree);
@@ -204,6 +206,7 @@ export function createServer(config: Config, workDir: string) {
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
         title: s.title,
+        channel: s.channelKey?.split(":")[0],
         messageCount: s.messages.length,
       })),
     ),
