@@ -32,13 +32,6 @@ function CopyIcon({ copied }: { copied: boolean }) {
 }
 
 function ToolIcon({ name, className }: { name: string; className?: string }) {
-  if (name === "send_file") {
-    return (
-      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
-      </svg>
-    );
-  }
   if (["read_file", "write_file", "edit_file", "list_dir"].includes(name)) {
     return (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -124,42 +117,6 @@ function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?
 // ═══════════════════════════════════════════════════════════════
 //  ToolCallStep (timeline style)
 // ═══════════════════════════════════════════════════════════════
-
-function FileCard({ output, serverUrl }: { output: string; serverUrl: string }) {
-  // Parse: "File ready: name (size) — /abs/path" or "Sent to user: name (size)"
-  const match = output.match(/^(?:File ready|Sent to user): (.+?) \((.+?)\)(?:\s*—\s*(.+))?$/);
-  if (!match) return null;
-  const [, fileName, fileSize, filePath] = match;
-
-  const downloadUrl = filePath
-    ? `${serverUrl}/api/files/raw?path=${encodeURIComponent(filePath)}`
-    : undefined;
-
-  return (
-    <div className="mt-2 flex items-center gap-3 rounded-xl border border-[#e8e6dc] bg-[#faf9f5] px-4 py-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#788c5d]/10">
-        <svg className="h-5 w-5 text-[#788c5d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-        </svg>
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-medium text-[#141413]">{fileName}</p>
-        <p className="text-[11px] text-[#b0aea5]">{fileSize}</p>
-      </div>
-      {downloadUrl && (
-        <a
-          href={downloadUrl}
-          download={fileName}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#b0aea5] transition hover:bg-[#141413]/[0.04] hover:text-[#141413]"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-        </a>
-      )}
-    </div>
-  );
-}
 
 function ToolCallStep({ part }: { part: MessagePart }) {
   const [expanded, setExpanded] = useState(false);
@@ -331,22 +288,14 @@ function EmptyState() {
 //  MessageBubble
 // ═══════════════════════════════════════════════════════════════
 
-type Segment =
-  | { kind: "process"; parts: MessagePart[] }
-  | { kind: "content"; part: MessagePart }
-  | { kind: "file"; part: MessagePart };
-
-function isSendFileDone(p: MessagePart): boolean {
-  return p.type === "tool_call" && p.name === "send_file" && p.output !== undefined && !p.isError;
-}
+type Segment = { kind: "process"; parts: MessagePart[] } | { kind: "content"; part: MessagePart };
 
 function segmentParts(parts: MessagePart[]): Segment[] {
   const segs: Segment[] = [];
   let buf: MessagePart[] = [];
   const flush = () => { if (buf.length) { segs.push({ kind: "process", parts: buf }); buf = []; } };
   for (const p of parts) {
-    if (isSendFileDone(p)) { flush(); segs.push({ kind: "file", part: p }); }
-    else if (isProcessPart(p)) { buf.push(p); }
+    if (isProcessPart(p)) { buf.push(p); }
     else { flush(); segs.push({ kind: "content", part: p }); }
   }
   flush();
@@ -354,7 +303,6 @@ function segmentParts(parts: MessagePart[]): Segment[] {
 }
 
 const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: ChatMessage; streaming: boolean }) {
-  const { serverUrl } = useStore();
   const [copied, setCopied] = useState(false);
 
   if (msg.role === "user") {
@@ -416,8 +364,6 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
           <div key={i}>
             {seg.kind === "process" ? (
               <CollapsibleProcess parts={seg.parts} showDone={i === lastProcessIdx && !streaming} />
-            ) : seg.kind === "file" ? (
-              <FileCard output={seg.part.output || ""} serverUrl={serverUrl} />
             ) : seg.part.type === "text" && seg.part.content ? (
               <div className="prose text-[15px] text-[#141413] max-w-none leading-7">
                 <Markdown remarkPlugins={[remarkGfm]}>{seg.part.content}</Markdown>
