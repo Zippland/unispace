@@ -139,6 +139,9 @@ export class FeishuChannel implements Channel {
     // Dedup
     if (isDuplicate(msg.message_id)) return;
 
+    // Random reaction
+    this.addReaction(msg.message_id);
+
     const chatId: string = msg.chat_id;
     const senderId: string = sender.sender_id?.open_id || "unknown";
     const msgType: string = msg.message_type;
@@ -294,6 +297,21 @@ export class FeishuChannel implements Channel {
       console.error("  [feishu] upload file failed:", e);
       return null;
     }
+  }
+
+  // ── Reaction ──────────────────────────────────────────────
+
+  private addReaction(messageId: string): void {
+    const emojis = [
+      "THUMBSUP", "OnIt", "GLANCE", "THINKING",
+      "FISTBUMP", "StatusFlashOfInspiration", "OneSecond", "VRHeadset",
+    ];
+    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+    this.client.im.messageReaction.create({
+      path: { message_id: messageId },
+      data: { reaction_type: { emoji_type: emoji } },
+    }).catch(() => {}); // fire-and-forget
   }
 
   // ── Helpers ──────────────────────────────────────────────

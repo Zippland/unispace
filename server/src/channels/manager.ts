@@ -1,3 +1,5 @@
+import { resolve, basename } from "path";
+import { existsSync } from "fs";
 import type { Config } from "../config";
 import type { ToolRegistry } from "../tools";
 import { createAgentRunner } from "../agent";
@@ -8,6 +10,15 @@ import {
 } from "../session";
 import type { Channel, InboundMessage, ChannelsConfig } from "./types";
 import { FeishuChannel } from "./feishu";
+
+// ── Image detection ──────────────────────────────────────────
+
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"]);
+
+function isImagePath(p: string): boolean {
+  const ext = p.split(".").pop()?.toLowerCase() || "";
+  return IMAGE_EXTS.has(ext);
+}
 
 // ── ChannelManager ───────────────────────────────────────────
 
@@ -112,23 +123,61 @@ export class ChannelManager {
 
     session.messages.push({ role: "user", content });
 
-    // 3. Run agent, collect response
+    // 3. Run agent — send intermediate text, track written files
+    const channel = this.channels.find((c) => c.name === msg.channel);
+    if (!channel) return;
+
     const ctx = { workDir: session.workDir, taskStore: session.tasks };
-    let responseText = "";
+    let textBuffer = "";
+    const writtenFiles: string[] = [];
+
+    const flushText = async () => {
+      const text = textBuffer.trim();
+      if (!text) return;
+      textBuffer = "";
+      await channel.sendText(msg.chatId, text);
+    };
 
     for await (const event of this.runAgent(session.messages, ctx)) {
-      if (event.type === "text_delta") {
-        responseText += event.content;
+      switch (event.type) {
+        case "text_delta":
+          textBuffer += event.content;
+          break;
+
+        case "tool_call":
+          // Agent is about to call a tool — flush buffered text as progress
+          await flushText();
+          break;
+
+        case "tool_result":
+          // Track files written by agent
+          if (!event.is_error) {
+            const match = event.content.match(/^Written: (.+)$/);
+            if (match) writtenFiles.push(match[1]);
+          }
+          break;
       }
     }
 
     // 4. Persist
     saveSession(session);
 
-    // 5. Send text response through channel
-    const channel = this.channels.find((c) => c.name === msg.channel);
-    if (channel && responseText) {
-      await channel.sendText(msg.chatId, responseText);
+    // 5. Send remaining text
+    await flushText();
+
+    // 6. Send written files as media (like Bubblebot's OutboundMessage.media)
+    for (const fp of writtenFiles) {
+      const fullPath = resolve(session.workDir, fp);
+      if (!existsSync(fullPath)) continue;
+      try {
+        if (isImagePath(fp)) {
+          await channel.sendImage(msg.chatId, fullPath);
+        } else {
+          await channel.sendFile(msg.chatId, fullPath, basename(fp));
+        }
+      } catch (e) {
+        console.error(`  [channel] send file failed: ${fp}`, e);
+      }
     }
   }
 }
