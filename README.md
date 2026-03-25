@@ -4,7 +4,7 @@
 
 UniSpace 让这件事变得简单：选一个你喜欢的模型，四行命令，打开浏览器，开始工作。
 
-![UniSpace](image.png)
+![UniSpace](image1.png)
 
 ---
 
