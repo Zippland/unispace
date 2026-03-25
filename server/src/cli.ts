@@ -1,9 +1,11 @@
 #!/usr/bin/env bun
 
 import { resolve, join } from "path";
-import { ensureInit, loadConfig, saveConfig, getDir, paths } from "./config";
+import { type Config, ensureInit, loadConfig, saveConfig, loadChannelsConfig, getDir, paths } from "./config";
 import { loadAllSessions } from "./session";
 import { createServer } from "./server";
+import { ChannelManager } from "./channels";
+import { createRegistry } from "./tools";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 const command = process.argv[2];
@@ -91,7 +93,7 @@ function onboard() {
 
 // ── start (server only) ──────────────────────────────────────
 
-function start() {
+async function start() {
   console.log("\n  UniSpace (server)");
   ensureInit();
 
@@ -115,7 +117,11 @@ function start() {
 
   console.log(`  Config   : ${getDir()}`);
   console.log(`  Work dir : ${workDir}`);
-  console.log(`  Listen   : http://localhost:${port}\n`);
+  console.log(`  Listen   : http://localhost:${port}`);
+
+  // Start channels
+  await startChannels(config, workDir);
+  console.log();
 }
 
 // ── web (frontend only) ──────────────────────────────────────
@@ -137,7 +143,7 @@ function web() {
 
 // ── launch (server + web, with optional dev mode) ─────────────
 
-function launch(devMode: boolean) {
+async function launch(devMode: boolean) {
   console.log(`\n  UniSpace${devMode ? " [dev]" : ""}`);
   ensureInit();
 
@@ -163,6 +169,9 @@ function launch(devMode: boolean) {
   console.log(`  Work dir : ${workDir}`);
   console.log(`  API      : http://localhost:${port}`);
 
+  // Start channels
+  await startChannels(config, workDir);
+
   // Start Vite with VITE_DEV_MODE env for dev panel
   const webDir = join(REPO_ROOT, "web");
   const env = { ...process.env, ...(devMode ? { VITE_DEV_MODE: "true" } : {}) };
@@ -177,6 +186,25 @@ function launch(devMode: boolean) {
   process.on("SIGINT", () => {
     vite.kill();
     process.exit(0);
+  });
+}
+
+// ── channels ─────────────────────────────────────────────────
+
+async function startChannels(config: Config, workDir: string) {
+  const channelsConfig = loadChannelsConfig();
+  const hasEnabled = Object.values(channelsConfig).some(
+    (c: any) => c?.enabled,
+  );
+  if (!hasEnabled) return;
+
+  const registry = createRegistry();
+  const manager = new ChannelManager(config, registry, workDir);
+  manager.init(channelsConfig);
+  await manager.startAll();
+
+  process.on("SIGINT", async () => {
+    await manager.stopAll();
   });
 }
 

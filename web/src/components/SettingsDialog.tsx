@@ -142,6 +142,101 @@ export function SoulDialog({ open, onClose }: { open: boolean; onClose: () => vo
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  ChannelsDialog (channels.json)
+// ═══════════════════════════════════════════════════════════════
+
+interface FeishuConfig {
+  enabled: boolean;
+  appId: string;
+  appSecret: string;
+  encryptKey: string;
+  verificationToken: string;
+}
+
+interface ChannelsData {
+  feishu?: FeishuConfig;
+}
+
+const FEISHU_DEFAULTS: FeishuConfig = {
+  enabled: false,
+  appId: "",
+  appSecret: "",
+  encryptKey: "",
+  verificationToken: "",
+};
+
+export function ChannelsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { serverUrl } = useStore();
+  const [channels, setChannels] = useState<ChannelsData | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      fetch(`${serverUrl}/api/channels`).then((r) => r.json()).then(setChannels).catch(() => {});
+      setSaved(false);
+    }
+  }, [open, serverUrl]);
+
+  if (!open) return null;
+
+  const feishu = channels?.feishu || FEISHU_DEFAULTS;
+
+  function updateFeishu(key: keyof FeishuConfig, value: string | boolean) {
+    setChannels({ ...channels, feishu: { ...feishu, [key]: value } });
+    setSaved(false);
+  }
+
+  async function handleSave() {
+    if (!channels) return;
+    setSaving(true);
+    try {
+      await fetch(`${serverUrl}/api/channels`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(channels),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {}
+    setSaving(false);
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 bg-[#141413]/20 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 z-50 w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
+        <div className="flex items-center justify-between border-b border-[#e8e6dc] px-6 py-4">
+          <div className="flex items-center gap-2">
+            <ChannelSvg />
+            <h2 className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">channels.json</h2>
+          </div>
+          <CloseBtn onClick={onClose} />
+        </div>
+        {!channels ? (
+          <div className="px-6 py-12 text-center text-[13px] text-[#b0aea5]">Loading...</div>
+        ) : (
+          <div className="max-h-[60vh] overflow-y-auto px-6 py-5 space-y-5">
+            <Section title="Feishu">
+              <div className="flex items-center gap-2 mb-1">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input type="checkbox" checked={feishu.enabled} onChange={(e) => updateFeishu("enabled", e.target.checked)} className="peer sr-only" />
+                  <div className="h-5 w-9 rounded-full bg-[#e8e6dc] after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:bg-[#d97757] peer-checked:after:translate-x-full" />
+                </label>
+                <span className="text-[12px] text-[#6b6963]">{feishu.enabled ? "Enabled" : "Disabled"}</span>
+              </div>
+              <Field label="App ID" value={feishu.appId} placeholder="cli_xxx" onChange={(v) => updateFeishu("appId", v)} />
+              <Field label="App Secret" value={feishu.appSecret} type="password" onChange={(v) => updateFeishu("appSecret", v)} />
+              <Field label="Encrypt Key" value={feishu.encryptKey} placeholder="Optional" onChange={(v) => updateFeishu("encryptKey", v)} />
+              <Field label="Verification Token" value={feishu.verificationToken} placeholder="Optional" onChange={(v) => updateFeishu("verificationToken", v)} />
+            </Section>
+          </div>
+        )}
+        <Footer hint={saved ? "Saved! Restart server to apply." : "Changes saved to channels.json"} saving={saving} onClose={onClose} onSave={handleSave} />
+      </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  Shared pieces
 // ═══════════════════════════════════════════════════════════════
 
@@ -191,6 +286,14 @@ function GearSvg() {
     <svg className="h-4 w-4 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  );
+}
+
+function ChannelSvg() {
+  return (
+    <svg className="h-4 w-4 text-[#7c9a5e]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
     </svg>
   );
 }

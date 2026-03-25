@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { readdir } from "fs/promises";
 import { join, resolve } from "path";
-import { type Config, loadConfig, saveConfig } from "./config";
+import { type Config, loadConfig, saveConfig, loadChannelsConfig, saveChannelsConfig } from "./config";
 import {
   createSession,
   getSession,
@@ -92,6 +92,15 @@ export function createServer(config: Config, workDir: string) {
     const body = await c.req.json();
     saveConfig(body);
     return c.json({ ok: true });
+  });
+
+  // Channels config
+  app.get("/api/channels", (c) => c.json(loadChannelsConfig()));
+
+  app.put("/api/channels", async (c) => {
+    const body = await c.req.json();
+    saveChannelsConfig(body);
+    return c.json({ ok: true, note: "Restart server to apply channel changes" });
   });
 
   // Files (with enriched sessions directory)

@@ -19,6 +19,7 @@ export interface Session {
   createdAt: number;
   updatedAt: number;
   title?: string;
+  channelKey?: string;
   tasks: TaskStore;
 }
 
@@ -28,6 +29,7 @@ interface SessionMeta {
   createdAt: number;
   updatedAt: number;
   title?: string;
+  channelKey?: string;
   tasks?: Task[];
 }
 
@@ -49,6 +51,7 @@ export function saveSession(session: Session): void {
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     title: session.title,
+    channelKey: session.channelKey,
     tasks: session.tasks.dump(),
   };
   const lines = [JSON.stringify(meta)];
@@ -82,6 +85,7 @@ export function loadAllSessions(): void {
         createdAt: meta.createdAt,
         updatedAt: meta.updatedAt || meta.createdAt,
         title: meta.title,
+        channelKey: meta.channelKey,
         tasks,
       });
     } catch (e) {
@@ -113,6 +117,13 @@ export function getSession(id: string): Session | undefined {
 
 export function listSessions(): Session[] {
   return [...sessions.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function findSessionByChannelKey(key: string): Session | undefined {
+  for (const s of sessions.values()) {
+    if (s.channelKey === key) return s;
+  }
+  return undefined;
 }
 
 export function deleteSession(id: string): boolean {

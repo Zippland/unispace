@@ -41,6 +41,14 @@ function ChatIcon({ className }: { className?: string }) {
   );
 }
 
+function ChannelIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    </svg>
+  );
+}
+
 function DocIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -51,7 +59,7 @@ function DocIcon({ className }: { className?: string }) {
 
 // ── System file names ─────────────────────────────────────────
 
-const SYSTEM_NAMES = new Set(["config.json", "SOUL.md", "sessions", "skills"]);
+const SYSTEM_NAMES = new Set(["config.json", "SOUL.md", "channels.json", "sessions", "skills"]);
 
 // ── Sidebar ───────────────────────────────────────────────────
 
@@ -298,6 +306,8 @@ function SystemFileItem({ file, onClick }: { file: FileEntry; onClick: () => voi
       <GearIcon className="h-3.5 w-3.5 shrink-0 text-[#d97757]" />
     ) : file.name === "SOUL.md" ? (
       <DocIcon className="h-3.5 w-3.5 shrink-0 text-[#6a9bcc]" />
+    ) : file.name === "channels.json" ? (
+      <ChannelIcon className="h-3.5 w-3.5 shrink-0 text-[#7c9a5e]" />
     ) : (
       <FileIcon className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
     );

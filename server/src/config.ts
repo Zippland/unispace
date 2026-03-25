@@ -18,6 +18,7 @@ export function getDir(): string {
 }
 export const paths = {
   config: () => join(getDir(), "config.json"),
+  channels: () => join(getDir(), "channels.json"),
   sessions: () => join(getDir(), "sessions"),
   soul: () => join(getDir(), "SOUL.md"),
   skills: () => join(getDir(), "skills"),
@@ -87,4 +88,22 @@ export function loadConfig(): Config {
 
 export function saveConfig(config: Config): void {
   writeFileSync(paths.config(), JSON.stringify(config, null, 2));
+}
+
+// ── Channels config ──────────────────────────────────────────
+
+import type { ChannelsConfig } from "./channels/types";
+
+export function loadChannelsConfig(): ChannelsConfig {
+  const p = paths.channels();
+  if (!existsSync(p)) return {};
+  try {
+    return JSON.parse(readFileSync(p, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+export function saveChannelsConfig(config: ChannelsConfig): void {
+  writeFileSync(paths.channels(), JSON.stringify(config, null, 2));
 }
