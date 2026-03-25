@@ -1,7 +1,7 @@
-import type { Tool, ToolContext } from "./index";
+import type { Tool } from "./index";
 import { loadDescription } from "./descriptions";
-import { resolve } from "path";
-import { readFile, writeFile, mkdir, readdir } from "fs/promises";
+import { resolve, basename } from "path";
+import { readFile, writeFile, mkdir, readdir, stat } from "fs/promises";
 import { existsSync } from "fs";
 
 // ── read_file ─────────────────────────────────────────────────
@@ -199,6 +199,41 @@ const findFilesTool: Tool = {
   },
 };
 
+// ── send_file ─────────────────────────────────────────────────
+
+const sendFileTool: Tool = {
+  name: "send_file",
+  description:
+    "Send a file to the user. Use this after creating or locating a file the user needs. " +
+    "On chat channels (Feishu, etc.) the file is delivered as a message attachment. " +
+    "On web it returns a download path.",
+  parameters: {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "File path to send (relative to working directory or absolute)",
+      },
+    },
+    required: ["path"],
+  },
+  async execute(input, ctx) {
+    const fp = resolve(ctx.workDir, input.path);
+    if (!existsSync(fp)) throw new Error(`File not found: ${input.path}`);
+
+    const info = await stat(fp);
+    const name = basename(fp);
+    const kb = Math.round(info.size / 1024);
+
+    if (ctx.onSendFile) {
+      await ctx.onSendFile(fp);
+      return `Sent to user: ${name} (${kb} KB)`;
+    }
+
+    return `File ready: ${name} (${kb} KB) — ${fp}`;
+  },
+};
+
 // ── Export all ─────────────────────────────────────────────────
 
 export const codingTools: Tool[] = [
@@ -209,4 +244,5 @@ export const codingTools: Tool[] = [
   bashTool,
   searchTool,
   findFilesTool,
+  sendFileTool,
 ];

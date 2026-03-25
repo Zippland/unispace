@@ -1,5 +1,4 @@
-import { resolve, basename } from "path";
-import { existsSync } from "fs";
+import { basename } from "path";
 import type { Config } from "../config";
 import type { ToolRegistry } from "../tools";
 import { createAgentRunner } from "../agent";
@@ -123,13 +122,24 @@ export class ChannelManager {
 
     session.messages.push({ role: "user", content });
 
-    // 3. Run agent — send intermediate text, track written files
+    // 3. Run agent
     const channel = this.channels.find((c) => c.name === msg.channel);
     if (!channel) return;
 
-    const ctx = { workDir: session.workDir, taskStore: session.tasks };
+    const ctx = {
+      workDir: session.workDir,
+      taskStore: session.tasks,
+      channel: msg.channel,
+      onSendFile: async (filePath: string) => {
+        if (isImagePath(filePath)) {
+          await channel.sendImage(msg.chatId, filePath);
+        } else {
+          await channel.sendFile(msg.chatId, filePath, basename(filePath));
+        }
+      },
+    };
+
     let textBuffer = "";
-    const writtenFiles: string[] = [];
 
     const flushText = async () => {
       const text = textBuffer.trim();
@@ -148,14 +158,6 @@ export class ChannelManager {
           // Agent is about to call a tool — flush buffered text as progress
           await flushText();
           break;
-
-        case "tool_result":
-          // Track files written by agent
-          if (!event.is_error) {
-            const match = event.content.match(/^Written: (.+)$/);
-            if (match) writtenFiles.push(match[1]);
-          }
-          break;
       }
     }
 
@@ -164,20 +166,5 @@ export class ChannelManager {
 
     // 5. Send remaining text
     await flushText();
-
-    // 6. Send written files as media (like Bubblebot's OutboundMessage.media)
-    for (const fp of writtenFiles) {
-      const fullPath = resolve(session.workDir, fp);
-      if (!existsSync(fullPath)) continue;
-      try {
-        if (isImagePath(fp)) {
-          await channel.sendImage(msg.chatId, fullPath);
-        } else {
-          await channel.sendFile(msg.chatId, fullPath, basename(fp));
-        }
-      } catch (e) {
-        console.error(`  [channel] send file failed: ${fp}`, e);
-      }
-    }
   }
 }

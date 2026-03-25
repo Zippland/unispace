@@ -44,6 +44,7 @@ function sessionPath(id: string): string {
 }
 
 export function saveSession(session: Session): void {
+  if (!sessions.has(session.id)) return; // already deleted
   session.updatedAt = Date.now();
   const meta: SessionMeta = {
     id: session.id,

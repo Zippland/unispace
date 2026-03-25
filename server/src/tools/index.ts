@@ -6,6 +6,8 @@ import type { TaskStore } from "./task";
 export interface ToolContext {
   workDir: string;
   taskStore: TaskStore;
+  channel?: string; // "web" | "feishu" | ...
+  onSendFile?: (filePath: string) => Promise<void>;
 }
 
 export interface Tool {

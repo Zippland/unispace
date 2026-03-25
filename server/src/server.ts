@@ -254,7 +254,7 @@ export function createServer(config: Config, workDir: string) {
       const ac = new AbortController();
       c.req.raw.signal.addEventListener("abort", () => ac.abort());
 
-      const ctx = { workDir: session.workDir, taskStore: session.tasks };
+      const ctx = { workDir: session.workDir, taskStore: session.tasks, channel: "web" as const };
 
       for await (const event of runAgent(session.messages, ctx, ac.signal)) {
         await stream.writeSSE({
