@@ -175,13 +175,13 @@ async function launch(devMode: boolean) {
   // Start Vite with VITE_DEV_MODE env for dev panel
   const webDir = join(REPO_ROOT, "web");
   const env = { ...process.env, ...(devMode ? { VITE_DEV_MODE: "true" } : {}) };
-  const vite = Bun.spawn(["bunx", "vite", "--port", "5173"], {
+  const vite = Bun.spawn(["bunx", "vite", "--port", "5174"], {
     cwd: webDir,
     env,
     stdio: ["inherit", "inherit", "inherit"],
   });
 
-  console.log(`  Web      : http://localhost:5173${devMode ? " (dev mode)" : ""}\n`);
+  console.log(`  Web      : http://localhost:5174${devMode ? " (dev mode)" : ""}\n`);
 
   process.on("SIGINT", () => {
     vite.kill();

@@ -14,6 +14,7 @@ export interface Tool {
   name: string;
   description: string;
   parameters: Record<string, any>;
+  available?: (ctx: ToolContext) => boolean;
   execute(input: Record<string, any>, ctx: ToolContext): Promise<string>;
 }
 
@@ -49,15 +50,17 @@ export class ToolRegistry {
     }
   }
 
-  definitions(): OpenAI.ChatCompletionTool[] {
-    return [...this.tools.values()].map((t) => ({
-      type: "function" as const,
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters,
-      },
-    }));
+  definitions(ctx?: ToolContext): OpenAI.ChatCompletionTool[] {
+    return [...this.tools.values()]
+      .filter((t) => !t.available || !ctx || t.available(ctx))
+      .map((t) => ({
+        type: "function" as const,
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+        },
+      }));
   }
 }
 

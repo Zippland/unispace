@@ -52,7 +52,7 @@ unispace onboard
 unispace
 ```
 
-API 服务启动在 `localhost:3210`，Web 界面在 `localhost:5173`。
+API 服务启动在 `localhost:3210`，Web 界面在 `localhost:5174`。
 
 ---
 

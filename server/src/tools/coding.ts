@@ -203,6 +203,7 @@ const findFilesTool: Tool = {
 
 const sendFileTool: Tool = {
   name: "send_file",
+  available: (ctx) => !!ctx.onSendFile,
   description:
     "Send a file to the user. Use this after creating or locating a file the user needs. " +
     "On chat channels (Feishu, etc.) the file is delivered as a message attachment. " +

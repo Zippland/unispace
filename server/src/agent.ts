@@ -49,7 +49,7 @@ export function createAgentRunner(config: Config, registry: ToolRegistry) {
         const stream = await client.chat.completions.create({
           model: config.model.name,
           messages: [sys, ...messages],
-          tools: registry.definitions(),
+          tools: registry.definitions(ctx),
           stream: true,
           temperature: config.model.temperature,
           max_tokens: config.model.maxTokens,
