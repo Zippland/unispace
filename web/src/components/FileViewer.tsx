@@ -109,14 +109,14 @@ export default function FileViewer({
 
       {/* Content */}
       {isImage ? (
-        <div className="flex-1 flex items-center justify-center p-8 bg-[#f5f4f0]">
+        <div className="flex-1 flex items-center justify-center p-10 bg-white">
           <img src={rawFileUrl(serverUrl, tab.path)} alt={tab.name}
             className="max-w-full max-h-full object-contain rounded" />
         </div>
       ) : isMd ? (
         mdMode === "preview" ? (
-          <div className="flex-1 overflow-auto p-6">
-            <div className="max-w-3xl mx-auto prose text-sm text-[#141413]">
+          <div className="flex-1 overflow-auto bg-white">
+            <div className="max-w-3xl mx-auto px-8 py-6 prose text-[14px] leading-7 text-[#141413]">
               <Markdown remarkPlugins={[remarkGfm]}>{draft}</Markdown>
             </div>
           </div>
@@ -131,19 +131,19 @@ export default function FileViewer({
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Editable textarea with line numbers
+//  Editable textarea
 // ═══════════════════════════════════════════════════════════════
 
 function EditableArea({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="flex-1 overflow-auto bg-[#faf9f5]">
+    <div className="flex-1 overflow-auto bg-white">
       <textarea
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
-        className="w-full h-full min-h-full resize-none border-0 bg-transparent px-4 py-3 font-mono text-[13px] leading-5 text-[#141413] outline-none"
+        className="w-full h-full min-h-full resize-none border-0 bg-transparent px-6 py-5 font-mono text-[13px] leading-6 text-[#141413] outline-none"
       />
     </div>
   );

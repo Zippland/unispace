@@ -223,10 +223,23 @@ export default function App() {
 
       {hasTabs ? (
         <>
-          {/* Preview: fills remaining space */}
-          <div className="flex-1 flex flex-col min-w-[200px] h-full">
+          {/* Chat: fixed width, middle */}
+          <div
+            style={{ width: chatW }}
+            className="shrink-0 flex flex-col h-full"
+          >
+            <ChatPanel />
+          </div>
+
+          {/* Handle: chat ↔ preview */}
+          <ResizeHandle
+            onResize={(dx) => setChatW((w) => clamp(w + dx, 280, 700))}
+          />
+
+          {/* Preview: fills remaining space, right */}
+          <div className="flex-1 flex flex-col min-w-[200px] h-full bg-white">
             {/* Tab bar — tabs on the left, active file controls portaled into the right slot */}
-            <div className="flex items-center border-b border-[#e8e6dc] bg-[#faf9f5] shrink-0">
+            <div className="flex items-center border-b border-[#e8e6dc] bg-white shrink-0">
               <div className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
                 {openTabs.map((tab) => {
                   const isActive = activeTab === tab.path;
@@ -273,19 +286,6 @@ export default function App() {
                 Select a tab
               </div>
             )}
-          </div>
-
-          {/* Handle: preview ↔ chat */}
-          <ResizeHandle
-            onResize={(dx) => setChatW((w) => clamp(w - dx, 280, 700))}
-          />
-
-          {/* Chat: fixed width */}
-          <div
-            style={{ width: chatW }}
-            className="shrink-0 flex flex-col h-full"
-          >
-            <ChatPanel />
           </div>
         </>
       ) : (
