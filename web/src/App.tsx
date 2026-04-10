@@ -227,7 +227,7 @@ export default function App() {
           <div className="flex-1 flex flex-col min-w-[200px] h-full">
             {/* Tab bar — tabs on the left, active file controls portaled into the right slot */}
             <div className="flex items-center border-b border-[#e8e6dc] bg-[#faf9f5] shrink-0">
-              <div className="flex min-w-0 flex-1 overflow-x-auto">
+              <div className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
                 {openTabs.map((tab) => {
                   const isActive = activeTab === tab.path;
                   return (
