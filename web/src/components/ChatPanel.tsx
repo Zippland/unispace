@@ -390,16 +390,17 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
 
 // ── Model options (Claude Code models) ───────────────────────
 
-const MODEL_OPTIONS: { id: string; label: string; hint?: string }[] = [
-  { id: "", label: "Default", hint: "whatever Claude Code uses" },
+const MODEL_OPTIONS: { id: string; label: string }[] = [
   { id: "claude-sonnet-4-5", label: "Sonnet 4.5" },
   { id: "claude-opus-4-6", label: "Opus 4.6" },
   { id: "claude-haiku-4-5", label: "Haiku 4.5" },
 ];
 
+const DEFAULT_MODEL = "claude-sonnet-4-5";
+
 function modelLabel(id?: string): string {
-  if (!id) return "Default";
-  return MODEL_OPTIONS.find((o) => o.id === id)?.label ?? id;
+  const match = MODEL_OPTIONS.find((o) => o.id === (id || DEFAULT_MODEL));
+  return match?.label ?? id ?? "Sonnet 4.5";
 }
 
 export default function ChatPanel() {
@@ -418,15 +419,26 @@ export default function ChatPanel() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ── Project model selector ──────────────────────────────
-  const [projectModel, setProjectModel] = useState<string>("");
+  const [projectModel, setProjectModel] = useState<string>(DEFAULT_MODEL);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!currentProject) return;
     api
       .fetchProjectSettings(serverUrl, currentProject)
-      .then((s) => setProjectModel(s.model || ""))
-      .catch(() => setProjectModel(""));
+      .then((s) => {
+        if (s.model) {
+          setProjectModel(s.model);
+        } else {
+          // Legacy projects without a model — write the default so UI and
+          // SDK stay in sync.
+          setProjectModel(DEFAULT_MODEL);
+          api
+            .updateProjectSettings(serverUrl, currentProject, { model: DEFAULT_MODEL })
+            .catch(() => {});
+        }
+      })
+      .catch(() => setProjectModel(DEFAULT_MODEL));
   }, [currentProject, serverUrl]);
 
   async function handleSelectModel(model: string) {
@@ -756,9 +768,6 @@ export default function ChatPanel() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                               </svg>
                               <span className="flex-1 truncate font-medium">{opt.label}</span>
-                              {opt.hint && (
-                                <span className="text-[10px] text-[#b0aea5]">{opt.hint}</span>
-                              )}
                             </button>
                           );
                         })}
