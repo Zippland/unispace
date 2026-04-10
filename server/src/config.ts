@@ -24,6 +24,7 @@ export function getDir(): string {
 export const paths = {
   // Global
   config: () => join(getDir(), "config.json"),
+  channels: () => join(getDir(), "channels.json"),
   projectsRoot: () => join(getDir(), "projects"),
 
   // Per-project
@@ -128,6 +129,24 @@ export function readProjectSettings(name: string): ProjectSettings {
   } catch {
     return {};
   }
+}
+
+// ── Channels config ──────────────────────────────────────────
+
+import type { ChannelsConfig } from "./channels/types";
+
+export function loadChannelsConfig(): ChannelsConfig {
+  const p = paths.channels();
+  if (!existsSync(p)) return {};
+  try {
+    return JSON.parse(readFileSync(p, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+export function saveChannelsConfig(config: ChannelsConfig): void {
+  writeFileSync(paths.channels(), JSON.stringify(config, null, 2));
 }
 
 export function writeProjectSettings(

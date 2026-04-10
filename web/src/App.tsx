@@ -4,7 +4,7 @@ import * as api from "./api";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
 import FileViewer from "./components/FileViewer";
-import { ConfigDialog } from "./components/SettingsDialog";
+import { ConfigDialog, DispatchDialog } from "./components/SettingsDialog";
 import DevPanel from "./components/DevPanel";
 
 const IS_DEV = import.meta.env.VITE_DEV_MODE === "true";
@@ -91,6 +91,7 @@ export default function App() {
   const [urlInput, setUrlInput] = useState(serverUrl);
   const [checking, setChecking] = useState(true);
   const [configOpen, setConfigOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
@@ -213,6 +214,7 @@ export default function App() {
         <Sidebar
           onOpenFile={handleOpenFile}
           onOpenSettings={() => setConfigOpen(true)}
+          onOpenDispatch={() => setDispatchOpen(true)}
         />
       </div>
 
@@ -323,6 +325,7 @@ export default function App() {
       )}
 
       <ConfigDialog open={configOpen} onClose={() => setConfigOpen(false)} />
+      <DispatchDialog open={dispatchOpen} onClose={() => setDispatchOpen(false)} />
     </div>
   );
 }

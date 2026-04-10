@@ -1,0 +1,9 @@
+{
+  "feishu": {
+    "enabled": false,
+    "appId": "",
+    "appSecret": "",
+    "encryptKey": "",
+    "verificationToken": ""
+  }
+}

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
 
@@ -77,9 +77,14 @@ const RECENTS_HEIGHT_KEY = "us:recents_height";
 interface SidebarProps {
   onOpenFile: (path: string, name: string) => void;
   onOpenSettings: () => void;
+  onOpenDispatch: () => void;
 }
 
-export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
+export default function Sidebar({
+  onOpenFile,
+  onOpenSettings,
+  onOpenDispatch,
+}: SidebarProps) {
   const {
     projects,
     currentProject,
@@ -338,7 +343,7 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
               UniSpace
             </h1>
             <p className="text-[10px] text-[#b0aea5] leading-tight mt-0.5">
-              Browser-native workspace
+              Your own agent, per project
             </p>
           </div>
           <button
@@ -502,12 +507,12 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
             </button>
           )}
           {activeTabKey === "connectors" && (
-            <span
-              className="cursor-not-allowed text-xs text-[#b0aea5]/60"
-              title="Coming soon"
+            <button
+              onClick={onOpenDispatch}
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
             >
-              + Add
-            </span>
+              Configure
+            </button>
           )}
         </div>
 
@@ -580,7 +585,12 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
               }}
             />
           )}
-          {activeTabKey === "connectors" && <ConnectorsPanel />}
+          {activeTabKey === "connectors" && (
+            <ConnectorsPanel
+              serverUrl={serverUrl}
+              onOpenDispatch={onOpenDispatch}
+            />
+          )}
         </div>
       </div>
 
@@ -882,13 +892,78 @@ function PromptPanel({
   );
 }
 
-// ── Connectors panel (placeholder) ────────────────────────────
+// ── Connectors panel — inbound channel dispatch ──────────────
 
-function ConnectorsPanel() {
+interface ConnectorMeta {
+  id: string;
+  label: string;
+  description: string;
+}
+
+const CONNECTORS: ConnectorMeta[] = [
+  {
+    id: "feishu",
+    label: "Feishu",
+    description: "Lark/Feishu bot — inbound chats become sessions",
+  },
+];
+
+function ConnectorsPanel({
+  serverUrl,
+  onOpenDispatch,
+}: {
+  serverUrl: string;
+  onOpenDispatch: () => void;
+}) {
+  const [channels, setChannels] = useState<Record<string, { enabled?: boolean }>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${serverUrl}/api/channels`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setChannels(data || {});
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl]);
+
   return (
-    <div className="px-3 py-8 text-center">
-      <p className="text-[12px] font-medium text-[#6b6963]">Connectors</p>
-      <p className="mt-1 text-[11px] text-[#b0aea5]">Coming soon</p>
+    <div className="px-2 pb-2">
+      {CONNECTORS.map((c) => {
+        const enabled = !!channels[c.id]?.enabled;
+        return (
+          <button
+            key={c.id}
+            onClick={onOpenDispatch}
+            className="group flex w-full items-start gap-2 rounded-md px-2 py-2 text-left transition hover:bg-[#141413]/[0.03]"
+          >
+            <span
+              className={`mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+                enabled ? "bg-[#7c9a5e]" : "bg-[#b0aea5]/40"
+              }`}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[13px] font-medium text-[#141413]">{c.label}</span>
+                <span
+                  className={`text-[10px] uppercase tracking-wide ${
+                    enabled ? "text-[#7c9a5e]" : "text-[#b0aea5]"
+                  }`}
+                >
+                  {enabled ? "on" : "off"}
+                </span>
+              </div>
+              <p className="truncate text-[11px] text-[#b0aea5]">{c.description}</p>
+            </div>
+          </button>
+        );
+      })}
+      <p className="px-3 pt-3 text-[10px] leading-relaxed text-[#b0aea5]">
+        Click a connector to edit credentials. Changes require a server restart.
+      </p>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   ensureInit,
   loadConfig,
   saveConfig,
+  loadChannelsConfig,
   paths,
   getDir,
   listProjects,
@@ -13,6 +14,7 @@ import {
 } from "./config";
 import { loadAllSessions } from "./session";
 import { createServer } from "./server";
+import { ChannelManager } from "./channels";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 const command = process.argv[2];
@@ -93,7 +95,10 @@ async function start() {
 
   console.log(`  Workspace       : ${getDir()}`);
   console.log(`  Current project : ${config.currentProject}`);
-  console.log(`  Listen          : http://localhost:${port}\n`);
+  console.log(`  Listen          : http://localhost:${port}`);
+
+  await startChannels();
+  console.log();
 }
 
 // ── web (frontend only) ──────────────────────────────────────
@@ -130,6 +135,8 @@ async function launch(devMode: boolean) {
   console.log(`  Current project : ${config.currentProject}`);
   console.log(`  API             : http://localhost:${port}`);
 
+  await startChannels();
+
   const webDir = join(REPO_ROOT, "web");
   const env = { ...process.env, ...(devMode ? { VITE_DEV_MODE: "true" } : {}) };
   const vite = Bun.spawn(["bunx", "vite", "--port", "5174"], {
@@ -143,6 +150,22 @@ async function launch(devMode: boolean) {
   process.on("SIGINT", () => {
     vite.kill();
     process.exit(0);
+  });
+}
+
+// ── channels ─────────────────────────────────────────────────
+
+async function startChannels() {
+  const channelsConfig = loadChannelsConfig();
+  const hasEnabled = Object.values(channelsConfig).some((c: any) => c?.enabled);
+  if (!hasEnabled) return;
+
+  const manager = new ChannelManager();
+  manager.init(channelsConfig);
+  await manager.startAll();
+
+  process.on("SIGINT", async () => {
+    await manager.stopAll();
   });
 }
 

@@ -8,6 +8,8 @@ import {
   type Config,
   loadConfig,
   saveConfig,
+  loadChannelsConfig,
+  saveChannelsConfig,
   paths,
   listProjects,
   projectExists,
@@ -21,10 +23,10 @@ import {
   listSessions,
   deleteSession,
   saveSession,
+  applyAgentEvent,
   type ChatMessage,
-  type Session,
 } from "./session";
-import { runAgent, type AgentEvent } from "./agent";
+import { runAgent } from "./agent";
 
 // ── File tree ─────────────────────────────────────────────────
 
@@ -76,53 +78,6 @@ async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> 
 function currentProjectDir(): string {
   const cfg = loadConfig();
   return paths.project(cfg.currentProject);
-}
-
-// ── Apply streamed agent events onto the assistant ChatMessage ─
-
-function applyEvent(event: AgentEvent, msg: ChatMessage, session: Session) {
-  switch (event.type) {
-    case "session_id":
-      session.sdkSessionId = event.id;
-      break;
-    case "text_delta": {
-      const last = msg.parts[msg.parts.length - 1];
-      if (last && last.type === "text") {
-        last.content = (last.content ?? "") + event.content;
-      } else {
-        msg.parts.push({ type: "text", content: event.content });
-      }
-      break;
-    }
-    case "thinking_delta": {
-      const last = msg.parts[msg.parts.length - 1];
-      if (last && last.type === "thinking") {
-        last.content = (last.content ?? "") + event.content;
-      } else {
-        msg.parts.push({ type: "thinking", content: event.content });
-      }
-      break;
-    }
-    case "tool_call":
-      msg.parts.push({
-        type: "tool_call",
-        id: event.id,
-        name: event.name,
-        input: event.input,
-      });
-      break;
-    case "tool_result": {
-      for (let i = msg.parts.length - 1; i >= 0; i--) {
-        const p = msg.parts[i];
-        if (p.type === "tool_call" && p.id === event.id) {
-          p.output = event.content;
-          p.isError = event.is_error;
-          break;
-        }
-      }
-      break;
-    }
-  }
 }
 
 // ── Server ────────────────────────────────────────────────────
@@ -188,6 +143,15 @@ export function createServer(_initialConfig: Config) {
     const body = await c.req.json();
     saveConfig(body);
     return c.json({ ok: true });
+  });
+
+  // ── Channels config (dispatch) ────────────────────────────
+  app.get("/api/channels", (c) => c.json(loadChannelsConfig()));
+
+  app.put("/api/channels", async (c) => {
+    const body = await c.req.json();
+    saveChannelsConfig(body);
+    return c.json({ ok: true, note: "Restart server to apply channel changes" });
   });
 
   // ── Projects ──────────────────────────────────────────────
@@ -445,7 +409,7 @@ export function createServer(_initialConfig: Config) {
         resumeSessionId: session.sdkSessionId,
         signal: ac.signal,
       })) {
-        applyEvent(event, assistantMsg, session);
+        applyAgentEvent(event, assistantMsg, session);
         await stream.writeSSE({
           event: event.type,
           data: JSON.stringify(event),

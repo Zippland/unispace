@@ -8,6 +8,7 @@ import {
   mkdirSync,
 } from "fs";
 import { paths, listProjects, projectExists } from "./config";
+import type { AgentEvent } from "./agent";
 
 // ── Display types ─────────────────────────────────────────────
 // These match the shape the frontend's store expects, so sessions
@@ -126,4 +127,59 @@ export function deleteSession(id: string): boolean {
     } catch {}
   }
   return true;
+}
+
+// ── Event → ChatMessage applicator ───────────────────────────
+// Consumes AgentEvents from a streaming runAgent call and folds them into
+// the given assistant ChatMessage (merging consecutive deltas into parts
+// and attaching tool_result outputs to matching tool_call parts). Also
+// captures the SDK session id on the session for resume.
+
+export function applyAgentEvent(
+  event: AgentEvent,
+  msg: ChatMessage,
+  session: Session,
+): void {
+  switch (event.type) {
+    case "session_id":
+      session.sdkSessionId = event.id;
+      break;
+    case "text_delta": {
+      const last = msg.parts[msg.parts.length - 1];
+      if (last && last.type === "text") {
+        last.content = (last.content ?? "") + event.content;
+      } else {
+        msg.parts.push({ type: "text", content: event.content });
+      }
+      break;
+    }
+    case "thinking_delta": {
+      const last = msg.parts[msg.parts.length - 1];
+      if (last && last.type === "thinking") {
+        last.content = (last.content ?? "") + event.content;
+      } else {
+        msg.parts.push({ type: "thinking", content: event.content });
+      }
+      break;
+    }
+    case "tool_call":
+      msg.parts.push({
+        type: "tool_call",
+        id: event.id,
+        name: event.name,
+        input: event.input,
+      });
+      break;
+    case "tool_result": {
+      for (let i = msg.parts.length - 1; i >= 0; i--) {
+        const p = msg.parts[i];
+        if (p.type === "tool_call" && p.id === event.id) {
+          p.output = event.content;
+          p.isError = event.is_error;
+          break;
+        }
+      }
+      break;
+    }
+  }
 }
