@@ -1,6 +1,35 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
+
+// ── Model + effort options ────────────────────────────────────
+
+const MODEL_OPTIONS: { id: string; label: string }[] = [
+  { id: "", label: "Default (Claude Code)" },
+  { id: "claude-sonnet-4-5", label: "Sonnet 4.5" },
+  { id: "claude-opus-4-6", label: "Opus 4.6" },
+  { id: "claude-haiku-4-5", label: "Haiku 4.5" },
+];
+
+type Effort = "" | "low" | "medium" | "high" | "max";
+
+const EFFORT_OPTIONS: { id: Effort; label: string }[] = [
+  { id: "", label: "Adaptive" },
+  { id: "low", label: "Low" },
+  { id: "medium", label: "Medium" },
+  { id: "high", label: "High" },
+  { id: "max", label: "Max" },
+];
+
+function modelLabel(id?: string): string {
+  if (!id) return "Default";
+  return MODEL_OPTIONS.find((o) => o.id === id)?.label ?? id;
+}
+
+function effortLabel(id?: string): string {
+  if (!id) return "adaptive";
+  return id;
+}
 
 // ── Icons ─────────────────────────────────────────────────────
 
@@ -94,6 +123,30 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
   const [cloneDialog, setCloneDialog] = useState(false);
   const [cloneName, setCloneName] = useState("");
   const [cloneError, setCloneError] = useState("");
+
+  // Model/effort selector state (per current project)
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [projectSettings, setProjectSettings] = useState<api.ProjectSettings>({});
+
+  useEffect(() => {
+    if (!currentProject) return;
+    api
+      .fetchProjectSettings(serverUrl, currentProject)
+      .then(setProjectSettings)
+      .catch(() => setProjectSettings({}));
+  }, [currentProject, serverUrl]);
+
+  async function updateSettings(partial: api.ProjectSettings) {
+    if (!currentProject) return;
+    const next = { ...projectSettings, ...partial };
+    setProjectSettings(next);
+    try {
+      await api.updateProjectSettings(serverUrl, currentProject, {
+        model: next.model || "",
+        effort: (next.effort as any) || "",
+      });
+    } catch {}
+  }
 
   async function handleSwitchProject(name: string) {
     if (name === currentProject) {
@@ -313,6 +366,79 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
                     </svg>
                     Clone this project…
                   </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Model + effort pill ──────────────────────────── */}
+        <div className="relative mt-2">
+          <button
+            onClick={() => setModelMenuOpen(!modelMenuOpen)}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11px] text-[#6b6963] transition hover:bg-[#141413]/[0.03]"
+          >
+            <svg className="h-3 w-3 shrink-0 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+            </svg>
+            <span className="flex-1 truncate">
+              {modelLabel(projectSettings.model)} · {effortLabel(projectSettings.effort)}
+            </span>
+            <svg className="h-2.5 w-2.5 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          {modelMenuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setModelMenuOpen(false)}
+              />
+              <div className="absolute left-0 right-0 top-full z-40 mt-1 rounded-lg border border-[#e8e6dc] bg-white shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
+                <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-[#b0aea5]">
+                  Model
+                </div>
+                {MODEL_OPTIONS.map((opt) => {
+                  const active = (projectSettings.model || "") === opt.id;
+                  return (
+                    <button
+                      key={opt.id || "default"}
+                      onClick={() => updateSettings({ model: opt.id })}
+                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition hover:bg-[#faf9f5] ${
+                        active ? "text-[#141413] font-medium" : "text-[#6b6963]"
+                      }`}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ background: active ? "#d97757" : "transparent" }}
+                      />
+                      <span className="flex-1 truncate">{opt.label}</span>
+                    </button>
+                  );
+                })}
+                <div className="border-t border-[#e8e6dc] px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-[#b0aea5]">
+                  Thinking effort
+                </div>
+                {EFFORT_OPTIONS.map((opt) => {
+                  const active = ((projectSettings.effort as string) || "") === opt.id;
+                  return (
+                    <button
+                      key={opt.id || "adaptive"}
+                      onClick={() => updateSettings({ effort: opt.id as any })}
+                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition hover:bg-[#faf9f5] ${
+                        active ? "text-[#141413] font-medium" : "text-[#6b6963]"
+                      }`}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ background: active ? "#d97757" : "transparent" }}
+                      />
+                      <span className="flex-1 truncate">{opt.label}</span>
+                    </button>
+                  );
+                })}
+                <div className="border-t border-[#e8e6dc] px-3 py-2 text-[10px] text-[#b0aea5] leading-relaxed">
+                  Saved to <span className="font-mono">.claude/settings.json</span>
                 </div>
               </div>
             </>

@@ -9,6 +9,7 @@ import {
   readdirSync,
   statSync,
   unlinkSync,
+  mkdirSync,
 } from "fs";
 
 // ── Paths ─────────────────────────────────────────────────────
@@ -32,6 +33,8 @@ export const paths = {
     join(getDir(), "projects", name, "sessions"),
   projectSkills: (name: string) =>
     join(getDir(), "projects", name, ".claude", "skills"),
+  projectSettings: (name: string) =>
+    join(getDir(), "projects", name, ".claude", "settings.json"),
 };
 
 // ── Config schema ─────────────────────────────────────────────
@@ -105,6 +108,54 @@ export function listProjects(): ProjectInfo[] {
 
 export function projectExists(name: string): boolean {
   return existsSync(paths.project(name));
+}
+
+// ── Project settings (stored in .claude/settings.json) ──────
+// `model` is a native Claude Code field — SDK auto-loads it via
+// settingSources: ['project']. `effort` is a UniSpace extension
+// (Claude Code ignores unknown keys); we read it manually and
+// pass it to query() as an option.
+
+export type EffortLevel = "low" | "medium" | "high" | "max";
+
+export interface ProjectSettings {
+  model?: string;
+  effort?: EffortLevel;
+}
+
+export function readProjectSettings(name: string): ProjectSettings {
+  const file = paths.projectSettings(name);
+  if (!existsSync(file)) return {};
+  try {
+    const raw = JSON.parse(readFileSync(file, "utf-8"));
+    return { model: raw.model, effort: raw.effort };
+  } catch {
+    return {};
+  }
+}
+
+export function writeProjectSettings(
+  name: string,
+  partial: ProjectSettings,
+): void {
+  const file = paths.projectSettings(name);
+  const dir = join(file, "..");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+  let existing: Record<string, unknown> = {};
+  if (existsSync(file)) {
+    try {
+      existing = JSON.parse(readFileSync(file, "utf-8"));
+    } catch {}
+  }
+
+  const merged: Record<string, unknown> = { ...existing };
+  for (const [k, v] of Object.entries(partial)) {
+    if (v == null || v === "") delete merged[k];
+    else merged[k] = v;
+  }
+
+  writeFileSync(file, JSON.stringify(merged, null, 2) + "\n");
 }
 
 /** Clone a project folder. Throws if dst already exists. */

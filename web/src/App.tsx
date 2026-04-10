@@ -204,6 +204,7 @@ export default function App() {
 
   const activeFileTab = openTabs.find((t) => t.path === activeTab);
   const hasTabs = openTabs.length > 0;
+  const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
 
   return (
     <div className="h-screen flex bg-[#faf9f5] text-[#141413]">
@@ -224,34 +225,49 @@ export default function App() {
         <>
           {/* Preview: fills remaining space */}
           <div className="flex-1 flex flex-col min-w-[200px] h-full">
-            {/* Tab bar */}
-            <div className="flex border-b border-[#e8e6dc] bg-[#f0efe9] shrink-0 overflow-x-auto">
-              {openTabs.map((tab) => (
-                <button
-                  key={tab.path}
-                  onClick={() => setActiveTab(tab.path)}
-                  className={`group flex items-center gap-1.5 px-3 py-2 text-[13px] border-r border-[#e8e6dc] shrink-0 ${
-                    activeTab === tab.path
-                      ? "bg-[#faf9f5] text-[#141413]"
-                      : "text-[#b0aea5] hover:text-[#6b6963] hover:bg-[#f5f4f0]"
-                  }`}
-                >
-                  <span className="truncate max-w-[140px]">{tab.name}</span>
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeFile(tab.path);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 hover:text-red-500 text-[11px] ml-0.5 leading-none"
-                  >
-                    x
-                  </span>
-                </button>
-              ))}
+            {/* Tab bar — tabs on the left, active file controls portaled into the right slot */}
+            <div className="flex items-center border-b border-[#e8e6dc] bg-[#faf9f5] shrink-0">
+              <div className="flex min-w-0 flex-1 overflow-x-auto">
+                {openTabs.map((tab) => {
+                  const isActive = activeTab === tab.path;
+                  return (
+                    <button
+                      key={tab.path}
+                      onClick={() => setActiveTab(tab.path)}
+                      title={tab.path}
+                      className={`group relative flex items-center gap-2 pl-3.5 pr-2 py-2 text-[12px] shrink-0 transition-colors ${
+                        isActive
+                          ? "text-[#141413]"
+                          : "text-[#b0aea5] hover:text-[#6b6963]"
+                      }`}
+                    >
+                      <span className="truncate max-w-[140px] tracking-tight">{tab.name}</span>
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeFile(tab.path);
+                        }}
+                        className="flex h-4 w-4 items-center justify-center rounded-sm opacity-0 transition group-hover:opacity-60 hover:!opacity-100 hover:bg-[#e8e6dc] text-[#6b6963]"
+                      >
+                        <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </span>
+                      {isActive && (
+                        <span className="absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full bg-[#d97757]" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                ref={setControlsSlot}
+                className="flex items-center gap-2 px-3 shrink-0"
+              />
             </div>
 
             {activeFileTab ? (
-              <FileViewer tab={activeFileTab} />
+              <FileViewer tab={activeFileTab} controlsSlot={controlsSlot} />
             ) : (
               <div className="flex-1 flex items-center justify-center text-[#b0aea5] text-sm">
                 Select a tab

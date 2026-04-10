@@ -1,4 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { EffortLevel } from "./config";
 
 // ── Wire events (kept compatible with the previous agent) ────
 
@@ -19,6 +20,9 @@ export type AgentEvent =
 export interface RunAgentOptions {
   prompt: string;
   cwd: string;
+  /** Override thinking effort. `model` is resolved by the SDK via
+   *  `settingSources: ['project']` reading `.claude/settings.json`. */
+  effort?: EffortLevel;
   /** SDK session id to resume. Omit for a new session. */
   resumeSessionId?: string;
   signal?: AbortSignal;
@@ -29,7 +33,7 @@ export interface RunAgentOptions {
 export async function* runAgent(
   opts: RunAgentOptions,
 ): AsyncGenerator<AgentEvent> {
-  const { prompt, cwd, resumeSessionId, signal } = opts;
+  const { prompt, cwd, effort, resumeSessionId, signal } = opts;
 
   const abortController = new AbortController();
   if (signal) signal.addEventListener("abort", () => abortController.abort());
@@ -42,11 +46,13 @@ export async function* runAgent(
       options: {
         cwd,
         abortController,
-        // Load CLAUDE.md and .claude/skills/ from the project directory
+        // Load CLAUDE.md and .claude/skills/ from the project directory.
+        // This also loads `model` from .claude/settings.json automatically.
         settingSources: ["project"],
         // Demo: skip all permission prompts (sandbox handles isolation in prod)
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
+        ...(effort ? { effort } : {}),
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       },
     });

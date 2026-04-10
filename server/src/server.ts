@@ -12,6 +12,8 @@ import {
   listProjects,
   projectExists,
   cloneProject,
+  readProjectSettings,
+  writeProjectSettings,
 } from "./config";
 import {
   createSession,
@@ -219,6 +221,24 @@ export function createServer(_initialConfig: Config) {
     return c.json({ ok: true, current: name });
   });
 
+  // Per-project settings: model + effort, persisted to .claude/settings.json
+  app.get("/api/projects/:name/settings", (c) => {
+    const name = c.req.param("name");
+    if (!projectExists(name)) return c.json({ error: "Not found" }, 404);
+    return c.json(readProjectSettings(name));
+  });
+
+  app.put("/api/projects/:name/settings", async (c) => {
+    const name = c.req.param("name");
+    if (!projectExists(name)) return c.json({ error: "Not found" }, 404);
+    const body = await c.req.json();
+    writeProjectSettings(name, {
+      model: body.model,
+      effort: body.effort,
+    });
+    return c.json({ ok: true, settings: readProjectSettings(name) });
+  });
+
   // ── Files (scoped to current project) ────────────────────
   app.get("/api/files", async (c) => {
     const dir = currentProjectDir();
@@ -415,10 +435,12 @@ export function createServer(_initialConfig: Config) {
       c.req.raw.signal.addEventListener("abort", () => ac.abort());
 
       const projectDir = paths.project(session.projectName);
+      const projectSettings = readProjectSettings(session.projectName);
 
       for await (const event of runAgent({
         prompt: content,
         cwd: projectDir,
+        effort: projectSettings.effort,
         resumeSessionId: session.sdkSessionId,
         signal: ac.signal,
       })) {

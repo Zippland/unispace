@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore, type FileTab } from "../store";
@@ -8,7 +9,13 @@ import { rawFileUrl, saveFile } from "../api";
 //  FileViewer — auto-edit, save on diff, unsaved close warning
 // ═══════════════════════════════════════════════════════════════
 
-export default function FileViewer({ tab }: { tab: FileTab }) {
+export default function FileViewer({
+  tab,
+  controlsSlot,
+}: {
+  tab: FileTab;
+  controlsSlot: HTMLElement | null;
+}) {
   const { serverUrl, setFileContent } = useStore();
   const [draft, setDraft] = useState(tab.content || "");
   const [dirty, setDirty] = useState(false);
@@ -58,35 +65,47 @@ export default function FileViewer({ tab }: { tab: FileTab }) {
     }
   }
 
+  const controls = (
+    <>
+      {isMd && (
+        <div className="flex rounded-full bg-[#e8e6dc]/70 p-[3px]">
+          <button
+            onClick={() => setMdMode("preview")}
+            className={`px-3 py-[3px] text-[11px] font-medium rounded-full transition ${
+              mdMode === "preview"
+                ? "bg-white text-[#141413] shadow-[0_1px_2px_rgba(20,20,19,0.08)]"
+                : "text-[#6b6963] hover:text-[#141413]"
+            }`}
+          >
+            Preview
+          </button>
+          <button
+            onClick={() => setMdMode("source")}
+            className={`px-3 py-[3px] text-[11px] font-medium rounded-full transition ${
+              mdMode === "source"
+                ? "bg-white text-[#141413] shadow-[0_1px_2px_rgba(20,20,19,0.08)]"
+                : "text-[#6b6963] hover:text-[#141413]"
+            }`}
+          >
+            Source
+          </button>
+        </div>
+      )}
+      {dirty && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex h-6 items-center gap-1 rounded-full bg-[#d97757] px-3 text-[11px] font-medium text-white transition hover:bg-[#c56647] disabled:opacity-50"
+        >
+          {saving ? "Saving…" : saved ? "Saved" : "Save"}
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="flex-1 flex flex-col min-h-0" onKeyDown={handleKeyDown}>
-      {/* Toolbar — minimal: path + save button when dirty */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#e8e6dc] bg-white shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[13px] text-[#6b6963] truncate">{tab.path}</span>
-          {dirty && <span className="text-[10px] text-[#d97757] shrink-0">modified</span>}
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {isMd && (
-            <div className="flex rounded-md border border-[#e8e6dc] overflow-hidden mr-1">
-              <button onClick={() => setMdMode("preview")}
-                className={`px-2 py-0.5 text-[11px] transition ${mdMode === "preview" ? "bg-[#141413] text-white" : "text-[#b0aea5] hover:text-[#141413]"}`}>
-                Preview
-              </button>
-              <button onClick={() => setMdMode("source")}
-                className={`px-2 py-0.5 text-[11px] transition ${mdMode === "source" ? "bg-[#141413] text-white" : "text-[#b0aea5] hover:text-[#141413]"}`}>
-                Source
-              </button>
-            </div>
-          )}
-          {dirty && (
-            <button onClick={handleSave} disabled={saving}
-              className="flex h-6 items-center gap-1 rounded bg-[#141413] px-2.5 text-[11px] font-medium text-white transition hover:bg-[#2a2a28] disabled:opacity-50">
-              {saving ? "..." : saved ? "Saved" : "Save"}
-            </button>
-          )}
-        </div>
-      </div>
+      {controlsSlot && createPortal(controls, controlsSlot)}
 
       {/* Content */}
       {isImage ? (

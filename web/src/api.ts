@@ -62,6 +62,32 @@ export async function cloneProject(url: string, from: string, to: string) {
   return res.json();
 }
 
+// ── Project settings (model + effort) ─────────────────────────
+
+export interface ProjectSettings {
+  model?: string;
+  effort?: "low" | "medium" | "high" | "max";
+}
+
+export async function fetchProjectSettings(url: string, name: string) {
+  const res = await fetch(`${url}/api/projects/${name}/settings`);
+  return res.json() as Promise<ProjectSettings>;
+}
+
+export async function updateProjectSettings(
+  url: string,
+  name: string,
+  partial: ProjectSettings,
+) {
+  const res = await fetch(`${url}/api/projects/${name}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(partial),
+  });
+  if (!res.ok) throw new Error("Failed to update settings");
+  return res.json();
+}
+
 export async function fetchSessions(url: string) {
   const res = await fetch(`${url}/api/sessions`);
   return res.json();
