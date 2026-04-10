@@ -33,7 +33,7 @@ export interface RunAgentOptions {
 export async function* runAgent(
   opts: RunAgentOptions,
 ): AsyncGenerator<AgentEvent> {
-  const { prompt, cwd, resumeSessionId, signal } = opts;
+  const { prompt, cwd, resumeSessionId, signal, appendSystemPrompt } = opts;
 
   const abortController = new AbortController();
   if (signal) signal.addEventListener("abort", () => abortController.abort());
@@ -53,6 +53,15 @@ export async function* runAgent(
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+        ...(appendSystemPrompt
+          ? {
+              systemPrompt: {
+                type: "preset" as const,
+                preset: "claude_code" as const,
+                append: appendSystemPrompt,
+              },
+            }
+          : {}),
       },
     });
 
@@ -122,6 +131,7 @@ export async function* runAgent(
     }
   } catch (err) {
     const m = err instanceof Error ? err.message : String(err);
+    console.error("  [agent] SDK query failed:", err);
     yield { type: "error", message: `SDK error: ${m}` };
   }
 

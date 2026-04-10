@@ -165,11 +165,12 @@ export async function* streamMessage(
   url: string,
   sessionId: string,
   content: string,
+  commandPath?: string,
 ): AsyncGenerator<{ event: string; data: any }> {
   const res = await fetch(`${url}/api/sessions/${sessionId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, ...(commandPath ? { commandPath } : {}) }),
   });
 
   const reader = res.body!.getReader();

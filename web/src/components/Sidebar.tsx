@@ -99,6 +99,8 @@ export default function Sidebar({
     setActiveTab,
     removeSession,
     setSessions,
+    activeCommand,
+    setActiveCommand,
   } = useStore();
 
   // Project switcher state
@@ -574,6 +576,13 @@ export default function Sidebar({
             <PromptPanel
               globalPrompt={globalPromptFile}
               commands={commandsList}
+              activeCommandPath={activeCommand?.path || null}
+              onApplyCommand={(cmd) =>
+                setActiveCommand({
+                  path: cmd.path,
+                  name: cmd.name.replace(/\.md$/i, ""),
+                })
+              }
               onEditProjectPrompt={() => {
                 if (!globalPromptFile) return;
                 onOpenCommandEditor({
@@ -592,6 +601,7 @@ export default function Sidebar({
               }
               onDeleteCommand={async (path) => {
                 await api.deleteFile(serverUrl, path);
+                if (activeCommand?.path === path) setActiveCommand(null);
                 await refreshFiles();
               }}
             />
@@ -774,12 +784,16 @@ function SkillChildNode({
 function PromptPanel({
   globalPrompt,
   commands,
+  activeCommandPath,
+  onApplyCommand,
   onEditProjectPrompt,
   onEditCommand,
   onDeleteCommand,
 }: {
   globalPrompt: FileEntry | undefined;
   commands: FileEntry[];
+  activeCommandPath: string | null;
+  onApplyCommand: (cmd: FileEntry) => void;
   onEditProjectPrompt: () => void;
   onEditCommand: (cmd: FileEntry) => void;
   onDeleteCommand: (path: string) => Promise<void>;
@@ -851,7 +865,11 @@ function PromptPanel({
                 e.dataTransfer.effectAllowed = "copy";
               }}
               onClick={() => onEditCommand(cmd)}
-              className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition hover:bg-[#faf9f5]"
+              className={`group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition ${
+                activeCommandPath === cmd.path
+                  ? "bg-[#a07cc5]/[0.08] ring-1 ring-inset ring-[#a07cc5]/20"
+                  : "hover:bg-[#faf9f5]"
+              }`}
             >
               <svg
                 className="h-4 w-4 shrink-0 text-[#a07cc5]"
@@ -865,6 +883,23 @@ function PromptPanel({
               <span className="min-w-0 flex-1 truncate text-[#141413]">
                 {displayName}
               </span>
+              {activeCommandPath === cmd.path && (
+                <span className="shrink-0 rounded-full bg-[#a07cc5]/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-[#a07cc5]">
+                  active
+                </span>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onApplyCommand(cmd);
+                }}
+                className="rounded p-0.5 text-[#b0aea5] opacity-0 transition hover:text-[#a07cc5] group-hover:opacity-100"
+                title={activeCommandPath === cmd.path ? "Already active" : "Apply as agent"}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+                </svg>
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

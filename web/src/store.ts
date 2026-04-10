@@ -96,6 +96,10 @@ interface Store {
   openTabs: FileTab[];
   activeTab: string | null; // null = chat
 
+  // Active agent persona — a command file whose body is appended to CLAUDE.md
+  // for the next message(s). In-memory only; cleared on reload.
+  activeCommand: { path: string; name: string } | null;
+
   // Connection
   setConnection: (ok: boolean, url?: string, dir?: string) => void;
 
@@ -123,6 +127,9 @@ interface Store {
   closeFile: (path: string) => void;
   setActiveTab: (tab: string | null) => void;
   setFileContent: (path: string, content: string) => void;
+
+  // Active agent persona
+  setActiveCommand: (cmd: { path: string; name: string } | null) => void;
 }
 
 export const useStore = create<Store>((set) => ({
@@ -138,6 +145,7 @@ export const useStore = create<Store>((set) => ({
   files: [],
   openTabs: [],
   activeTab: null,
+  activeCommand: null,
 
   setConnection: (ok, url, dir) =>
     set((s) => ({
@@ -216,4 +224,6 @@ export const useStore = create<Store>((set) => ({
         t.path === path ? { ...t, content, loading: false } : t,
       ),
     })),
+
+  setActiveCommand: (cmd) => set({ activeCommand: cmd }),
 }));

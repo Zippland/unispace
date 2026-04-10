@@ -44,6 +44,12 @@ const IGNORE = new Set([
   ".cache", ".vscode", ".idea",
 ]);
 
+/** Strip a leading YAML frontmatter block (--- … ---) from a markdown file. */
+function stripFrontmatter(text: string): string {
+  const match = text.match(/^---\n[\s\S]*?\n---\n?/);
+  return match ? text.slice(match[0].length) : text;
+}
+
 async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> {
   if (depth > 5) return [];
   let entries;
@@ -373,7 +379,7 @@ export function createServer(_initialConfig: Config) {
     const session = getSession(c.req.param("id"));
     if (!session) return c.json({ error: "Session not found" }, 404);
 
-    const { content } = await c.req.json();
+    const { content, commandPath } = await c.req.json();
     if (!content) return c.json({ error: "content required" }, 400);
 
     // Auto-title from first user message
@@ -397,26 +403,70 @@ export function createServer(_initialConfig: Config) {
     };
     session.messages.push(assistantMsg);
 
+    // Load the command body (if any) to append on top of CLAUDE.md as the
+    // active agent persona for this turn.
+    let appendSystemPrompt: string | undefined;
+    if (typeof commandPath === "string" && commandPath) {
+      try {
+        const full = resolve(currentProjectDir(), commandPath);
+        if (full.startsWith(resolve(currentProjectDir()) + "/")) {
+          const raw = await Bun.file(full).text();
+          appendSystemPrompt = stripFrontmatter(raw).trim() || undefined;
+        }
+      } catch {}
+    }
+
     return streamSSE(c, async (stream) => {
       const ac = new AbortController();
       c.req.raw.signal.addEventListener("abort", () => ac.abort());
 
       const projectDir = paths.project(session.projectName);
 
-      for await (const event of runAgent({
-        prompt: content,
-        cwd: projectDir,
-        resumeSessionId: session.sdkSessionId,
-        signal: ac.signal,
-      })) {
-        applyAgentEvent(event, assistantMsg, session);
-        await stream.writeSSE({
-          event: event.type,
-          data: JSON.stringify(event),
-        });
+      try {
+        for await (const event of runAgent({
+          prompt: content,
+          cwd: projectDir,
+          resumeSessionId: session.sdkSessionId,
+          signal: ac.signal,
+          appendSystemPrompt,
+        })) {
+          applyAgentEvent(event, assistantMsg, session);
+          try {
+            await stream.writeSSE({
+              event: event.type,
+              data: JSON.stringify(event),
+            });
+          } catch (writeErr) {
+            // Client disconnected mid-stream. Log and stop iterating so
+            // the agent can tear down cleanly.
+            console.error("  [chat] SSE write failed:", writeErr);
+            ac.abort();
+            break;
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("  [chat] stream failed:", err);
+        try {
+          await stream.writeSSE({
+            event: "error",
+            data: JSON.stringify({ type: "error", message: msg }),
+          });
+          await stream.writeSSE({
+            event: "done",
+            data: JSON.stringify({ type: "done" }),
+          });
+        } catch {
+          /* client already gone */
+        }
+      } finally {
+        // Persist whatever we have even if the stream was interrupted
+        try {
+          saveSession(session);
+        } catch (e) {
+          console.error("  [chat] saveSession failed:", e);
+        }
       }
-
-      saveSession(session);
     });
   });
 

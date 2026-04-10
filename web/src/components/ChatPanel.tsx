@@ -431,6 +431,7 @@ export default function ChatPanel() {
     serverUrl, activeSessionId, messages, streaming, currentProject,
     setActiveSession, addSession, appendMessage, updateMessage,
     setStreaming, setFiles, setSessions,
+    activeCommand, setActiveCommand,
   } = useStore();
 
   const [input, setInput] = useState("");
@@ -613,7 +614,7 @@ export default function ChatPanel() {
     setStreaming(true);
 
     try {
-      for await (const { event, data } of api.streamMessage(serverUrl, sessionId, content)) {
+      for await (const { event, data } of api.streamMessage(serverUrl, sessionId, content, activeCommand?.path)) {
         updateMessage(sessionId, asstId, (parts) => {
           const p = [...parts];
           switch (event) {
@@ -694,6 +695,30 @@ export default function ChatPanel() {
       {/* Input area */}
       <div className="bg-[#faf9f5] px-4 pb-5 pt-2 shrink-0">
         <div className="relative mx-auto flex max-w-3xl flex-col gap-2">
+          {activeCommand && (
+            <div className="flex items-center gap-2 self-start rounded-full border border-[#a07cc5]/25 bg-[#a07cc5]/[0.06] pl-2.5 pr-1 py-1 text-[11px]">
+              <svg
+                className="h-3 w-3 shrink-0 text-[#a07cc5]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+              </svg>
+              <span className="text-[#6b4f88] font-medium">Agent:</span>
+              <span className="max-w-[160px] truncate text-[#141413]">{activeCommand.name}</span>
+              <button
+                onClick={() => setActiveCommand(null)}
+                className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[#a07cc5]/70 transition hover:bg-[#a07cc5]/15 hover:text-[#a07cc5]"
+                title="Unapply"
+              >
+                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
           <div
             className={`relative flex items-end gap-3 rounded-[20px] border bg-white p-3 shadow-[0_2px_12px_rgba(20,20,19,0.04)] transition-colors ${
               isDragging ? "border-[#d97757] bg-[#d97757]/[0.02]" : "border-[#e8e6dc]/80"
