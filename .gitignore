@@ -3,3 +3,8 @@ dist
 .env
 *.tsbuildinfo
 .claude/
+
+# The project template under server/workspace/ intentionally ships a
+# .claude/ directory (skills + default settings). Un-ignore it.
+!server/workspace/projects/*/.claude/
+!server/workspace/projects/*/.claude/**
