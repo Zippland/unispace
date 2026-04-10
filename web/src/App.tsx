@@ -6,6 +6,9 @@ import ChatPanel from "./components/ChatPanel";
 import FileViewer from "./components/FileViewer";
 import { ConfigDialog, DispatchDialog } from "./components/SettingsDialog";
 import DevPanel from "./components/DevPanel";
+import CommandEditorPanel, {
+  type CommandEditorMode,
+} from "./components/CommandEditorPanel";
 
 const IS_DEV = import.meta.env.VITE_DEV_MODE === "true";
 
@@ -93,6 +96,7 @@ export default function App() {
   const [configOpen, setConfigOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
+  const [commandEditor, setCommandEditor] = useState<CommandEditorMode | null>(null);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -215,6 +219,7 @@ export default function App() {
           onOpenFile={handleOpenFile}
           onOpenSettings={() => setConfigOpen(true)}
           onOpenDispatch={() => setDispatchOpen(true)}
+          onOpenCommandEditor={setCommandEditor}
         />
       </div>
 
@@ -223,7 +228,22 @@ export default function App() {
         onResize={(dx) => setSidebarW((w) => clamp(w + dx, 180, 400))}
       />
 
-      {hasTabs ? (
+      {commandEditor ? (
+        /* Command / prompt editor takes over the entire main area */
+        <div className="flex-1 flex flex-col min-w-0 h-full">
+          <CommandEditorPanel
+            mode={commandEditor}
+            onClose={() => setCommandEditor(null)}
+            onSaved={async () => {
+              // Refresh file tree so the sidebar list picks up the change
+              try {
+                const files = await api.fetchFiles(serverUrl);
+                setFiles(files);
+              } catch {}
+            }}
+          />
+        </div>
+      ) : hasTabs ? (
         <>
           {/* Chat: fixed width, middle */}
           <div

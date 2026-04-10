@@ -23,6 +23,9 @@ export interface RunAgentOptions {
    *  reading `.claude/settings.json`. Nothing for us to pass here. */
   resumeSessionId?: string;
   signal?: AbortSignal;
+  /** Optional text appended to the project's system prompt for this turn —
+   *  used by the "apply command as agent persona" flow. */
+  appendSystemPrompt?: string;
 }
 
 // ── Runner ───────────────────────────────────────────────────

@@ -74,16 +74,20 @@ const RECENTS_HEIGHT_KEY = "us:recents_height";
 
 // ── Sidebar ───────────────────────────────────────────────────
 
+import type { CommandEditorMode } from "./CommandEditorPanel";
+
 interface SidebarProps {
   onOpenFile: (path: string, name: string) => void;
   onOpenSettings: () => void;
   onOpenDispatch: () => void;
+  onOpenCommandEditor: (mode: CommandEditorMode) => void;
 }
 
 export default function Sidebar({
   onOpenFile,
   onOpenSettings,
   onOpenDispatch,
+  onOpenCommandEditor,
 }: SidebarProps) {
   const {
     projects,
@@ -106,18 +110,9 @@ export default function Sidebar({
   // Active workspace tab
   const [activeTabKey, setActiveTabKey] = useState<TabKey>("files");
 
-  // Dialog state for create-command / create-skill / edit-prompt
-  const [commandDialog, setCommandDialog] = useState(false);
+  // Dialog state for create-skill (commands/prompt editing lives in the
+  // main area via onOpenCommandEditor, not a modal)
   const [skillDialog, setSkillDialog] = useState(false);
-  const [editPromptDialog, setEditPromptDialog] = useState<
-    | {
-        kind: "command" | "projectPrompt";
-        path: string;
-        name: string;
-        text: string;
-      }
-    | null
-  >(null);
 
   function slugify(name: string): string {
     return name
@@ -127,57 +122,6 @@ export default function Sidebar({
       .replace(/^-+|-+$/g, "");
   }
 
-  async function handleCreateCommand(name: string, text: string) {
-    const slug = slugify(name);
-    if (!slug) throw new Error("Invalid name");
-    const path = `${COMMANDS_DIR}/${slug}.md`;
-    await api.saveFile(serverUrl, path, text);
-    await refreshFiles();
-    setCommandDialog(false);
-  }
-
-  async function handleEditPromptOpen(
-    kind: "command" | "projectPrompt",
-    path: string,
-    displayName: string,
-  ) {
-    try {
-      const text = await api.fetchFileContent(serverUrl, path);
-      setEditPromptDialog({ kind, path, name: displayName, text });
-    } catch {
-      setEditPromptDialog({ kind, path, name: displayName, text: "" });
-    }
-  }
-
-  async function handleEditPromptSave(newName: string, text: string) {
-    if (!editPromptDialog) return;
-    const { kind, path: oldPath, name: oldName } = editPromptDialog;
-
-    if (kind === "projectPrompt") {
-      // CLAUDE.md — name is fixed, just overwrite
-      await api.saveFile(serverUrl, oldPath, text);
-    } else {
-      const newSlug = slugify(newName);
-      if (!newSlug) throw new Error("Invalid name");
-      const newPath = `${COMMANDS_DIR}/${newSlug}.md`;
-
-      if (newPath !== oldPath) {
-        // Rename: write new, delete old
-        await api.saveFile(serverUrl, newPath, text);
-        try {
-          await api.deleteFile(serverUrl, oldPath);
-        } catch {
-          // If delete fails we still have the new file; surface no error.
-        }
-      } else {
-        await api.saveFile(serverUrl, oldPath, text);
-      }
-      void oldName; // (placeholder to silence unused)
-    }
-
-    await refreshFiles();
-    setEditPromptDialog(null);
-  }
 
   async function handleCreateSkill(name: string) {
     const slug = slugify(name);
@@ -552,7 +496,7 @@ export default function Sidebar({
           )}
           {activeTabKey === "prompt" && (
             <button
-              onClick={() => setCommandDialog(true)}
+              onClick={() => onOpenCommandEditor({ kind: "create" })}
               className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
             >
               + New
@@ -630,21 +574,21 @@ export default function Sidebar({
             <PromptPanel
               globalPrompt={globalPromptFile}
               commands={commandsList}
-              onOpenFile={onOpenFile}
               onEditProjectPrompt={() => {
                 if (!globalPromptFile) return;
-                handleEditPromptOpen(
-                  "projectPrompt",
-                  globalPromptFile.path || globalPromptFile.name,
-                  "Project Prompt",
-                );
+                onOpenCommandEditor({
+                  kind: "edit",
+                  path: globalPromptFile.path || globalPromptFile.name,
+                  initialName: "Project Prompt",
+                  lockName: true,
+                });
               }}
               onEditCommand={(cmd) =>
-                handleEditPromptOpen(
-                  "command",
-                  cmd.path,
-                  cmd.name.replace(/\.md$/i, ""),
-                )
+                onOpenCommandEditor({
+                  kind: "edit",
+                  path: cmd.path,
+                  initialName: cmd.name.replace(/\.md$/i, ""),
+                })
               }
               onDeleteCommand={async (path) => {
                 await api.deleteFile(serverUrl, path);
@@ -672,34 +616,6 @@ export default function Sidebar({
         onDelete={handleDeleteSession}
       />
 
-      {commandDialog && (
-        <CommandDialog
-          mode="create"
-          title="New command"
-          onClose={() => setCommandDialog(false)}
-          onSave={handleCreateCommand}
-        />
-      )}
-      {editPromptDialog && (
-        <CommandDialog
-          mode="edit"
-          title={
-            editPromptDialog.kind === "projectPrompt"
-              ? "Edit project prompt"
-              : `Edit command · ${editPromptDialog.name}`
-          }
-          lockName={editPromptDialog.kind === "projectPrompt"}
-          initialName={editPromptDialog.name}
-          initialText={editPromptDialog.text}
-          placeholder={
-            editPromptDialog.kind === "projectPrompt"
-              ? "Project-level instructions for the agent (loaded as CLAUDE.md)."
-              : undefined
-          }
-          onClose={() => setEditPromptDialog(null)}
-          onSave={handleEditPromptSave}
-        />
-      )}
       {skillDialog && (
         <SkillDialog
           onClose={() => setSkillDialog(false)}
@@ -858,14 +774,12 @@ function SkillChildNode({
 function PromptPanel({
   globalPrompt,
   commands,
-  onOpenFile,
   onEditProjectPrompt,
   onEditCommand,
   onDeleteCommand,
 }: {
   globalPrompt: FileEntry | undefined;
   commands: FileEntry[];
-  onOpenFile: (path: string, name: string) => void;
   onEditProjectPrompt: () => void;
   onEditCommand: (cmd: FileEntry) => void;
   onDeleteCommand: (path: string) => Promise<void>;
@@ -875,9 +789,6 @@ function PromptPanel({
   const commandIconPath =
     "M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z";
 
-  const pencilIconPath =
-    "M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.862 4.487Zm0 0L19.5 7.125";
-
   return (
     <div className="py-1">
       {/* Global section */}
@@ -886,9 +797,7 @@ function PromptPanel({
       </div>
       {globalPrompt ? (
         <div
-          onClick={() =>
-            onOpenFile(globalPrompt.path || globalPrompt.name, globalPrompt.name)
-          }
+          onClick={onEditProjectPrompt}
           className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition hover:bg-[#faf9f5]"
         >
           <svg
@@ -907,18 +816,6 @@ function PromptPanel({
           <span className="min-w-0 flex-1 truncate text-[#141413]">
             Project Prompt
           </span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditProjectPrompt();
-            }}
-            className="rounded p-0.5 text-[#b0aea5] opacity-0 transition hover:text-[#d97757] group-hover:opacity-100"
-            title="Edit"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d={pencilIconPath} />
-            </svg>
-          </button>
         </div>
       ) : (
         <div className="px-3 py-2 text-[11px] text-[#b0aea5]">
@@ -953,7 +850,7 @@ function PromptPanel({
                 e.dataTransfer.setData("x-unispace-drag", "command");
                 e.dataTransfer.effectAllowed = "copy";
               }}
-              onClick={() => onOpenFile(cmd.path, cmd.name)}
+              onClick={() => onEditCommand(cmd)}
               className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition hover:bg-[#faf9f5]"
             >
               <svg
@@ -968,18 +865,6 @@ function PromptPanel({
               <span className="min-w-0 flex-1 truncate text-[#141413]">
                 {displayName}
               </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditCommand(cmd);
-                }}
-                className="rounded p-0.5 text-[#b0aea5] opacity-0 transition hover:text-[#d97757] group-hover:opacity-100"
-                title="Edit"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={pencilIconPath} />
-                </svg>
-              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1270,122 +1155,6 @@ function FileNode({
         />
       )}
     </div>
-  );
-}
-
-// ── Command dialog (create command — finance_agent style) ────
-
-type PromptDialogMode = "create" | "edit";
-
-function CommandDialog({
-  mode,
-  title,
-  lockName,
-  initialName,
-  initialText,
-  placeholder,
-  onClose,
-  onSave,
-}: {
-  mode: PromptDialogMode;
-  title: string;
-  lockName?: boolean;
-  initialName?: string;
-  initialText?: string;
-  placeholder?: string;
-  onClose: () => void;
-  onSave: (name: string, text: string) => Promise<void>;
-}) {
-  const [name, setName] = useState(initialName ?? "");
-  const [text, setText] = useState(initialText ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  const canSubmit = (lockName || name.trim()) && text.trim() && !saving;
-
-  async function handleSubmit() {
-    if (!canSubmit) return;
-    setSaving(true);
-    setError("");
-    try {
-      const resolvedName = lockName ? initialName ?? "" : name;
-      await onSave(resolvedName.trim(), text.trim());
-    } catch (e: any) {
-      setError(e.message || "Failed to save");
-      setSaving(false);
-    }
-  }
-
-  const submitLabel =
-    mode === "create"
-      ? saving ? "Creating…" : "Create"
-      : saving ? "Saving…" : "Save";
-
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-50 bg-[#141413]/20 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="fixed left-1/2 top-1/2 z-50 w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-[0_16px_48px_rgba(20,20,19,0.15)]">
-        <h3 className="mb-4 font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold text-[#141413]">
-          {title}
-        </h3>
-
-        {!lockName && (
-          <>
-            <label className="mb-1 block text-[12px] font-medium text-[#6b6963]">
-              Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Summarize this file"
-              maxLength={64}
-              autoFocus={mode === "create"}
-              className="mb-3 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-[13px] text-[#141413] outline-none transition focus:border-[#a07cc5]/60 focus:ring-1 focus:ring-[#a07cc5]/20"
-            />
-          </>
-        )}
-
-        <label className="mb-1 block text-[12px] font-medium text-[#6b6963]">
-          {lockName ? "Content" : "Prompt text"}
-        </label>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={12}
-          autoFocus={mode === "edit"}
-          placeholder={
-            placeholder ??
-            `This text will be injected into the chat input when you drag the command.\n\nExample:\nSummarize the attached file in 5 bullet points. Focus on the key decisions and open questions.`
-          }
-          className="w-full resize-y rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 font-mono text-[12px] leading-6 text-[#141413] outline-none transition focus:border-[#a07cc5]/60 focus:ring-1 focus:ring-[#a07cc5]/20"
-        />
-
-        {error && (
-          <p className="mt-2 text-[12px] text-[#d97757]">{error}</p>
-        )}
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-lg border border-[#e8e6dc] px-4 py-1.5 text-[13px] text-[#6b6963] hover:bg-[#faf9f5] disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="rounded-lg bg-[#a07cc5] px-4 py-1.5 text-[13px] font-medium text-white transition hover:bg-[#8e6ab3] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitLabel}
-          </button>
-        </div>
-      </div>
-    </>
   );
 }
 
