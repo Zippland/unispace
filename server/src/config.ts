@@ -35,12 +35,10 @@ export const paths = {
 };
 
 // ── Config schema ─────────────────────────────────────────────
+// UniSpace inherits authentication and the default model from your local
+// Claude Code install (via the bundled SDK). No API key needed here.
 
 export interface Config {
-  model: {
-    name: string;
-    apiKey: string;
-  };
   server: {
     port: number;
   };
@@ -48,10 +46,6 @@ export interface Config {
 }
 
 const DEFAULTS: Config = {
-  model: {
-    name: "claude-sonnet-4-5",
-    apiKey: "",
-  },
   server: {
     port: 3210,
   },
@@ -67,7 +61,6 @@ export function ensureInit(): void {
     cpSync(TEMPLATE_DIR, dir, { recursive: true });
     chmodSync(dir, 0o700);
     console.log(`  Initialized workspace from template → ${dir}`);
-    console.log(`  → Edit ${paths.config()} to set your ANTHROPIC_API_KEY`);
   }
 }
 
@@ -76,15 +69,10 @@ export function ensureInit(): void {
 export function loadConfig(): Config {
   const raw = JSON.parse(readFileSync(paths.config(), "utf-8"));
   const config: Config = {
-    model: { ...DEFAULTS.model, ...raw.model },
     server: { ...DEFAULTS.server, ...raw.server },
     currentProject: raw.currentProject || DEFAULTS.currentProject,
   };
 
-  // Env override
-  if (process.env.ANTHROPIC_API_KEY) {
-    config.model.apiKey = process.env.ANTHROPIC_API_KEY;
-  }
   if (process.env.PORT) config.server.port = parseInt(process.env.PORT);
 
   return config;

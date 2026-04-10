@@ -39,22 +39,18 @@ UniSpace 解决这两件事：
 
 ## 快速开始
 
+前置：本机装好 Claude Code 并完成 `claude login`。UniSpace 通过 `@anthropic-ai/claude-agent-sdk` 复用 Claude Code 的登录态和默认模型，不需要再填 API key。
+
 ```bash
 git clone https://github.com/Zippland/unispace.git
 cd unispace
 cd server && bun install && bun link && cd ../web && bun install && cd ..
-unispace onboard
-```
-
-`onboard` 会创建 `~/.unispace/` 并引导你填 `ANTHROPIC_API_KEY`。
-
-```bash
 unispace
 ```
 
-API 服务在 `localhost:3210`，Web 界面在 `localhost:5174`。
+首次运行会自动创建 `~/.unispace/projects/default/`。API 服务在 `localhost:3210`，Web 界面在 `localhost:5174`。
 
-> **从旧版升级？** 0.3 之前的扁平 workspace 结构不兼容，先 `rm -rf ~/.unispace` 再 `unispace onboard` 重来一次。
+> **从旧版升级？** 0.3 之前的扁平 workspace 结构不兼容，先 `rm -rf ~/.unispace` 再 `unispace` 启动一次。
 
 ---
 
@@ -62,7 +58,7 @@ API 服务在 `localhost:3210`，Web 界面在 `localhost:5174`。
 
 ```
 ~/.unispace/
-├── config.json          # 全局：model / apiKey / port / currentProject
+├── config.json          # 全局：port / currentProject（认证走 Claude Code）
 └── projects/
     ├── default/
     │   ├── CLAUDE.md    # 这个 project 的 agent 人格 + 项目背景
@@ -90,24 +86,18 @@ API 服务在 `localhost:3210`，Web 界面在 `localhost:5174`。
 
 ---
 
-## 配置模型
+## 配置
 
-编辑 `~/.unispace/config.json`：
+`~/.unispace/config.json` 只有两个字段：
 
 ```json
 {
-  "model": {
-    "name": "claude-sonnet-4-5",
-    "apiKey": "sk-ant-..."
-  },
-  "server": {
-    "port": 3210
-  },
+  "server": { "port": 3210 },
   "currentProject": "default"
 }
 ```
 
-或 `unispace onboard` 重新配置。
+模型和认证走本机的 Claude Code。想换模型？用 `claude` 的 `/model` 或改 Claude Code 的设置，UniSpace 会自动跟随。
 
 ---
 

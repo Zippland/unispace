@@ -1,5 +1,4 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { Config } from "./config";
 
 // ── Wire events (kept compatible with the previous agent) ────
 
@@ -20,7 +19,6 @@ export type AgentEvent =
 export interface RunAgentOptions {
   prompt: string;
   cwd: string;
-  config: Config;
   /** SDK session id to resume. Omit for a new session. */
   resumeSessionId?: string;
   signal?: AbortSignal;
@@ -31,7 +29,7 @@ export interface RunAgentOptions {
 export async function* runAgent(
   opts: RunAgentOptions,
 ): AsyncGenerator<AgentEvent> {
-  const { prompt, cwd, config, resumeSessionId, signal } = opts;
+  const { prompt, cwd, resumeSessionId, signal } = opts;
 
   const abortController = new AbortController();
   if (signal) signal.addEventListener("abort", () => abortController.abort());
@@ -43,17 +41,12 @@ export async function* runAgent(
       prompt,
       options: {
         cwd,
-        model: config.model.name,
         abortController,
         // Load CLAUDE.md and .claude/skills/ from the project directory
         settingSources: ["project"],
         // Demo: skip all permission prompts (sandbox handles isolation in prod)
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
-        env: {
-          ...process.env,
-          ANTHROPIC_API_KEY: config.model.apiKey,
-        },
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       },
     });

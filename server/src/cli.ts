@@ -57,24 +57,6 @@ function onboard() {
   const config = loadConfig();
   let changed = false;
 
-  const currentKey = config.model.apiKey;
-  const maskedKey = currentKey
-    ? `${currentKey.slice(0, 4)}...${currentKey.slice(-4)}`
-    : "(not set)";
-  console.log(`  Current ANTHROPIC_API_KEY: ${maskedKey}`);
-  const newKey = prompt("  Enter API key (press Enter to keep current):");
-  if (newKey && newKey.trim()) {
-    config.model.apiKey = newKey.trim();
-    changed = true;
-  }
-
-  console.log(`  Current model: ${config.model.name}`);
-  const newModel = prompt("  Enter model name (press Enter to keep current):");
-  if (newModel && newModel.trim()) {
-    config.model.name = newModel.trim();
-    changed = true;
-  }
-
   console.log(`  Current port: ${config.server.port}`);
   const newPort = prompt("  Enter port (press Enter to keep current):");
   if (newPort && newPort.trim()) {
@@ -90,7 +72,10 @@ function onboard() {
   console.log(`\n  Workspace       : ${getDir()}`);
   console.log(`  Current project : ${config.currentProject}`);
   console.log(`  Project path    : ${paths.project(config.currentProject)}`);
-  console.log(`\n  Run \`unispace\` to launch.\n`);
+  console.log(
+    `\n  Auth and model inherit from your local Claude Code install.`,
+  );
+  console.log(`  Run \`unispace\` to launch.\n`);
 }
 
 // ── start (server only) ──────────────────────────────────────
@@ -100,13 +85,6 @@ async function start() {
   ensureInit();
 
   const config = loadConfig();
-  if (!config.model.apiKey) {
-    console.error(
-      `\n  No ANTHROPIC_API_KEY. Run \`unispace onboard\` or edit ${paths.config()}\n`,
-    );
-    process.exit(1);
-  }
-
   loadAllSessions();
 
   const port = config.server.port;
@@ -142,13 +120,6 @@ async function launch(devMode: boolean) {
   ensureInit();
 
   const config = loadConfig();
-  if (!config.model.apiKey) {
-    console.error(
-      `\n  No ANTHROPIC_API_KEY. Run \`unispace onboard\` or edit ${paths.config()}\n`,
-    );
-    process.exit(1);
-  }
-
   loadAllSessions();
 
   const port = config.server.port;

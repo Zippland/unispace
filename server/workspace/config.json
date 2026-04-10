@@ -1,8 +1,4 @@
 {
-  "model": {
-    "name": "claude-sonnet-4-5",
-    "apiKey": ""
-  },
   "server": {
     "port": 3210
   },

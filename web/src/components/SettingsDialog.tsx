@@ -6,7 +6,6 @@ import { useStore } from "../store";
 // ═══════════════════════════════════════════════════════════════
 
 interface ConfigData {
-  model: { name: string; apiKey: string };
   server: { port: number };
   currentProject: string;
 }
@@ -29,7 +28,7 @@ export function ConfigDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   if (!open) return null;
 
-  function update(section: "model" | "server", key: string, value: string | number) {
+  function update(section: "server", key: string, value: string | number) {
     if (!config) return;
     setConfig({ ...config, [section]: { ...config[section], [key]: value } });
     setSaved(false);
@@ -67,20 +66,10 @@ export function ConfigDialog({ open, onClose }: { open: boolean; onClose: () => 
           <div className="px-6 py-12 text-center text-[13px] text-[#b0aea5]">Loading...</div>
         ) : (
           <div className="max-h-[60vh] overflow-y-auto px-6 py-5 space-y-5">
-            <Section title="Model (Claude)">
-              <Field
-                label="Model name"
-                value={config.model.name}
-                placeholder="claude-sonnet-4-5"
-                onChange={(v) => update("model", "name", v)}
-              />
-              <Field
-                label="ANTHROPIC_API_KEY"
-                value={config.model.apiKey}
-                type="password"
-                onChange={(v) => update("model", "apiKey", v)}
-              />
-            </Section>
+            <div className="rounded-lg bg-[#faf9f5] px-3 py-2.5 text-[12px] leading-relaxed text-[#6b6963]">
+              Auth and model inherit from your local Claude Code install —
+              no API key needed here. Run <span className="font-mono text-[#141413]">claude login</span> first if you haven't.
+            </div>
             <Section title="Server">
               <Field
                 label="Port"

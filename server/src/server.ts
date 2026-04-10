@@ -414,13 +414,11 @@ export function createServer(_initialConfig: Config) {
       const ac = new AbortController();
       c.req.raw.signal.addEventListener("abort", () => ac.abort());
 
-      const cfg = loadConfig();
       const projectDir = paths.project(session.projectName);
 
       for await (const event of runAgent({
         prompt: content,
         cwd: projectDir,
-        config: cfg,
         resumeSessionId: session.sdkSessionId,
         signal: ac.signal,
       })) {
