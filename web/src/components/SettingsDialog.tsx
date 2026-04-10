@@ -67,8 +67,8 @@ export function ConfigDialog({ open, onClose }: { open: boolean; onClose: () => 
         ) : (
           <div className="max-h-[60vh] overflow-y-auto px-6 py-5 space-y-5">
             <div className="rounded-lg bg-[#faf9f5] px-3 py-2.5 text-[12px] leading-relaxed text-[#6b6963]">
-              Auth and model inherit from your local Claude Code install —
-              no API key needed here. Run <span className="font-mono text-[#141413]">claude login</span> first if you haven't.
+              Auth and model are inherited from the local agent runtime. No API
+              key needed here — make sure you've logged in on this machine first.
             </div>
             <Section title="Server">
               <Field

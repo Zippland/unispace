@@ -41,20 +41,36 @@ function ChannelBadge({ channel }: { channel: string }) {
   );
 }
 
-// ── System file names ─────────────────────────────────────────
+// ── Hoisted / reserved top-level entries (surfaced under their own tabs) ──
 
-const SYSTEM_NAMES = new Set(["CLAUDE.md", "sessions", "skills"]);
+const HOISTED_NAMES = new Set([
+  "CLAUDE.md",
+  "sessions",
+  "skills",
+  "commands",
+]);
 
 // ── Workspace resource tabs ───────────────────────────────────
 
-type TabKey = "skill" | "prompt" | "files" | "connectors";
+type TabKey = "skills" | "prompt" | "files" | "connectors";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "skill", label: "Skill" },
+  { key: "skills", label: "Skills" },
   { key: "prompt", label: "Prompt" },
   { key: "files", label: "Files" },
   { key: "connectors", label: "Connectors" },
 ];
+
+// ── Paths (mirror server hoisting) ────────────────────────────
+
+const COMMANDS_DIR = ".claude/commands";
+const SKILLS_DIR = ".claude/skills";
+
+// ── Recents panel height ──────────────────────────────────────
+
+const RECENTS_MIN_HEIGHT = 80;
+const RECENTS_MAX_HEIGHT = 500;
+const RECENTS_HEIGHT_KEY = "us:recents_height";
 
 // ── Sidebar ───────────────────────────────────────────────────
 
@@ -82,8 +98,73 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
   const [cloneName, setCloneName] = useState("");
   const [cloneError, setCloneError] = useState("");
 
-  // Active workspace tab (switching not yet wired — Files is the only real content)
+  // Active workspace tab
   const [activeTabKey, setActiveTabKey] = useState<TabKey>("files");
+
+  // Dialog state for create-command / create-skill
+  const [commandDialog, setCommandDialog] = useState(false);
+  const [skillDialog, setSkillDialog] = useState(false);
+
+  function slugify(name: string): string {
+    return name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  async function handleCreateCommand(name: string, text: string) {
+    const slug = slugify(name);
+    if (!slug) throw new Error("Invalid name");
+    const path = `${COMMANDS_DIR}/${slug}.md`;
+    await api.saveFile(serverUrl, path, text);
+    await refreshFiles();
+    setCommandDialog(false);
+  }
+
+  async function handleCreateSkill(name: string) {
+    const slug = slugify(name);
+    if (!slug) throw new Error("Invalid name");
+    const path = `${SKILLS_DIR}/${slug}/SKILL.md`;
+    const stub = `---\nname: ${slug}\ndescription: describe what this skill does\n---\n\n# ${name.trim()}\n\nDescribe how to use this skill.\n`;
+    await api.saveFile(serverUrl, path, stub);
+    await refreshFiles();
+    setSkillDialog(false);
+  }
+
+  // Recents panel height (resizable, persisted)
+  const [recentsHeight, setRecentsHeight] = useState<number>(() => {
+    const saved = localStorage.getItem(RECENTS_HEIGHT_KEY);
+    return saved ? parseInt(saved) : 200;
+  });
+  const [isResizingRecents, setIsResizingRecents] = useState(false);
+
+  const startResizingRecents = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsResizingRecents(true);
+      const startY = e.clientY;
+      const startHeight = recentsHeight;
+
+      const onMove = (ev: MouseEvent) => {
+        const delta = startY - ev.clientY;
+        const next = Math.max(
+          RECENTS_MIN_HEIGHT,
+          Math.min(RECENTS_MAX_HEIGHT, startHeight + delta),
+        );
+        setRecentsHeight(next);
+        localStorage.setItem(RECENTS_HEIGHT_KEY, String(next));
+      };
+      const onUp = () => {
+        setIsResizingRecents(false);
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [recentsHeight],
+  );
 
   async function handleSwitchProject(name: string) {
     if (name === currentProject) {
@@ -220,11 +301,27 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
     refreshFiles();
   }
 
-  const userFiles = files.filter((f) => !SYSTEM_NAMES.has(f.name));
+  const userFiles = files.filter((f) => !HOISTED_NAMES.has(f.name));
   const sessionsFolder = files.find(
     (f) => f.name === "sessions" && f.type === "directory",
   );
   const sessions = sessionsFolder?.children || [];
+
+  const skillsFolder = files.find(
+    (f) => f.name === "skills" && f.type === "directory",
+  );
+  const skillsList = (skillsFolder?.children || []).filter(
+    (s) => s.type === "directory",
+  );
+
+  const commandsFolder = files.find(
+    (f) => f.name === "commands" && f.type === "directory",
+  );
+  const commandsList = (commandsFolder?.children || []).filter(
+    (c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"),
+  );
+
+  const globalPromptFile = files.find((f) => f.name === "CLAUDE.md");
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
@@ -241,7 +338,7 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
               UniSpace
             </h1>
             <p className="text-[10px] text-[#b0aea5] leading-tight mt-0.5">
-              browser-native Claude Code
+              Browser-native workspace
             </p>
           </div>
           <button
@@ -358,35 +455,65 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
         </>
       )}
 
-      {/* ── Tab row (switching not wired yet — Files is the only active content) ── */}
-      <div className="flex shrink-0 border-b border-[#e8e6dc]">
-        {TABS.map((tab) => {
-          const isActive = activeTabKey === tab.key;
-          return (
+      {/* ── Resource area: tab nav + action + content ─────── */}
+      <div className="flex flex-1 flex-col min-h-0 overflow-hidden px-4 pt-3">
+        {/* Tab nav row (finance_agent style — no underline, text color only) */}
+        <div className="flex items-center justify-between shrink-0">
+          <nav className="flex gap-4">
+            {TABS.map((tab) => {
+              const isActive = activeTabKey === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTabKey(tab.key)}
+                  className={`font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium transition ${
+                    isActive
+                      ? "text-[#141413]"
+                      : "text-[#b0aea5] hover:text-[#141413]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+          {activeTabKey === "files" && (
             <button
-              key={tab.key}
-              onClick={() => setActiveTabKey(tab.key)}
-              className={`group relative flex-1 py-2.5 text-[11px] font-medium tracking-wide transition ${
-                isActive
-                  ? "text-[#141413]"
-                  : "text-[#b0aea5] hover:text-[#6b6963]"
-              }`}
-              style={{ fontFamily: "'Poppins', Arial, sans-serif" }}
+              onClick={() => fileInputRef.current?.click()}
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
             >
-              {tab.label}
-              {isActive && (
-                <span className="absolute left-1/2 bottom-[-1px] h-[2px] w-8 -translate-x-1/2 rounded-full bg-[#d97757]" />
-              )}
+              + Upload
             </button>
-          );
-        })}
-      </div>
+          )}
+          {activeTabKey === "skills" && (
+            <button
+              onClick={() => setSkillDialog(true)}
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+            >
+              + New
+            </button>
+          )}
+          {activeTabKey === "prompt" && (
+            <button
+              onClick={() => setCommandDialog(true)}
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+            >
+              + New
+            </button>
+          )}
+          {activeTabKey === "connectors" && (
+            <span
+              className="cursor-not-allowed text-xs text-[#b0aea5]/60"
+              title="Coming soon"
+            >
+              + Add
+            </span>
+          )}
+        </div>
 
-      {/* ── Tab content + Recents panel ──────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-0">
         {/* Tab content (scrollable, drag-drop target) */}
         <div
-          className="flex-1 overflow-y-auto min-h-0 relative"
+          className="mt-3 flex-1 overflow-y-auto min-h-0 relative -mx-2"
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
@@ -394,7 +521,7 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
         >
           {/* Drop overlay */}
           {isDragging && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 border-2 border-dashed border-[#d97757] rounded-lg m-2">
+            <div className="absolute inset-0 z-10 mx-2 flex items-center justify-center rounded-lg border-2 border-dashed border-[#d97757] bg-white/90">
               <div className="flex flex-col items-center gap-1.5">
                 <svg className="h-6 w-6 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
@@ -406,7 +533,7 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
 
           {/* Upload error */}
           {uploadError && (
-            <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-lg bg-[#d97757]/[0.06] px-3 py-2 text-[12px] text-[#d97757]">
+            <div className="mx-2 mt-1 flex items-center gap-1.5 rounded-lg bg-[#d97757]/[0.06] px-3 py-2 text-[12px] text-[#d97757]">
               <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
               </svg>
@@ -416,7 +543,7 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
 
           {/* Upload progress */}
           {uploading && (
-            <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg bg-[#faf9f5] px-3 py-2">
+            <div className="mx-2 mt-1 flex items-center gap-2 rounded-lg bg-[#faf9f5] px-3 py-2">
               <div className="h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-[#e8e6dc] border-t-[#d97757]" />
               <span className="text-[12px] text-[#6b6963]">Uploading...</span>
             </div>
@@ -426,71 +553,361 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileInput} />
 
           {/* Active tab content */}
-          {activeTabKey === "files" ? (
-            <>
-              <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
-                <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold text-[#b0aea5] uppercase tracking-widest">
-                  Files
-                </span>
-                <div className="flex items-center gap-0.5">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757] hover:bg-[#d97757]/[0.06]"
-                    title="Upload file"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={refreshFiles}
-                    className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413] hover:bg-[#141413]/[0.04]"
-                    title="Refresh"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div className="px-2 pb-2">
-                {userFiles.length === 0 ? (
-                  <p className="text-[11px] text-[#b0aea5] px-3 py-3 text-center">
-                    Drop files here or click upload
-                  </p>
-                ) : (
-                  userFiles.map((f) => (
-                    <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
-                  ))
-                )}
-              </div>
-            </>
-          ) : (
-            <TabPlaceholder tab={activeTabKey} />
+          {activeTabKey === "files" && (
+            <div className="px-2 pb-2">
+              {userFiles.length === 0 ? (
+                <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
+                  Drop files here or click upload
+                </p>
+              ) : (
+                userFiles.map((f) => (
+                  <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
+                ))
+              )}
+            </div>
           )}
+          {activeTabKey === "skills" && (
+            <SkillsPanel skills={skillsList} onOpenFile={onOpenFile} />
+          )}
+          {activeTabKey === "prompt" && (
+            <PromptPanel
+              globalPrompt={globalPromptFile}
+              commands={commandsList}
+              onOpenFile={onOpenFile}
+              onDeleteCommand={async (path) => {
+                await api.deleteFile(serverUrl, path);
+                await refreshFiles();
+              }}
+            />
+          )}
+          {activeTabKey === "connectors" && <ConnectorsPanel />}
         </div>
-
-        {/* Recents panel — pinned at bottom */}
-        <RecentsPanel
-          sessions={sessions}
-          onOpen={onOpenFile}
-          onNew={handleNewSession}
-          onDelete={handleDeleteSession}
-        />
       </div>
+
+      {/* ── Recents panel (resizable, pinned at bottom) ────── */}
+      <RecentsPanel
+        sessions={sessions}
+        height={recentsHeight}
+        isResizing={isResizingRecents}
+        onStartResize={startResizingRecents}
+        onOpen={onOpenFile}
+        onNew={handleNewSession}
+        onDelete={handleDeleteSession}
+      />
+
+      {commandDialog && (
+        <CommandDialog
+          onClose={() => setCommandDialog(false)}
+          onCreate={handleCreateCommand}
+        />
+      )}
+      {skillDialog && (
+        <SkillDialog
+          onClose={() => setSkillDialog(false)}
+          onCreate={handleCreateSkill}
+        />
+      )}
     </div>
   );
 }
 
-// ── Recents panel (sessions list pinned to bottom) ────────────
+// ── Skills panel — expandable tree with draggable top-level folders ──
+
+function SkillsPanel({
+  skills,
+  onOpenFile,
+}: {
+  skills: FileEntry[];
+  onOpenFile: (path: string, name: string) => void;
+}) {
+  if (skills.length === 0) {
+    return (
+      <div className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
+        No skills yet
+      </div>
+    );
+  }
+  return (
+    <div className="py-1">
+      {skills.map((skill) => (
+        <SkillItem key={skill.path} skill={skill} onOpenFile={onOpenFile} />
+      ))}
+    </div>
+  );
+}
+
+function SkillItem({
+  skill,
+  onOpenFile,
+}: {
+  skill: FileEntry;
+  onOpenFile: (path: string, name: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div>
+      <div
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData(
+            "application/json",
+            JSON.stringify({ type: "skill", path: skill.path, name: skill.name }),
+          );
+          e.dataTransfer.setData("x-unispace-drag", "skill");
+          e.dataTransfer.effectAllowed = "copy";
+        }}
+        onClick={() => setExpanded(!expanded)}
+        className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition hover:bg-[#faf9f5]"
+      >
+        <svg
+          className="h-4 w-4 shrink-0 text-[#d97757]"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"
+          />
+        </svg>
+        <span className="min-w-0 flex-1 truncate text-[#141413]">
+          {skill.name}
+        </span>
+        <svg
+          className={`h-3 w-3 shrink-0 text-[#b0aea5] transition-transform ${expanded ? "rotate-90" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+      </div>
+      {expanded &&
+        skill.children?.map((child) => (
+          <SkillChildNode
+            key={child.path}
+            file={child}
+            depth={1}
+            onOpenFile={onOpenFile}
+          />
+        ))}
+    </div>
+  );
+}
+
+function SkillChildNode({
+  file,
+  depth,
+  onOpenFile,
+}: {
+  file: FileEntry;
+  depth: number;
+  onOpenFile: (path: string, name: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isDir = file.type === "directory";
+
+  return (
+    <div>
+      <div
+        className="flex cursor-pointer items-center gap-1.5 rounded-lg py-[4px] text-[13px] transition hover:bg-[#faf9f5]"
+        style={{ paddingLeft: depth * 14 + 12, paddingRight: 8 }}
+        draggable={!isDir}
+        onDragStart={(e) => {
+          if (isDir) return;
+          e.dataTransfer.setData(
+            "application/json",
+            JSON.stringify({ type: "file", path: file.path, name: file.name }),
+          );
+          e.dataTransfer.setData("x-unispace-drag", "file");
+          e.dataTransfer.effectAllowed = "copy";
+        }}
+        onClick={() =>
+          isDir ? setExpanded(!expanded) : onOpenFile(file.path, file.name)
+        }
+      >
+        {isDir ? (
+          <FolderIcon open={expanded} className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
+        ) : (
+          <FileIcon className="h-3 w-3 shrink-0 text-[#d5d3ca]" />
+        )}
+        <span
+          className={`truncate ${isDir ? "font-medium text-[#141413]" : "text-[#6b6963]"}`}
+        >
+          {file.name}
+        </span>
+      </div>
+      {expanded && isDir &&
+        file.children?.map((c) => (
+          <SkillChildNode
+            key={c.path}
+            file={c}
+            depth={depth + 1}
+            onOpenFile={onOpenFile}
+          />
+        ))}
+    </div>
+  );
+}
+
+// ── Prompt panel — Global project prompt + draggable Commands ──
+
+function PromptPanel({
+  globalPrompt,
+  commands,
+  onOpenFile,
+  onDeleteCommand,
+}: {
+  globalPrompt: FileEntry | undefined;
+  commands: FileEntry[];
+  onOpenFile: (path: string, name: string) => void;
+  onDeleteCommand: (path: string) => Promise<void>;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState<FileEntry | null>(null);
+
+  const commandIconPath =
+    "M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z";
+
+  return (
+    <div className="py-1">
+      {/* Global section */}
+      <div className="mt-1 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
+        Global
+      </div>
+      {globalPrompt ? (
+        <div
+          onClick={() =>
+            onOpenFile(globalPrompt.path || globalPrompt.name, globalPrompt.name)
+          }
+          className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition hover:bg-[#faf9f5]"
+        >
+          <svg
+            className="h-4 w-4 shrink-0 text-[#6a9bcc]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3.75 3.75v16.5M3.75 3.75h16.5m-16.5 0L9 9m-5.25-5.25L3.75 9m16.5-5.25v16.5m0-16.5L15 9m5.25-5.25L20.25 9M3.75 20.25h16.5m-16.5 0L9 15m-5.25 5.25L3.75 15m16.5 5.25L15 15m5.25 5.25L20.25 15"
+            />
+          </svg>
+          <span className="min-w-0 flex-1 truncate text-[#141413]">
+            Project Prompt
+          </span>
+        </div>
+      ) : (
+        <div className="px-3 py-2 text-[11px] text-[#b0aea5]">
+          Project prompt unavailable
+        </div>
+      )}
+
+      {/* Commands section */}
+      <div className="mt-4 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
+        Commands
+      </div>
+      {commands.length === 0 ? (
+        <div className="px-3 py-2 text-[11px] text-[#b0aea5]">
+          No commands yet. Click + New to create one.
+        </div>
+      ) : (
+        commands.map((cmd) => {
+          const displayName = cmd.name.replace(/\.md$/i, "");
+          return (
+            <div
+              key={cmd.path}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData(
+                  "application/json",
+                  JSON.stringify({
+                    type: "command",
+                    path: cmd.path,
+                    name: displayName,
+                  }),
+                );
+                e.dataTransfer.setData("x-unispace-drag", "command");
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+              onClick={() => onOpenFile(cmd.path, cmd.name)}
+              className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition hover:bg-[#faf9f5]"
+            >
+              <svg
+                className="h-4 w-4 shrink-0 text-[#a07cc5]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d={commandIconPath} />
+              </svg>
+              <span className="min-w-0 flex-1 truncate text-[#141413]">
+                {displayName}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmDelete(cmd);
+                }}
+                className="rounded p-0.5 text-[#b0aea5] opacity-0 transition hover:text-[#d97757] group-hover:opacity-100"
+                title="Delete"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          );
+        })
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete command"
+          message={`Delete "${confirmDelete.name.replace(/\.md$/i, "")}" permanently?`}
+          onConfirm={async () => {
+            await onDeleteCommand(confirmDelete.path);
+            setConfirmDelete(null);
+          }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Connectors panel (placeholder) ────────────────────────────
+
+function ConnectorsPanel() {
+  return (
+    <div className="px-3 py-8 text-center">
+      <p className="text-[12px] font-medium text-[#6b6963]">Connectors</p>
+      <p className="mt-1 text-[11px] text-[#b0aea5]">Coming soon</p>
+    </div>
+  );
+}
+
+// ── Recents panel (resizable sessions list) ──────────────────
 
 function RecentsPanel({
   sessions,
+  height,
+  isResizing,
+  onStartResize,
   onOpen,
   onNew,
   onDelete,
 }: {
   sessions: FileEntry[];
+  height: number;
+  isResizing: boolean;
+  onStartResize: (e: React.MouseEvent) => void;
   onOpen: (path: string, name: string) => void;
   onNew: () => void;
   onDelete: (path: string) => void;
@@ -501,35 +918,39 @@ function RecentsPanel({
   );
 
   return (
-    <div className="shrink-0 flex max-h-[260px] flex-col border-t border-[#e8e6dc] bg-[#faf9f5]/50">
-      <div className="flex shrink-0 items-center justify-between px-4 pt-3 pb-1.5">
-        <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold uppercase tracking-widest text-[#b0aea5]">
+    <div className="shrink-0">
+      {/* Resize handle */}
+      <div
+        onMouseDown={onStartResize}
+        className={`mx-4 h-px cursor-row-resize transition-colors duration-150 hover:h-[2px] hover:bg-[#b0aea5] ${
+          isResizing ? "h-[2px] bg-[#b0aea5]" : "bg-[#e8e6dc]"
+        }`}
+      />
+      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+        <span className="font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium text-[#141413]">
           Recents
         </span>
         <button
           onClick={onNew}
-          className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:bg-[#d97757]/[0.06] hover:text-[#d97757]"
-          title="New session"
+          className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
+          + New
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+      <div className="overflow-y-auto px-2 pb-3" style={{ height }}>
         {sorted.length === 0 ? (
-          <p className="px-3 py-3 text-center text-[11px] text-[#b0aea5]">
+          <div className="px-2 py-4 text-center text-[12px] text-[#b0aea5]">
             No sessions yet
-          </p>
+          </div>
         ) : (
           sorted.map((s) => (
             <div
               key={s.path}
               onClick={() => onOpen(s.path, s.name)}
-              className="group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-[5px] text-[13px] transition hover:bg-[#141413]/[0.03]"
+              className="group flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-[5px] text-[13px] transition hover:bg-[#faf9f5]"
             >
               <div className="min-w-0 flex-1">
-                <span className="flex items-center gap-1 truncate text-[#6b6963]">
+                <span className="flex items-center gap-1 truncate text-[#141413]">
                   {s.channel && <ChannelBadge channel={s.channel} />}
                   {s.name}
                 </span>
@@ -572,23 +993,6 @@ function RecentsPanel({
           onCancel={() => setDeleteTarget(null)}
         />
       )}
-    </div>
-  );
-}
-
-// ── Empty-state placeholder for not-yet-wired tabs ────────────
-
-function TabPlaceholder({ tab }: { tab: TabKey }) {
-  const label = TABS.find((t) => t.key === tab)?.label || tab;
-  return (
-    <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e8e6dc]/50 text-[#b0aea5]">
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-      </div>
-      <p className="mt-3 text-[12px] font-medium text-[#6b6963]">{label}</p>
-      <p className="mt-0.5 text-[11px] text-[#b0aea5]">Coming soon</p>
     </div>
   );
 }
@@ -671,6 +1075,172 @@ function FileNode({
         />
       )}
     </div>
+  );
+}
+
+// ── Command dialog (create command — finance_agent style) ────
+
+function CommandDialog({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (name: string, text: string) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const canSubmit = name.trim() && text.trim() && !saving;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onCreate(name.trim(), text.trim());
+    } catch (e: any) {
+      setError(e.message || "Failed to create");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50 bg-[#141413]/20 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="fixed left-1/2 top-1/2 z-50 w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-[0_16px_48px_rgba(20,20,19,0.15)]">
+        <h3 className="mb-4 font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold text-[#141413]">
+          New command
+        </h3>
+
+        <label className="mb-1 block text-[12px] font-medium text-[#6b6963]">
+          Name
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Summarize this file"
+          maxLength={64}
+          autoFocus
+          className="mb-3 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-[13px] text-[#141413] outline-none transition focus:border-[#a07cc5]/60 focus:ring-1 focus:ring-[#a07cc5]/20"
+        />
+
+        <label className="mb-1 block text-[12px] font-medium text-[#6b6963]">
+          Prompt text
+        </label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={8}
+          placeholder={`This text will be injected into the chat input when you drag the command.\n\nExample:\nSummarize the attached file in 5 bullet points. Focus on the key decisions and open questions.`}
+          className="w-full resize-y rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-[13px] text-[#141413] outline-none transition focus:border-[#a07cc5]/60 focus:ring-1 focus:ring-[#a07cc5]/20"
+        />
+
+        {error && (
+          <p className="mt-2 text-[12px] text-[#d97757]">{error}</p>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-lg border border-[#e8e6dc] px-4 py-1.5 text-[13px] text-[#6b6963] hover:bg-[#faf9f5] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="rounded-lg bg-[#a07cc5] px-4 py-1.5 text-[13px] font-medium text-white transition hover:bg-[#8e6ab3] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Creating…" : "Create"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Skill dialog (create skill — minimal) ─────────────────────
+
+function SkillDialog({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (name: string) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit() {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onCreate(name.trim());
+    } catch (e: any) {
+      setError(e.message || "Failed to create");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50 bg-[#141413]/20 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-[0_16px_48px_rgba(20,20,19,0.15)]">
+        <h3 className="mb-4 font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold text-[#141413]">
+          New skill
+        </h3>
+
+        <label className="mb-1 block text-[12px] font-medium text-[#6b6963]">
+          Name
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. translate-docs"
+          maxLength={64}
+          autoFocus
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          className="w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-[13px] text-[#141413] outline-none transition focus:border-[#d97757]/60 focus:ring-1 focus:ring-[#d97757]/20"
+        />
+        <p className="mt-2 text-[11px] text-[#b0aea5]">
+          A starter template will be created. You can edit it afterwards.
+        </p>
+
+        {error && (
+          <p className="mt-2 text-[12px] text-[#d97757]">{error}</p>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-lg border border-[#e8e6dc] px-4 py-1.5 text-[13px] text-[#6b6963] hover:bg-[#faf9f5] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!name.trim() || saving}
+            className="rounded-lg bg-[#d97757] px-4 py-1.5 text-[13px] font-medium text-white transition hover:bg-[#c4613f] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Creating…" : "Create"}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 

@@ -216,8 +216,28 @@ function processSummary(parts: MessagePart[]): string {
   return "Processing...";
 }
 
-function CollapsibleProcess({ parts, showDone }: { parts: MessagePart[]; showDone: boolean }) {
-  const [collapsed, setCollapsed] = useState(true);
+function CollapsibleProcess({
+  parts,
+  showDone,
+  streaming,
+}: {
+  parts: MessagePart[];
+  showDone: boolean;
+  streaming: boolean;
+}) {
+  // Start expanded while the turn is live, collapsed after it ends.
+  const [collapsed, setCollapsed] = useState(!streaming);
+
+  // When a live turn finishes, collapse automatically. Allow the user to
+  // still toggle manually after that.
+  const wasStreaming = useRef(streaming);
+  useEffect(() => {
+    if (wasStreaming.current && !streaming) {
+      setCollapsed(true);
+    }
+    wasStreaming.current = streaming;
+  }, [streaming]);
+
   return (
     <div className="mb-1">
       <button onClick={() => setCollapsed(!collapsed)}
@@ -362,7 +382,11 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
         {segments.map((seg, i) => (
           <div key={i}>
             {seg.kind === "process" ? (
-              <CollapsibleProcess parts={seg.parts} showDone={i === lastProcessIdx && !streaming} />
+              <CollapsibleProcess
+                parts={seg.parts}
+                showDone={i === lastProcessIdx && !streaming}
+                streaming={streaming}
+              />
             ) : seg.part.type === "text" && seg.part.content ? (
               <div className="prose text-[15px] text-[#141413] max-w-none leading-7">
                 <Markdown remarkPlugins={[remarkGfm]}>{seg.part.content}</Markdown>
@@ -509,12 +533,19 @@ export default function ChatPanel() {
     setIsDragging(false);
     dragCounterRef.current = 0;
 
-    // Internal drag from sidebar (file or skill)
+    // Internal drag from sidebar (file, skill, or command)
     if (e.dataTransfer.types.includes("x-unispace-drag")) {
       try {
         const data = JSON.parse(e.dataTransfer.getData("application/json"));
         if (data.type === "file" || data.type === "skill") {
           addAttachment(data.path, data.name, data.type);
+        } else if (data.type === "command") {
+          // Commands: fetch content and inject into input for the user to edit/send
+          try {
+            const text = await api.fetchFileContent(serverUrl, data.path);
+            setInput((prev) => (prev ? `${prev}\n\n${text}` : text));
+            textareaRef.current?.focus();
+          } catch {}
         }
       } catch {}
       return;

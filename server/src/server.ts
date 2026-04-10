@@ -254,15 +254,21 @@ export function createServer(_initialConfig: Config) {
       }));
     }
 
-    // Hoist .claude/skills/ as a top-level "skills" entry for the UI;
-    // paths inside stay as .claude/skills/* so reads still resolve.
+    // Hoist .claude/{skills,commands}/ as top-level entries for the UI;
+    // paths inside stay as .claude/* so reads still resolve.
     const claudeDir = tree.find((e) => e.name === ".claude" && e.type === "directory");
-    const skillsDir = claudeDir?.children?.find(
-      (c) => c.name === "skills" && c.type === "directory",
-    );
-    if (skillsDir) {
-      tree = tree.filter((e) => e.name !== ".claude");
-      tree.unshift(skillsDir);
+    if (claudeDir?.children) {
+      const skillsDir = claudeDir.children.find(
+        (c) => c.name === "skills" && c.type === "directory",
+      );
+      const commandsDir = claudeDir.children.find(
+        (c) => c.name === "commands" && c.type === "directory",
+      );
+      if (skillsDir || commandsDir) {
+        tree = tree.filter((e) => e.name !== ".claude");
+        if (commandsDir) tree.unshift(commandsDir);
+        if (skillsDir) tree.unshift(skillsDir);
+      }
     }
 
     return c.json(tree);
