@@ -1,1 +1,0 @@
-Update a task's status or description. Mark tasks as in_progress when starting, done when finished. Ideally only one task should be in_progress at a time.

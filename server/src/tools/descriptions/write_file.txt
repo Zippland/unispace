@@ -1,7 +1,0 @@
-Writes a file to the local filesystem. Creates parent directories if they don't exist.
-
-Usage:
-- This tool will overwrite the existing file if there is one at the provided path.
-- If modifying an existing file, you MUST use read_file first to understand its contents. Prefer edit_file for targeted modifications.
-- ALWAYS prefer editing existing files over writing new ones unless a new file is explicitly required.
-- NEVER proactively create documentation files (*.md, README) unless explicitly requested.

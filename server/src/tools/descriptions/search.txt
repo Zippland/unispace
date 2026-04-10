@@ -1,7 +1,0 @@
-Fast content search tool that searches file contents using regular expressions.
-
-- Supports full regex syntax (e.g. "log.*Error", "function\s+\w+")
-- Filter files by glob pattern with the include parameter (e.g. "*.ts", "*.{js,jsx}")
-- Returns matching lines with file paths and line numbers
-- Use this tool when you need to find files containing specific patterns, function definitions, variable references, or string occurrences
-- When doing an open-ended search that may require multiple rounds, consider using this tool together with find_files to narrow scope first

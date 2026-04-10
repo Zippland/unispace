@@ -1,3 +1,0 @@
-Lists files and directories in a given path. Returns entries sorted with directories first, then files alphabetically. Each entry is prefixed with 'd' for directory or '-' for file.
-
-You should generally prefer find_files (glob) and search (grep) if you know what you're looking for.

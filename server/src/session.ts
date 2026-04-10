@@ -1,4 +1,3 @@
-import type OpenAI from "openai";
 import { join } from "path";
 import {
   readFileSync,
@@ -6,91 +5,74 @@ import {
   existsSync,
   readdirSync,
   unlinkSync,
+  mkdirSync,
 } from "fs";
-import { paths } from "./config";
-import { TaskStore, type Task } from "./tools/task";
+import { paths, listProjects, projectExists } from "./config";
 
-// ── Types ─────────────────────────────────────────────────────
+// ── Display types ─────────────────────────────────────────────
+// These match the shape the frontend's store expects, so sessions
+// persist in the same format they render in.
+
+export interface MessagePart {
+  type: "text" | "thinking" | "tool_call";
+  content?: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, any>;
+  output?: string;
+  isError?: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  parts: MessagePart[];
+}
 
 export interface Session {
   id: string;
-  messages: OpenAI.ChatCompletionMessageParam[];
-  workDir: string;
+  projectName: string;
+  /** SDK session id, assigned after the first agent turn. Used for resume. */
+  sdkSessionId?: string;
+  title?: string;
   createdAt: number;
   updatedAt: number;
-  title?: string;
+  messages: ChatMessage[];
   channelKey?: string;
-  tasks: TaskStore;
-}
-
-interface SessionMeta {
-  id: string;
-  workDir: string;
-  createdAt: number;
-  updatedAt: number;
-  title?: string;
-  channelKey?: string;
-  tasks?: Task[];
 }
 
 // ── In-memory store ───────────────────────────────────────────
 
 const sessions = new Map<string, Session>();
 
-// ── Persistence (JSONL) ───────────────────────────────────────
+// ── Persistence (one JSON file per session) ──────────────────
 
-function sessionPath(id: string): string {
-  return join(paths.sessions(), `${id}.jsonl`);
+function sessionPath(s: Session): string {
+  return join(paths.projectSessions(s.projectName), `${s.id}.json`);
 }
 
 export function saveSession(session: Session): void {
-  if (!sessions.has(session.id)) return; // already deleted
+  if (!sessions.has(session.id)) return;
   session.updatedAt = Date.now();
-  const meta: SessionMeta = {
-    id: session.id,
-    workDir: session.workDir,
-    createdAt: session.createdAt,
-    updatedAt: session.updatedAt,
-    title: session.title,
-    channelKey: session.channelKey,
-    tasks: session.tasks.dump(),
-  };
-  const lines = [JSON.stringify(meta)];
-  for (const msg of session.messages) lines.push(JSON.stringify(msg));
-  writeFileSync(sessionPath(session.id), lines.join("\n") + "\n");
+  const dir = paths.projectSessions(session.projectName);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(sessionPath(session), JSON.stringify(session, null, 2));
 }
 
 export function loadAllSessions(): void {
-  const dir = paths.sessions();
-  if (!existsSync(dir)) return;
-
-  for (const file of readdirSync(dir)) {
-    if (!file.endsWith(".jsonl")) continue;
-    try {
-      const raw = readFileSync(join(dir, file), "utf-8")
-        .split("\n")
-        .filter(Boolean);
-      if (raw.length === 0) continue;
-
-      const meta: SessionMeta = JSON.parse(raw[0]);
-      const messages: OpenAI.ChatCompletionMessageParam[] = [];
-      for (let i = 1; i < raw.length; i++) messages.push(JSON.parse(raw[i]));
-
-      const tasks = new TaskStore();
-      if (meta.tasks) tasks.restore(meta.tasks);
-
-      sessions.set(meta.id, {
-        id: meta.id,
-        messages,
-        workDir: meta.workDir,
-        createdAt: meta.createdAt,
-        updatedAt: meta.updatedAt || meta.createdAt,
-        title: meta.title,
-        channelKey: meta.channelKey,
-        tasks,
-      });
-    } catch (e) {
-      console.error(`  Failed to load session ${file}:`, e);
+  sessions.clear();
+  for (const proj of listProjects()) {
+    const dir = paths.projectSessions(proj.name);
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir)) {
+      if (!file.endsWith(".json")) continue;
+      try {
+        const raw = readFileSync(join(dir, file), "utf-8");
+        const s: Session = JSON.parse(raw);
+        sessions.set(s.id, s);
+      } catch (e) {
+        console.error(`  Failed to load session ${file}:`, e);
+      }
     }
   }
   console.log(`  Loaded ${sessions.size} session(s)`);
@@ -98,14 +80,16 @@ export function loadAllSessions(): void {
 
 // ── CRUD ──────────────────────────────────────────────────────
 
-export function createSession(workDir: string): Session {
+export function createSession(projectName: string): Session {
+  if (!projectExists(projectName)) {
+    throw new Error(`Project not found: ${projectName}`);
+  }
   const session: Session = {
     id: crypto.randomUUID(),
-    messages: [],
-    workDir,
+    projectName,
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    tasks: new TaskStore(),
+    messages: [],
   };
   sessions.set(session.id, session);
   saveSession(session);
@@ -116,8 +100,12 @@ export function getSession(id: string): Session | undefined {
   return sessions.get(id);
 }
 
-export function listSessions(): Session[] {
-  return [...sessions.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+export function listSessions(projectName?: string): Session[] {
+  const all = [...sessions.values()];
+  const filtered = projectName
+    ? all.filter((s) => s.projectName === projectName)
+    : all;
+  return filtered.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export function findSessionByChannelKey(key: string): Session | undefined {
@@ -128,8 +116,14 @@ export function findSessionByChannelKey(key: string): Session | undefined {
 }
 
 export function deleteSession(id: string): boolean {
-  if (!sessions.delete(id)) return false;
-  const p = sessionPath(id);
-  if (existsSync(p)) unlinkSync(p);
+  const s = sessions.get(id);
+  if (!s) return false;
+  sessions.delete(id);
+  const p = sessionPath(s);
+  if (existsSync(p)) {
+    try {
+      unlinkSync(p);
+    } catch {}
+  }
   return true;
 }

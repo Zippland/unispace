@@ -1,14 +1,22 @@
 #!/usr/bin/env bun
 
 import { resolve, join } from "path";
-import { type Config, ensureInit, loadConfig, saveConfig, loadChannelsConfig, getDir, paths } from "./config";
+import {
+  ensureInit,
+  loadConfig,
+  saveConfig,
+  paths,
+  getDir,
+  listProjects,
+  projectExists,
+  cloneProject,
+} from "./config";
 import { loadAllSessions } from "./session";
 import { createServer } from "./server";
-import { ChannelManager } from "./channels";
-import { createRegistry } from "./tools";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 const command = process.argv[2];
+const subcommand = process.argv[3];
 
 switch (command) {
   case "onboard":
@@ -22,6 +30,9 @@ switch (command) {
     break;
   case "dev":
     launch(true);
+    break;
+  case "project":
+    projectCmd();
     break;
   case "help":
   case "--help":
@@ -50,7 +61,7 @@ function onboard() {
   const maskedKey = currentKey
     ? `${currentKey.slice(0, 4)}...${currentKey.slice(-4)}`
     : "(not set)";
-  console.log(`  Current API key: ${maskedKey}`);
+  console.log(`  Current ANTHROPIC_API_KEY: ${maskedKey}`);
   const newKey = prompt("  Enter API key (press Enter to keep current):");
   if (newKey && newKey.trim()) {
     config.model.apiKey = newKey.trim();
@@ -61,13 +72,6 @@ function onboard() {
   const newModel = prompt("  Enter model name (press Enter to keep current):");
   if (newModel && newModel.trim()) {
     config.model.name = newModel.trim();
-    changed = true;
-  }
-
-  console.log(`  Current base URL: ${config.model.baseUrl}`);
-  const newUrl = prompt("  Enter base URL (press Enter to keep current):");
-  if (newUrl && newUrl.trim()) {
-    config.model.baseUrl = newUrl.trim();
     changed = true;
   }
 
@@ -83,11 +87,9 @@ function onboard() {
     console.log(`\n  Config saved to ${paths.config()}`);
   }
 
-  console.log(`\n  Workspace: ${getDir()}`);
-  console.log(`  Config:    ${paths.config()}`);
-  console.log(`  SOUL.md:   ${paths.soul()}`);
-  console.log(`  Skills:    ${paths.skills()}`);
-  console.log(`  Sessions:  ${paths.sessions()}`);
+  console.log(`\n  Workspace       : ${getDir()}`);
+  console.log(`  Current project : ${config.currentProject}`);
+  console.log(`  Project path    : ${paths.project(config.currentProject)}`);
   console.log(`\n  Run \`unispace\` to launch.\n`);
 }
 
@@ -100,28 +102,20 @@ async function start() {
   const config = loadConfig();
   if (!config.model.apiKey) {
     console.error(
-      `\n  No API key. Run \`unispace onboard\` or edit ${getDir()}/config.json\n`,
+      `\n  No ANTHROPIC_API_KEY. Run \`unispace onboard\` or edit ${paths.config()}\n`,
     );
     process.exit(1);
   }
 
   loadAllSessions();
 
-  const workDir = resolve(
-    process.argv[3] || config.server.workDir || getDir(),
-  );
   const port = config.server.port;
-
-  const app = createServer(config, workDir);
+  const app = createServer(config);
   Bun.serve({ port, fetch: app.fetch });
 
-  console.log(`  Config   : ${getDir()}`);
-  console.log(`  Work dir : ${workDir}`);
-  console.log(`  Listen   : http://localhost:${port}`);
-
-  // Start channels
-  await startChannels(config, workDir);
-  console.log();
+  console.log(`  Workspace       : ${getDir()}`);
+  console.log(`  Current project : ${config.currentProject}`);
+  console.log(`  Listen          : http://localhost:${port}\n`);
 }
 
 // ── web (frontend only) ──────────────────────────────────────
@@ -141,7 +135,7 @@ function web() {
   });
 }
 
-// ── launch (server + web, with optional dev mode) ─────────────
+// ── launch (server + web) ────────────────────────────────────
 
 async function launch(devMode: boolean) {
   console.log(`\n  UniSpace${devMode ? " [dev]" : ""}`);
@@ -150,29 +144,21 @@ async function launch(devMode: boolean) {
   const config = loadConfig();
   if (!config.model.apiKey) {
     console.error(
-      `\n  No API key. Run \`unispace onboard\` or edit ${getDir()}/config.json\n`,
+      `\n  No ANTHROPIC_API_KEY. Run \`unispace onboard\` or edit ${paths.config()}\n`,
     );
     process.exit(1);
   }
 
   loadAllSessions();
 
-  const workDir = resolve(
-    process.argv[3] || config.server.workDir || getDir(),
-  );
   const port = config.server.port;
-
-  const app = createServer(config, workDir);
+  const app = createServer(config);
   Bun.serve({ port, fetch: app.fetch });
 
-  console.log(`  Config   : ${getDir()}`);
-  console.log(`  Work dir : ${workDir}`);
-  console.log(`  API      : http://localhost:${port}`);
+  console.log(`  Workspace       : ${getDir()}`);
+  console.log(`  Current project : ${config.currentProject}`);
+  console.log(`  API             : http://localhost:${port}`);
 
-  // Start channels
-  await startChannels(config, workDir);
-
-  // Start Vite with VITE_DEV_MODE env for dev panel
   const webDir = join(REPO_ROOT, "web");
   const env = { ...process.env, ...(devMode ? { VITE_DEV_MODE: "true" } : {}) };
   const vite = Bun.spawn(["bunx", "vite", "--port", "5174"], {
@@ -181,7 +167,7 @@ async function launch(devMode: boolean) {
     stdio: ["inherit", "inherit", "inherit"],
   });
 
-  console.log(`  Web      : http://localhost:5174${devMode ? " (dev mode)" : ""}\n`);
+  console.log(`  Web             : http://localhost:5174${devMode ? " (dev mode)" : ""}\n`);
 
   process.on("SIGINT", () => {
     vite.kill();
@@ -189,39 +175,86 @@ async function launch(devMode: boolean) {
   });
 }
 
-// ── channels ─────────────────────────────────────────────────
+// ── project commands ─────────────────────────────────────────
 
-async function startChannels(config: Config, workDir: string) {
-  const channelsConfig = loadChannelsConfig();
-  const hasEnabled = Object.values(channelsConfig).some(
-    (c: any) => c?.enabled,
-  );
-  if (!hasEnabled) return;
+function projectCmd() {
+  ensureInit();
 
-  const registry = createRegistry();
-  const manager = new ChannelManager(config, registry, workDir);
-  manager.init(channelsConfig);
-  await manager.startAll();
+  switch (subcommand) {
+    case "list": {
+      const cfg = loadConfig();
+      console.log("\n  Projects:\n");
+      for (const p of listProjects()) {
+        const marker = p.name === cfg.currentProject ? "*" : " ";
+        console.log(`  ${marker} ${p.name}`);
+      }
+      console.log();
+      break;
+    }
 
-  process.on("SIGINT", async () => {
-    await manager.stopAll();
-  });
+    case "clone": {
+      const from = process.argv[4];
+      const to = process.argv[5];
+      if (!from || !to) {
+        console.error("  Usage: unispace project clone <from> <to>");
+        process.exit(1);
+      }
+      try {
+        cloneProject(from, to);
+        console.log(`  Cloned ${from} → ${to}`);
+      } catch (e: any) {
+        console.error(`  ${e.message}`);
+        process.exit(1);
+      }
+      break;
+    }
+
+    case "use": {
+      const name = process.argv[4];
+      if (!name) {
+        console.error("  Usage: unispace project use <name>");
+        process.exit(1);
+      }
+      if (!projectExists(name)) {
+        console.error(`  Project not found: ${name}`);
+        process.exit(1);
+      }
+      const cfg = loadConfig();
+      cfg.currentProject = name;
+      saveConfig(cfg);
+      console.log(`  Current project → ${name}`);
+      break;
+    }
+
+    default:
+      console.log(`
+  Usage:
+    unispace project list
+    unispace project clone <from> <to>
+    unispace project use <name>
+`);
+  }
 }
 
 // ── help ──────────────────────────────────────────────────────
 
 function help() {
   console.log(`
-  UniSpace — Local coding agent
+  UniSpace — Browser-native Claude Code for projects
 
   Usage:
-    unispace                Start server + web UI (default)
-    unispace dev            Start with dev panel (system prompt & tools inspector)
-    unispace start          API server only
-    unispace web            Web UI only
-    unispace onboard        Interactive workspace setup
-    unispace help           Show this message
+    unispace                       Start server + web UI (default)
+    unispace dev                   Start with dev panel
+    unispace start                 API server only
+    unispace web                   Web UI only
+    unispace onboard               Interactive setup
+
+  Projects:
+    unispace project list          List all projects
+    unispace project clone <a> <b> Copy project <a> to new project <b>
+    unispace project use <name>    Set current project
 
   The workspace lives at ~/.unispace/ (override with UNISPACE_DIR env var).
+  Projects live at ~/.unispace/projects/<name>/.
 `);
 }

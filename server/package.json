@@ -10,9 +10,9 @@
     "onboard": "bun src/cli.ts onboard"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.98",
     "@larksuiteoapi/node-sdk": "^1.59.0",
-    "hono": "^4.7.0",
-    "openai": "^4.80.0"
+    "hono": "^4.7.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -6,6 +6,9 @@ import {
   cpSync,
   readFileSync,
   writeFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
 } from "fs";
 
 // ── Paths ─────────────────────────────────────────────────────
@@ -16,57 +19,55 @@ const TEMPLATE_DIR = join(import.meta.dir, "..", "workspace");
 export function getDir(): string {
   return process.env.UNISPACE_DIR || DEFAULT_DIR;
 }
+
 export const paths = {
+  // Global
   config: () => join(getDir(), "config.json"),
-  channels: () => join(getDir(), "channels.json"),
-  sessions: () => join(getDir(), "sessions"),
-  soul: () => join(getDir(), "SOUL.md"),
-  skills: () => join(getDir(), "skills"),
+  projectsRoot: () => join(getDir(), "projects"),
+
+  // Per-project
+  project: (name: string) => join(getDir(), "projects", name),
+  projectClaude: (name: string) => join(getDir(), "projects", name, "CLAUDE.md"),
+  projectSessions: (name: string) =>
+    join(getDir(), "projects", name, "sessions"),
+  projectSkills: (name: string) =>
+    join(getDir(), "projects", name, ".claude", "skills"),
 };
 
 // ── Config schema ─────────────────────────────────────────────
 
 export interface Config {
   model: {
-    provider: string;
     name: string;
     apiKey: string;
-    baseUrl: string;
-    temperature: number;
-    maxTokens: number;
   };
   server: {
     port: number;
-    workDir: string;
   };
+  currentProject: string;
 }
 
 const DEFAULTS: Config = {
   model: {
-    provider: "moonshot",
-    name: "kimi-k2.5",
+    name: "claude-sonnet-4-5",
     apiKey: "",
-    baseUrl: "https://api.moonshot.cn/v1",
-    temperature: 1.0,
-    maxTokens: 16384,
   },
   server: {
     port: 3210,
-    workDir: "",
   },
+  currentProject: "default",
 };
 
-// ── Init / onboard ────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────
 
 export function ensureInit(): void {
   const dir = getDir();
 
   if (!existsSync(dir)) {
-    // Copy template workspace to ~/.unispace/
     cpSync(TEMPLATE_DIR, dir, { recursive: true });
     chmodSync(dir, 0o700);
     console.log(`  Initialized workspace from template → ${dir}`);
-    console.log(`  → Edit ${paths.config()} to set your API key`);
+    console.log(`  → Edit ${paths.config()} to set your ANTHROPIC_API_KEY`);
   }
 }
 
@@ -77,10 +78,13 @@ export function loadConfig(): Config {
   const config: Config = {
     model: { ...DEFAULTS.model, ...raw.model },
     server: { ...DEFAULTS.server, ...raw.server },
+    currentProject: raw.currentProject || DEFAULTS.currentProject,
   };
 
-  // Env overrides
-  if (process.env.MOONSHOT_API_KEY) config.model.apiKey = process.env.MOONSHOT_API_KEY;
+  // Env override
+  if (process.env.ANTHROPIC_API_KEY) {
+    config.model.apiKey = process.env.ANTHROPIC_API_KEY;
+  }
   if (process.env.PORT) config.server.port = parseInt(process.env.PORT);
 
   return config;
@@ -90,20 +94,47 @@ export function saveConfig(config: Config): void {
   writeFileSync(paths.config(), JSON.stringify(config, null, 2));
 }
 
-// ── Channels config ──────────────────────────────────────────
+// ── Projects ──────────────────────────────────────────────────
 
-import type { ChannelsConfig } from "./channels/types";
+export interface ProjectInfo {
+  name: string;
+  path: string;
+  updatedAt: number;
+}
 
-export function loadChannelsConfig(): ChannelsConfig {
-  const p = paths.channels();
-  if (!existsSync(p)) return {};
-  try {
-    return JSON.parse(readFileSync(p, "utf-8"));
-  } catch {
-    return {};
+export function listProjects(): ProjectInfo[] {
+  const root = paths.projectsRoot();
+  if (!existsSync(root)) return [];
+
+  return readdirSync(root, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => {
+      const p = join(root, e.name);
+      return { name: e.name, path: p, updatedAt: statSync(p).mtimeMs };
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function projectExists(name: string): boolean {
+  return existsSync(paths.project(name));
+}
+
+/** Clone a project folder. Throws if dst already exists. */
+export function cloneProject(from: string, to: string): void {
+  const src = paths.project(from);
+  const dst = paths.project(to);
+  if (!existsSync(src)) throw new Error(`Source project not found: ${from}`);
+  if (existsSync(dst)) throw new Error(`Target project already exists: ${to}`);
+  cpSync(src, dst, { recursive: true });
+  // Wipe session history in the clone — carry only the project skeleton
+  const sessDir = paths.projectSessions(to);
+  if (existsSync(sessDir)) {
+    for (const f of readdirSync(sessDir)) {
+      if (f === ".gitkeep") continue;
+      try {
+        unlinkSync(join(sessDir, f));
+      } catch {}
+    }
   }
 }
 
-export function saveChannelsConfig(config: ChannelsConfig): void {
-  writeFileSync(paths.channels(), JSON.stringify(config, null, 2));
-}

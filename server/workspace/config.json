@@ -1,14 +1,10 @@
 {
   "model": {
-    "provider": "moonshot",
-    "name": "kimi-k2.5",
-    "apiKey": "",
-    "baseUrl": "https://api.moonshot.cn/v1",
-    "temperature": 1.0,
-    "maxTokens": 16384
+    "name": "claude-sonnet-4-5",
+    "apiKey": ""
   },
   "server": {
-    "port": 3210,
-    "workDir": ""
-  }
+    "port": 3210
+  },
+  "currentProject": "default"
 }
