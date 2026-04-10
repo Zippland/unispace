@@ -64,13 +64,14 @@ function ToolIcon({ name, className }: { name: string; className?: string }) {
 //  ThinkingBlock (sparkle animation)
 // ═══════════════════════════════════════════════════════════════
 
+const THINKING_COLLAPSE_THRESHOLD = 200;
+
 function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   if (!content && !isStreaming) return null;
 
-  const isLong = !isStreaming && content.length > 200;
-  const summary = content.split("\n")[0].trim().slice(0, 50) || "Thinking...";
-  const isCollapsed = isLong && !expanded;
+  const isLong = (content?.length || 0) > THINKING_COLLAPSE_THRESHOLD;
+  const shouldTruncate = isLong && !expanded;
 
   return (
     <div className="relative pl-8 pb-1">
@@ -89,25 +90,23 @@ function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?
       </div>
       <div className="absolute left-[9px] top-6 bottom-0 w-px bg-[#e8e6dc]" />
       <div>
-        {isCollapsed ? (
-          <button onClick={() => setExpanded(true)}
-            className="flex items-center gap-1.5 text-[13px] text-[#b0aea5] transition hover:text-[#141413]">
-            <span>{summary}...</span>
-            <ChevronDown className="h-3 w-3 shrink-0 text-[#b0aea5]/50" />
+        <div
+          className={`relative text-[13px] leading-relaxed text-[#b0aea5] ${
+            shouldTruncate ? "max-h-[7.5rem] overflow-hidden" : ""
+          }`}
+        >
+          <pre className="whitespace-pre-wrap font-[inherit]">{content || "Thinking..."}</pre>
+          {shouldTruncate && (
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#faf9f5] to-transparent" />
+          )}
+        </div>
+        {isLong && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-1 text-[13px] text-[#b0aea5] transition hover:text-[#141413]"
+          >
+            {expanded ? "Show less" : "Show more"}
           </button>
-        ) : (
-          <div>
-            {isLong && (
-              <button onClick={() => setExpanded(false)}
-                className="mb-1 flex items-center gap-1.5 text-[13px] text-[#b0aea5] transition hover:text-[#141413]">
-                <span>{summary}...</span>
-                <ChevronDown className="h-3 w-3 shrink-0 rotate-180 text-[#b0aea5]/50" />
-              </button>
-            )}
-            <div className="text-[13px] leading-relaxed text-[#b0aea5]">
-              <pre className="whitespace-pre-wrap font-[inherit]">{content || "Thinking..."}</pre>
-            </div>
-          </div>
         )}
       </div>
     </div>

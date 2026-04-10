@@ -33,14 +33,6 @@ function GearIcon({ className }: { className?: string }) {
   );
 }
 
-function ChatIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
-    </svg>
-  );
-}
-
 function ChannelBadge({ channel }: { channel: string }) {
   return (
     <span className="inline-flex shrink-0 items-center rounded px-1 py-px text-[9px] font-medium leading-tight bg-[#7c9a5e]/10 text-[#7c9a5e]">
@@ -49,25 +41,20 @@ function ChannelBadge({ channel }: { channel: string }) {
   );
 }
 
-function ChannelIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-    </svg>
-  );
-}
-
-function DocIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6V7.5Z" />
-    </svg>
-  );
-}
-
 // ── System file names ─────────────────────────────────────────
 
 const SYSTEM_NAMES = new Set(["CLAUDE.md", "sessions", "skills"]);
+
+// ── Workspace resource tabs ───────────────────────────────────
+
+type TabKey = "skill" | "prompt" | "files" | "connectors";
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "skill", label: "Skill" },
+  { key: "prompt", label: "Prompt" },
+  { key: "files", label: "Files" },
+  { key: "connectors", label: "Connectors" },
+];
 
 // ── Sidebar ───────────────────────────────────────────────────
 
@@ -94,6 +81,9 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
   const [cloneDialog, setCloneDialog] = useState(false);
   const [cloneName, setCloneName] = useState("");
   const [cloneError, setCloneError] = useState("");
+
+  // Active workspace tab (switching not yet wired — Files is the only real content)
+  const [activeTabKey, setActiveTabKey] = useState<TabKey>("files");
 
   async function handleSwitchProject(name: string) {
     if (name === currentProject) {
@@ -230,8 +220,11 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
     refreshFiles();
   }
 
-  const systemFiles = files.filter((f) => SYSTEM_NAMES.has(f.name));
   const userFiles = files.filter((f) => !SYSTEM_NAMES.has(f.name));
+  const sessionsFolder = files.find(
+    (f) => f.name === "sessions" && f.type === "directory",
+  );
+  const sessions = sessionsFolder?.children || [];
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
@@ -365,168 +358,157 @@ export default function Sidebar({ onOpenFile, onOpenSettings }: SidebarProps) {
         </>
       )}
 
-      <div
-        className="flex-1 overflow-y-auto min-h-0 relative"
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
-        {/* Drop overlay */}
-        {isDragging && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 border-2 border-dashed border-[#d97757] rounded-lg m-2">
-            <div className="flex flex-col items-center gap-1.5">
-              <svg className="h-6 w-6 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-              </svg>
-              <span className="text-[13px] text-[#d97757] font-medium">Drop to upload</span>
+      {/* ── Tab row (switching not wired yet — Files is the only active content) ── */}
+      <div className="flex shrink-0 border-b border-[#e8e6dc]">
+        {TABS.map((tab) => {
+          const isActive = activeTabKey === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTabKey(tab.key)}
+              className={`group relative flex-1 py-2.5 text-[11px] font-medium tracking-wide transition ${
+                isActive
+                  ? "text-[#141413]"
+                  : "text-[#b0aea5] hover:text-[#6b6963]"
+              }`}
+              style={{ fontFamily: "'Poppins', Arial, sans-serif" }}
+            >
+              {tab.label}
+              {isActive && (
+                <span className="absolute left-1/2 bottom-[-1px] h-[2px] w-8 -translate-x-1/2 rounded-full bg-[#d97757]" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Tab content + Recents panel ──────────────────────── */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* Tab content (scrollable, drag-drop target) */}
+        <div
+          className="flex-1 overflow-y-auto min-h-0 relative"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drop overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 border-2 border-dashed border-[#d97757] rounded-lg m-2">
+              <div className="flex flex-col items-center gap-1.5">
+                <svg className="h-6 w-6 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
+                <span className="text-[13px] text-[#d97757] font-medium">Drop to upload</span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Upload error */}
-        {uploadError && (
-          <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-lg bg-[#d97757]/[0.06] px-3 py-2 text-[12px] text-[#d97757]">
-            <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-            </svg>
-            {uploadError}
-          </div>
-        )}
+          {/* Upload error */}
+          {uploadError && (
+            <div className="mx-3 mt-2 flex items-center gap-1.5 rounded-lg bg-[#d97757]/[0.06] px-3 py-2 text-[12px] text-[#d97757]">
+              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+              {uploadError}
+            </div>
+          )}
 
-        {/* Upload progress */}
-        {uploading && (
-          <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg bg-[#faf9f5] px-3 py-2">
-            <div className="h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-[#e8e6dc] border-t-[#d97757]" />
-            <span className="text-[12px] text-[#6b6963]">Uploading...</span>
-          </div>
-        )}
+          {/* Upload progress */}
+          {uploading && (
+            <div className="mx-3 mt-2 flex items-center gap-2 rounded-lg bg-[#faf9f5] px-3 py-2">
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-[#e8e6dc] border-t-[#d97757]" />
+              <span className="text-[12px] text-[#6b6963]">Uploading...</span>
+            </div>
+          )}
 
-        {/* Hidden file input */}
-        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileInput} />
+          {/* Hidden file input */}
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileInput} />
 
-        {/* ── System section ────────────────────────────────── */}
-        <div className="px-4 pt-4 pb-1.5">
-          <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold text-[#b0aea5] uppercase tracking-widest">
-            System
-          </span>
-        </div>
-        <div className="px-2 pb-1">
-          {systemFiles.map((f) =>
-            f.name === "sessions" && f.type === "directory" ? (
-              <SessionsFolder
-                key={f.path}
-                folder={f}
-                onOpenFile={onOpenFile}
-                onNew={handleNewSession}
-                onDelete={handleDeleteSession}
-              />
-            ) : f.name === "skills" && f.type === "directory" ? (
-              <SkillsFolder key={f.path} folder={f} onOpenFile={onOpenFile} />
-            ) : (
-              <SystemFileItem key={f.path} file={f} onClick={() => onOpenFile(f.path, f.name)} />
-            ),
+          {/* Active tab content */}
+          {activeTabKey === "files" ? (
+            <>
+              <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
+                <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold text-[#b0aea5] uppercase tracking-widest">
+                  Files
+                </span>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757] hover:bg-[#d97757]/[0.06]"
+                    title="Upload file"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={refreshFiles}
+                    className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413] hover:bg-[#141413]/[0.04]"
+                    title="Refresh"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="px-2 pb-2">
+                {userFiles.length === 0 ? (
+                  <p className="text-[11px] text-[#b0aea5] px-3 py-3 text-center">
+                    Drop files here or click upload
+                  </p>
+                ) : (
+                  userFiles.map((f) => (
+                    <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <TabPlaceholder tab={activeTabKey} />
           )}
         </div>
 
-        {/* ── Files section (always visible for drag-drop target) ── */}
-        <>
-            <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
-              <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold text-[#b0aea5] uppercase tracking-widest">
-                Files
-              </span>
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757] hover:bg-[#d97757]/[0.06]"
-                  title="Upload file"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                  </svg>
-                </button>
-                <button
-                  onClick={refreshFiles}
-                  className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413] hover:bg-[#141413]/[0.04]"
-                  title="Refresh"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="px-2 pb-2">
-              {userFiles.length === 0 ? (
-                <p className="text-[11px] text-[#b0aea5] px-3 py-3 text-center">
-                  Drop files here or click upload
-                </p>
-              ) : (
-                userFiles.map((f) => (
-                  <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
-                ))
-              )}
-            </div>
-          </>
+        {/* Recents panel — pinned at bottom */}
+        <RecentsPanel
+          sessions={sessions}
+          onOpen={onOpenFile}
+          onNew={handleNewSession}
+          onDelete={handleDeleteSession}
+        />
       </div>
     </div>
   );
 }
 
-// ── System file item (CLAUDE.md) ──────────────────────────────
+// ── Recents panel (sessions list pinned to bottom) ────────────
 
-function SystemFileItem({ file, onClick }: { file: FileEntry; onClick: () => void }) {
-  const icon =
-    file.name === "CLAUDE.md" ? (
-      <DocIcon className="h-3.5 w-3.5 shrink-0 text-[#6a9bcc]" />
-    ) : (
-      <FileIcon className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
-    );
-
-  return (
-    <div
-      onClick={onClick}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData("application/json", JSON.stringify({ type: "file", path: file.path || file.name, name: file.name }));
-        e.dataTransfer.setData("x-unispace-drag", "file");
-        e.dataTransfer.effectAllowed = "copy";
-      }}
-      className="flex items-center gap-1.5 py-[5px] px-3 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
-    >
-      {icon}
-      <span className="text-[#6b6963]">{file.name}</span>
-    </div>
-  );
-}
-
-// ── Sessions folder (with +new and x delete) ──────────────────
-
-function SessionsFolder({
-  folder,
-  onOpenFile,
+function RecentsPanel({
+  sessions,
+  onOpen,
   onNew,
   onDelete,
 }: {
-  folder: FileEntry;
-  onOpenFile: (path: string, name: string) => void;
+  sessions: FileEntry[];
+  onOpen: (path: string, name: string) => void;
   onNew: () => void;
   onDelete: (path: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ path: string; name: string } | null>(null);
+  const sorted = [...sessions].sort(
+    (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+  );
 
   return (
-    <div>
-      {/* Folder header */}
-      <div className="flex items-center gap-1.5 py-[5px] px-3 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition">
-        <div className="flex-1 flex items-center gap-1.5 min-w-0" onClick={() => setExpanded(!expanded)}>
-          <ChatIcon className="h-3.5 w-3.5 shrink-0 text-[#788c5d]" />
-          <span className="text-[#141413] font-medium">sessions</span>
-        </div>
+    <div className="shrink-0 flex max-h-[260px] flex-col border-t border-[#e8e6dc] bg-[#faf9f5]/50">
+      <div className="flex shrink-0 items-center justify-between px-4 pt-3 pb-1.5">
+        <span className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold uppercase tracking-widest text-[#b0aea5]">
+          Recents
+        </span>
         <button
-          onClick={(e) => { e.stopPropagation(); onNew(); }}
-          className="flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
+          onClick={onNew}
+          className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:bg-[#d97757]/[0.06] hover:text-[#d97757]"
           title="New session"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -534,57 +516,59 @@ function SessionsFolder({
           </svg>
         </button>
       </div>
-
-      {/* Session entries — sorted by updatedAt desc, max-height ~5 items with own scroll */}
-      {expanded && (() => {
-        const sorted = [...(folder.children || [])].sort(
-          (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
-        );
-        return (
-          <div className="max-h-[200px] overflow-y-auto">
-            {sorted.map((s) => (
-              <div
-                key={s.path}
-                onClick={() => onOpenFile(s.path, s.name)}
-                className="group flex items-center gap-1.5 py-[4px] pr-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
-                style={{ paddingLeft: 28 }}
-              >
-                <div className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1 truncate text-[#6b6963]">
-                    {s.channel && <ChannelBadge channel={s.channel} />}
-                    {s.name}
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {sorted.length === 0 ? (
+          <p className="px-3 py-3 text-center text-[11px] text-[#b0aea5]">
+            No sessions yet
+          </p>
+        ) : (
+          sorted.map((s) => (
+            <div
+              key={s.path}
+              onClick={() => onOpen(s.path, s.name)}
+              className="group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-[5px] text-[13px] transition hover:bg-[#141413]/[0.03]"
+            >
+              <div className="min-w-0 flex-1">
+                <span className="flex items-center gap-1 truncate text-[#6b6963]">
+                  {s.channel && <ChannelBadge channel={s.channel} />}
+                  {s.name}
+                </span>
+                {s.updatedAt && (
+                  <span className="block text-[10px] leading-tight text-[#b0aea5]">
+                    {new Date(s.updatedAt).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </span>
-                  {s.updatedAt && (
-                    <span className="block text-[10px] text-[#b0aea5] leading-tight">
-                      {new Date(s.updatedAt).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteTarget({ path: s.path, name: s.name }); }}
-                  className="opacity-0 group-hover:opacity-100 flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
-                  title="Delete session"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                )}
               </div>
-            ))}
-          </div>
-        );
-      })()}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteTarget({ path: s.path, name: s.name });
+                }}
+                className="flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] opacity-0 transition hover:text-[#d97757] group-hover:opacity-100"
+                title="Delete session"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))
+        )}
+      </div>
 
       {deleteTarget && (
         <ConfirmDialog
           title="Delete session"
           message={`Delete "${deleteTarget.name}" and its history permanently?`}
-          onConfirm={() => { onDelete(deleteTarget.path); setDeleteTarget(null); }}
+          onConfirm={() => {
+            onDelete(deleteTarget.path);
+            setDeleteTarget(null);
+          }}
           onCancel={() => setDeleteTarget(null)}
         />
       )}
@@ -592,92 +576,19 @@ function SessionsFolder({
   );
 }
 
-// ── Skills folder (recursive tree with bolt icons) ────────────
+// ── Empty-state placeholder for not-yet-wired tabs ────────────
 
-function SkillsFolder({
-  folder,
-  onOpenFile,
-}: {
-  folder: FileEntry;
-  onOpenFile: (path: string, name: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
+function TabPlaceholder({ tab }: { tab: TabKey }) {
+  const label = TABS.find((t) => t.key === tab)?.label || tab;
   return (
-    <div>
-      <div
-        className="flex items-center gap-1.5 py-[5px] px-3 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <svg className="h-3.5 w-3.5 shrink-0 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+    <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e8e6dc]/50 text-[#b0aea5]">
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
         </svg>
-        <span className="text-[#141413] font-medium">skills</span>
-        {folder.children && (
-          <span className="text-[10px] text-[#b0aea5]">{folder.children.length}</span>
-        )}
       </div>
-      {expanded &&
-        folder.children?.map((child) => (
-          <SkillNode key={child.path} file={child} depth={1} isTopLevel={true} onOpenFile={onOpenFile} />
-        ))}
-    </div>
-  );
-}
-
-function SkillNode({
-  file,
-  depth,
-  isTopLevel,
-  onOpenFile,
-}: {
-  file: FileEntry;
-  depth: number;
-  isTopLevel: boolean;
-  onOpenFile: (path: string, name: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const isDir = file.type === "directory";
-
-  return (
-    <div>
-      <div
-        className="flex items-center gap-1.5 py-[3px] px-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
-        style={{ paddingLeft: depth * 14 + 14 }}
-        draggable={!isDir || isTopLevel}
-        onDragStart={(e) => {
-          if (isTopLevel && isDir) {
-            // Drag skill folder as a skill reference
-            e.dataTransfer.setData("application/json", JSON.stringify({ type: "skill", path: file.path, name: file.name }));
-            e.dataTransfer.setData("x-unispace-drag", "skill");
-            e.dataTransfer.effectAllowed = "copy";
-          } else if (!isDir) {
-            e.dataTransfer.setData("application/json", JSON.stringify({ type: "file", path: file.path, name: file.name }));
-            e.dataTransfer.setData("x-unispace-drag", "file");
-            e.dataTransfer.effectAllowed = "copy";
-          }
-        }}
-        onClick={() => isDir ? setExpanded(!expanded) : onOpenFile(file.path, file.name)}
-      >
-        {isDir ? (
-          isTopLevel ? (
-            <svg className="h-3.5 w-3.5 shrink-0 text-[#d97757]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
-            </svg>
-          ) : (
-            <FolderIcon open={expanded} className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
-          )
-        ) : (
-          <FileIcon className="h-3 w-3 shrink-0 text-[#d5d3ca]" />
-        )}
-        <span className={`truncate ${isDir ? "text-[#141413] font-medium" : "text-[#6b6963]"}`}>
-          {file.name}
-        </span>
-      </div>
-      {expanded && isDir &&
-        file.children?.map((c) => (
-          <SkillNode key={c.path} file={c} depth={depth + 1} isTopLevel={false} onOpenFile={onOpenFile} />
-        ))}
+      <p className="mt-3 text-[12px] font-medium text-[#6b6963]">{label}</p>
+      <p className="mt-0.5 text-[11px] text-[#b0aea5]">Coming soon</p>
     </div>
   );
 }
