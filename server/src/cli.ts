@@ -91,7 +91,9 @@ async function start() {
 
   const port = config.server.port;
   const app = createServer(config);
-  Bun.serve({ port, fetch: app.fetch });
+  // idleTimeout: 0 disables Bun's default 10s per-request timeout so
+  // long-running chat streams (thinking + tool loops) don't get killed.
+  Bun.serve({ port, fetch: app.fetch, idleTimeout: 0 });
 
   console.log(`  Workspace       : ${getDir()}`);
   console.log(`  Current project : ${config.currentProject}`);
@@ -129,7 +131,9 @@ async function launch(devMode: boolean) {
 
   const port = config.server.port;
   const app = createServer(config);
-  Bun.serve({ port, fetch: app.fetch });
+  // idleTimeout: 0 disables Bun's default 10s per-request timeout so
+  // long-running chat streams (thinking + tool loops) don't get killed.
+  Bun.serve({ port, fetch: app.fetch, idleTimeout: 0 });
 
   console.log(`  Workspace       : ${getDir()}`);
   console.log(`  Current project : ${config.currentProject}`);
