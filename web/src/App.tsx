@@ -95,6 +95,7 @@ export default function App() {
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
+  const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     tryConnect(serverUrl);
@@ -204,7 +205,6 @@ export default function App() {
 
   const activeFileTab = openTabs.find((t) => t.path === activeTab);
   const hasTabs = openTabs.length > 0;
-  const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
 
   return (
     <div className="h-screen flex bg-[#faf9f5] text-[#141413]">

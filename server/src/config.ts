@@ -111,16 +111,12 @@ export function projectExists(name: string): boolean {
 }
 
 // ── Project settings (stored in .claude/settings.json) ──────
-// `model` is a native Claude Code field — SDK auto-loads it via
-// settingSources: ['project']. `effort` is a UniSpace extension
-// (Claude Code ignores unknown keys); we read it manually and
-// pass it to query() as an option.
-
-export type EffortLevel = "low" | "medium" | "high" | "max";
+// `model` is a native Claude Code field — the SDK auto-loads it via
+// settingSources: ['project']. Thinking effort stays on the SDK
+// default (adaptive), so there is nothing else to manage here.
 
 export interface ProjectSettings {
   model?: string;
-  effort?: EffortLevel;
 }
 
 export function readProjectSettings(name: string): ProjectSettings {
@@ -128,7 +124,7 @@ export function readProjectSettings(name: string): ProjectSettings {
   if (!existsSync(file)) return {};
   try {
     const raw = JSON.parse(readFileSync(file, "utf-8"));
-    return { model: raw.model, effort: raw.effort };
+    return { model: raw.model };
   } catch {
     return {};
   }

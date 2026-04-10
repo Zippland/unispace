@@ -232,10 +232,7 @@ export function createServer(_initialConfig: Config) {
     const name = c.req.param("name");
     if (!projectExists(name)) return c.json({ error: "Not found" }, 404);
     const body = await c.req.json();
-    writeProjectSettings(name, {
-      model: body.model,
-      effort: body.effort,
-    });
+    writeProjectSettings(name, { model: body.model });
     return c.json({ ok: true, settings: readProjectSettings(name) });
   });
 
@@ -435,12 +432,10 @@ export function createServer(_initialConfig: Config) {
       c.req.raw.signal.addEventListener("abort", () => ac.abort());
 
       const projectDir = paths.project(session.projectName);
-      const projectSettings = readProjectSettings(session.projectName);
 
       for await (const event of runAgent({
         prompt: content,
         cwd: projectDir,
-        effort: projectSettings.effort,
         resumeSessionId: session.sdkSessionId,
         signal: ac.signal,
       })) {

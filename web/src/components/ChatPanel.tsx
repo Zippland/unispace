@@ -388,9 +388,23 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
 //  ChatPanel (main container)
 // ═══════════════════════════════════════════════════════════════
 
+// ── Model options (Claude Code models) ───────────────────────
+
+const MODEL_OPTIONS: { id: string; label: string; hint?: string }[] = [
+  { id: "", label: "Default", hint: "whatever Claude Code uses" },
+  { id: "claude-sonnet-4-5", label: "Sonnet 4.5" },
+  { id: "claude-opus-4-6", label: "Opus 4.6" },
+  { id: "claude-haiku-4-5", label: "Haiku 4.5" },
+];
+
+function modelLabel(id?: string): string {
+  if (!id) return "Default";
+  return MODEL_OPTIONS.find((o) => o.id === id)?.label ?? id;
+}
+
 export default function ChatPanel() {
   const {
-    serverUrl, activeSessionId, messages, streaming,
+    serverUrl, activeSessionId, messages, streaming, currentProject,
     setActiveSession, addSession, appendMessage, updateMessage,
     setStreaming, setFiles, setSessions,
   } = useStore();
@@ -402,6 +416,27 @@ export default function ChatPanel() {
   const dragCounterRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Project model selector ──────────────────────────────
+  const [projectModel, setProjectModel] = useState<string>("");
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!currentProject) return;
+    api
+      .fetchProjectSettings(serverUrl, currentProject)
+      .then((s) => setProjectModel(s.model || ""))
+      .catch(() => setProjectModel(""));
+  }, [currentProject, serverUrl]);
+
+  async function handleSelectModel(model: string) {
+    if (!currentProject) return;
+    setProjectModel(model);
+    setModelMenuOpen(false);
+    try {
+      await api.updateProjectSettings(serverUrl, currentProject, { model });
+    } catch {}
+  }
 
   const currentMessages = activeSessionId ? (messages[activeSessionId] || []) : [];
 
@@ -679,8 +714,59 @@ export default function ChatPanel() {
                 </div>
               )}
 
-              <div className="flex items-center px-3 pb-0.5 pt-0.5">
-                <span className="text-[11px] text-[#8a8880]">Enter to send / Shift+Enter for newline / Drop files to attach</span>
+              <div className="flex items-center gap-2 px-3 pb-0.5 pt-0.5">
+                {/* Model dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setModelMenuOpen(!modelMenuOpen)}
+                    className="flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white px-2.5 py-1 text-[11px] text-[#6b6963] transition hover:border-[#b0aea5] hover:text-[#141413]"
+                  >
+                    <svg className="h-3 w-3 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+                    </svg>
+                    <span>{modelLabel(projectModel)}</span>
+                    <svg className="h-2.5 w-2.5 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </button>
+                  {modelMenuOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-30"
+                        onClick={() => setModelMenuOpen(false)}
+                      />
+                      <div className="absolute bottom-full left-0 z-40 mb-1 min-w-[220px] rounded-xl border border-[#e8e6dc] bg-white py-1 shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
+                        {MODEL_OPTIONS.map((opt) => {
+                          const active = projectModel === opt.id;
+                          return (
+                            <button
+                              key={opt.id || "default"}
+                              onClick={() => handleSelectModel(opt.id)}
+                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition hover:bg-[#faf9f5] ${
+                                active ? "text-[#141413]" : "text-[#6b6963]"
+                              }`}
+                            >
+                              <svg
+                                className={`h-3 w-3 shrink-0 ${active ? "text-[#d97757]" : "text-transparent"}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2.5}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                              </svg>
+                              <span className="flex-1 truncate font-medium">{opt.label}</span>
+                              {opt.hint && (
+                                <span className="text-[10px] text-[#b0aea5]">{opt.hint}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <span className="ml-auto text-[11px] text-[#8a8880]">Enter to send / Shift+Enter for newline</span>
               </div>
             </div>
             {streaming ? (

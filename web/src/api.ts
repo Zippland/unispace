@@ -62,11 +62,10 @@ export async function cloneProject(url: string, from: string, to: string) {
   return res.json();
 }
 
-// ── Project settings (model + effort) ─────────────────────────
+// ── Project settings (currently just model) ───────────────────
 
 export interface ProjectSettings {
   model?: string;
-  effort?: "low" | "medium" | "high" | "max";
 }
 
 export async function fetchProjectSettings(url: string, name: string) {
