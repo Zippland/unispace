@@ -57,6 +57,13 @@ export interface SessionInfo {
   title?: string;
   channel?: string;
   messageCount: number;
+  projectName?: string;
+}
+
+export interface ProjectInfo {
+  name: string;
+  path: string;
+  updatedAt: number;
 }
 
 // ── File tab ──────────────────────────────────────────────────
@@ -76,6 +83,9 @@ interface Store {
   connected: boolean;
   workDir: string;
 
+  projects: ProjectInfo[];
+  currentProject: string;
+
   sessions: SessionInfo[];
   activeSessionId: string | null;
   messages: Record<string, ChatMessage[]>;
@@ -88,6 +98,10 @@ interface Store {
 
   // Connection
   setConnection: (ok: boolean, url?: string, dir?: string) => void;
+
+  // Projects
+  setProjects: (projects: ProjectInfo[], current: string) => void;
+  setCurrentProject: (name: string) => void;
 
   // Sessions
   setSessions: (s: SessionInfo[]) => void;
@@ -115,6 +129,8 @@ export const useStore = create<Store>((set) => ({
   serverUrl: "http://localhost:3210",
   connected: false,
   workDir: "",
+  projects: [],
+  currentProject: "",
   sessions: [],
   activeSessionId: null,
   messages: {},
@@ -129,6 +145,9 @@ export const useStore = create<Store>((set) => ({
       ...(url !== undefined && { serverUrl: url }),
       ...(dir !== undefined && { workDir: dir }),
     })),
+
+  setProjects: (projects, current) => set({ projects, currentProject: current }),
+  setCurrentProject: (name) => set({ currentProject: name }),
 
   setSessions: (sessions) => set({ sessions }),
   addSession: (session) => set((s) => ({ sessions: [session, ...s.sessions] })),

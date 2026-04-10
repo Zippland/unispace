@@ -22,7 +22,44 @@ function parseSSE(buffer: string) {
 export async function checkHealth(url: string) {
   const res = await fetch(`${url}/api/health`);
   if (!res.ok) throw new Error("Failed");
-  return res.json() as Promise<{ status: string; workDir: string }>;
+  return res.json() as Promise<{
+    status: string;
+    workDir: string;
+    currentProject: string;
+  }>;
+}
+
+// ── Projects ──────────────────────────────────────────────────
+
+export async function fetchProjects(url: string) {
+  const res = await fetch(`${url}/api/projects`);
+  return res.json() as Promise<{
+    current: string;
+    projects: { name: string; path: string; updatedAt: number }[];
+  }>;
+}
+
+export async function switchProject(url: string, name: string) {
+  const res = await fetch(`${url}/api/projects/current`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error("Failed to switch project");
+  return res.json();
+}
+
+export async function cloneProject(url: string, from: string, to: string) {
+  const res = await fetch(`${url}/api/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Clone failed" }));
+    throw new Error(err.error || "Clone failed");
+  }
+  return res.json();
 }
 
 export async function fetchSessions(url: string) {
@@ -90,82 +127,11 @@ export async function uploadFile(
   return res.json();
 }
 
-export async function fetchSessionMessages(url: string, sessionId: string) {
+import type { ChatMessage } from "./store";
+
+export async function fetchSessionMessages(url: string, sessionId: string): Promise<ChatMessage[]> {
   const res = await fetch(`${url}/api/sessions/${sessionId}/messages`);
   return res.json();
-}
-
-// ── Convert raw OpenAI messages → display format ──────────────
-
-import type { ChatMessage, MessagePart } from "./store";
-
-export function convertRawMessages(raw: any[]): ChatMessage[] {
-  const result: ChatMessage[] = [];
-
-  for (const msg of raw) {
-    if (msg.role === "system") continue;
-
-    if (msg.role === "user") {
-      // Skip tool results (they have tool_call_id)
-      if (msg.tool_call_id) continue;
-      const raw = typeof msg.content === "string" ? msg.content : "";
-      // Parse [Attached files: path1, path2] prefix into structured files
-      const attachMatch = raw.match(/^\[Attached files:\s*([^\]]+)\]\s*/s);
-      let files: { path: string; name: string }[] | undefined;
-      let text = raw;
-      if (attachMatch) {
-        files = attachMatch[1].split(",").map((p: string) => {
-          const trimmed = p.trim();
-          return { path: trimmed, name: trimmed.split("/").pop() || trimmed };
-        });
-        text = raw.slice(attachMatch[0].length).trim();
-      }
-      result.push({
-        id: crypto.randomUUID(),
-        role: "user",
-        parts: [{ type: "text", content: text }],
-        files,
-      });
-    } else if (msg.role === "assistant") {
-      const parts: MessagePart[] = [];
-      if (msg.reasoning_content) {
-        parts.push({ type: "thinking", content: msg.reasoning_content });
-      }
-      if (msg.content) {
-        parts.push({ type: "text", content: msg.content });
-      }
-      if (msg.tool_calls) {
-        for (const tc of msg.tool_calls) {
-          let input: Record<string, any> = {};
-          try { input = JSON.parse(tc.function.arguments); } catch {}
-          parts.push({ type: "tool_call", id: tc.id, name: tc.function.name, input });
-        }
-      }
-
-      // Merge into previous assistant message if this is a continuation
-      // (i.e. the previous assistant had tool_calls → got tool results → LLM continued)
-      const prev = result[result.length - 1];
-      if (prev?.role === "assistant" && prev.parts.some((p) => p.type === "tool_call")) {
-        prev.parts.push(...parts);
-      } else {
-        result.push({ id: crypto.randomUUID(), role: "assistant", parts });
-      }
-    } else if (msg.role === "tool") {
-      // Attach result to the matching tool_call in the last assistant message
-      for (let i = result.length - 1; i >= 0; i--) {
-        if (result[i].role !== "assistant") continue;
-        const tc = result[i].parts.find(
-          (p) => p.type === "tool_call" && p.id === msg.tool_call_id,
-        );
-        if (tc) {
-          tc.output = msg.content;
-          break;
-        }
-      }
-    }
-  }
-
-  return result;
 }
 
 // ── SSE message stream ────────────────────────────────────────

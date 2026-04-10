@@ -142,6 +142,43 @@ export function createServer(_initialConfig: Config) {
     });
   });
 
+  // Debug — SDK now owns the agent loop, so these endpoints just surface
+  // the current project's CLAUDE.md and a placeholder tool list. Kept so the
+  // dev panel doesn't 404.
+  app.get("/api/debug/prompt", async (c) => {
+    const cfg = loadConfig();
+    const claudePath = paths.projectClaude(cfg.currentProject);
+    try {
+      const content = await Bun.file(claudePath).text();
+      return c.text(content);
+    } catch {
+      return c.text(`# ${cfg.currentProject}\n\n(CLAUDE.md not found)`);
+    }
+  });
+
+  app.get("/api/debug/tools", (c) => {
+    const builtins = [
+      ["Read", "Read a file from the local filesystem."],
+      ["Write", "Write a file to the local filesystem."],
+      ["Edit", "Perform exact string replacements in files."],
+      ["Bash", "Execute shell commands in a persistent session."],
+      ["Glob", "Fast file pattern matching."],
+      ["Grep", "Search file contents with ripgrep."],
+      ["WebFetch", "Fetch and process web content."],
+      ["WebSearch", "Search the web."],
+      ["TodoWrite", "Create and manage a structured task list."],
+      ["Skill", "Invoke a project or user skill."],
+      ["Task", "Launch a subagent for complex multi-step work."],
+    ];
+    return c.json(
+      builtins.map(([name, description]) => ({
+        name,
+        description,
+        parameters: { note: "Managed by claude-agent-sdk" },
+      })),
+    );
+  });
+
   // ── Config ────────────────────────────────────────────────
   app.get("/api/config", (c) => c.json(loadConfig()));
 
@@ -185,7 +222,8 @@ export function createServer(_initialConfig: Config) {
   // ── Files (scoped to current project) ────────────────────
   app.get("/api/files", async (c) => {
     const dir = currentProjectDir();
-    const tree = await listDir(dir);
+    let tree = await listDir(dir);
+
     // Enrich sessions directory: replace raw filenames with session titles
     const sessDir = tree.find((e) => e.name === "sessions" && e.type === "directory");
     if (sessDir?.children) {
@@ -198,6 +236,18 @@ export function createServer(_initialConfig: Config) {
         updatedAt: s.updatedAt,
       }));
     }
+
+    // Hoist .claude/skills/ as a top-level "skills" entry for the UI;
+    // paths inside stay as .claude/skills/* so reads still resolve.
+    const claudeDir = tree.find((e) => e.name === ".claude" && e.type === "directory");
+    const skillsDir = claudeDir?.children?.find(
+      (c) => c.name === "skills" && c.type === "directory",
+    );
+    if (skillsDir) {
+      tree = tree.filter((e) => e.name !== ".claude");
+      tree.unshift(skillsDir);
+    }
+
     return c.json(tree);
   });
 

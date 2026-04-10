@@ -4,10 +4,9 @@ import * as api from "./api";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
 import FileViewer from "./components/FileViewer";
-import { ConfigDialog, SoulDialog, ChannelsDialog } from "./components/SettingsDialog";
+import { ConfigDialog } from "./components/SettingsDialog";
 import DevPanel from "./components/DevPanel";
 
-const SYSTEM_FILES = new Set(["config.json", "SOUL.md", "channels.json"]);
 const IS_DEV = import.meta.env.VITE_DEV_MODE === "true";
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -80,6 +79,7 @@ export default function App() {
     openTabs,
     activeTab,
     setConnection,
+    setProjects,
     setSessions,
     setFiles,
     openFile,
@@ -91,8 +91,6 @@ export default function App() {
   const [urlInput, setUrlInput] = useState(serverUrl);
   const [checking, setChecking] = useState(true);
   const [configOpen, setConfigOpen] = useState(false);
-  const [soulOpen, setSoulOpen] = useState(false);
-  const [channelsOpen, setChannelsOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
@@ -107,10 +105,12 @@ export default function App() {
     try {
       const data = await api.checkHealth(url);
       setConnection(true, url, data.workDir);
-      const [sessions, files] = await Promise.all([
+      const [projectsResp, sessions, files] = await Promise.all([
+        api.fetchProjects(url),
         api.fetchSessions(url),
         api.fetchFiles(url),
       ]);
+      setProjects(projectsResp.projects, projectsResp.current);
       setSessions(sessions);
       setFiles(files);
     } catch {
@@ -126,21 +126,16 @@ export default function App() {
 
   const handleOpenFile = useCallback(
     async (path: string, name: string) => {
-      // System files → open dedicated dialogs
-      if (name === "config.json") { setConfigOpen(true); return; }
-      if (name === "SOUL.md") { setSoulOpen(true); return; }
-      if (name === "channels.json") { setChannelsOpen(true); return; }
-
       // Session files → switch to that session's chat
-      if (path.startsWith("sessions/") && path.endsWith(".jsonl")) {
-        const sessionId = path.replace("sessions/", "").replace(".jsonl", "");
+      if (path.startsWith("sessions/") && path.endsWith(".json")) {
+        const sessionId = path.replace("sessions/", "").replace(".json", "");
         setActiveSession(sessionId);
         setActiveTabStore(null); // switch to chat
         if (!storeMessages[sessionId] || storeMessages[sessionId].length === 0) {
           try {
-            const raw = await api.fetchSessionMessages(serverUrl, sessionId);
-            if (raw.length > 0) {
-              setSessionMessages(sessionId, api.convertRawMessages(raw));
+            const messages = await api.fetchSessionMessages(serverUrl, sessionId);
+            if (Array.isArray(messages) && messages.length > 0) {
+              setSessionMessages(sessionId, messages);
             }
           } catch {}
         }
@@ -214,7 +209,10 @@ export default function App() {
     <div className="h-screen flex bg-[#faf9f5] text-[#141413]">
       {/* Sidebar */}
       <div style={{ width: sidebarW }} className="shrink-0 h-full">
-        <Sidebar onOpenFile={handleOpenFile} />
+        <Sidebar
+          onOpenFile={handleOpenFile}
+          onOpenSettings={() => setConfigOpen(true)}
+        />
       </div>
 
       {/* Handle: sidebar edge */}
@@ -309,8 +307,6 @@ export default function App() {
       )}
 
       <ConfigDialog open={configOpen} onClose={() => setConfigOpen(false)} />
-      <SoulDialog open={soulOpen} onClose={() => setSoulOpen(false)} />
-      <ChannelsDialog open={channelsOpen} onClose={() => setChannelsOpen(false)} />
     </div>
   );
 }
