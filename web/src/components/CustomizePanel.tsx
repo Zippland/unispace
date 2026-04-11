@@ -14,7 +14,8 @@ import type { AgentEditorMode } from "./AgentEditorPanel";
 // ═══════════════════════════════════════════════════════════════
 
 export type CustomizeSub =
-  | "persona"
+  | "command"
+  | "subagents"
   | "skills"
   | "dispatch"
   | "connectors"
@@ -29,7 +30,8 @@ interface Props {
 }
 
 const SUB_TITLES: Record<CustomizeSub, string> = {
-  persona: "Persona",
+  command: "Command",
+  subagents: "Subagents",
   skills: "Skills",
   dispatch: "Dispatch",
   connectors: "Connectors",
@@ -37,8 +39,10 @@ const SUB_TITLES: Record<CustomizeSub, string> = {
 };
 
 const SUB_SUBTITLES: Record<CustomizeSub, string> = {
-  persona:
-    "The main persona that defines this project, plus any subagents you can switch in on demand.",
+  command:
+    "The main CLAUDE.md — the prompt that defines who this project's agent is.",
+  subagents:
+    "Specialized workers the main agent can delegate to. Each has its own prompt and tool access.",
   skills: "Reusable capabilities the agent can invoke inside a project.",
   dispatch: "Inbound adapters — where the agent receives messages from.",
   connectors: "Outbound integrations — services the agent can reach out to.",
@@ -71,9 +75,24 @@ export default function CustomizePanel({
   );
   const globalPromptFile = files.find((f) => f.name === "CLAUDE.md");
 
+  // Commands: user-added .claude/commands/*.md (slash commands)
+  const commandsFolder = files.find(
+    (f) => f.name === "commands" && f.type === "directory",
+  );
+  const commandsList = (commandsFolder?.children || []).filter(
+    (c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"),
+  );
+
   // Header action button depends on the current sub
   let headerAction: React.ReactNode = null;
-  if (sub === "persona") {
+  if (sub === "command") {
+    headerAction = (
+      <HeaderAction
+        label="New command"
+        onClick={() => onOpenAgentEditor({ kind: "create", target: "command" })}
+      />
+    );
+  } else if (sub === "subagents") {
     headerAction = (
       <HeaderAction
         label="New subagent"
@@ -116,9 +135,16 @@ export default function CustomizePanel({
 
       {/* Body */}
       <div className="min-h-0 flex-1 overflow-hidden">
-        {sub === "persona" && (
+        {sub === "command" && (
           <AgentsSplit
             globalPrompt={globalPromptFile}
+            agents={commandsList}
+            onOpenAgentEditor={onOpenAgentEditor}
+          />
+        )}
+        {sub === "subagents" && (
+          <AgentsSplit
+            globalPrompt={undefined}
             agents={agentsList}
             onOpenAgentEditor={onOpenAgentEditor}
           />
@@ -194,7 +220,7 @@ function buildAgentRows(
   if (globalPrompt) {
     rows.push({
       key: "__project_prompt__",
-      label: "Main Persona",
+      label: "CLAUDE.md",
       path: globalPrompt.path || globalPrompt.name,
       kind: "project-prompt",
       lockName: true,

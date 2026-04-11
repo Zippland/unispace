@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, memo, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, memo, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useStore, type MessagePart, type ChatMessage } from "../store";
+import { useStore, type MessagePart, type ChatMessage, type FileEntry } from "../store";
 import * as api from "../api";
 import { mergeTemplates, type SeedTemplate } from "../mira/templateSeed";
 
@@ -594,7 +594,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
   const {
     serverUrl, activeSessionId, messages, streaming, currentProject,
     setActiveSession, addSession, appendMessage, updateMessage,
-    setStreaming, setFiles, setSessions,
+    setStreaming, files, setFiles, setSessions,
     activeAgent, setActiveAgent,
   } = useStore();
 
@@ -605,6 +605,17 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
   const dragCounterRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Reference popover (/, #, @ autocomplete) ────────────
+  // Triggers a small picker above the textarea when the user types
+  // a sigil at a word boundary. Selecting an item replaces the sigil
+  // + query with a `<sigil><name>` reference token.
+  const [popover, setPopover] = useState<{
+    trigger: "/" | "#" | "@";
+    startIdx: number;
+    query: string;
+  } | null>(null);
+  const [popoverIdx, setPopoverIdx] = useState(0);
 
   // ── Project model selector ──────────────────────────────
   const [projectModel, setProjectModel] = useState<string>(DEFAULT_MODEL);
@@ -737,6 +748,26 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     setAttachments([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
+    // One-shot subagent routing: if rawText contains a `#name` token at
+    // a word boundary AND that name matches a real subagent file under
+    // .claude/agents/, route this single message through that subagent.
+    // Doesn't mutate the sticky activeAgent — that's a separate UI.
+    let oneshotAgent: string | undefined;
+    {
+      const agentsFolder = files.find(
+        (f) => f.name === "agents" && f.type === "directory",
+      );
+      const agentNames = new Set(
+        (agentsFolder?.children || [])
+          .filter((c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"))
+          .map((c) => c.name.replace(/\.md$/i, "")),
+      );
+      const m = rawText.match(/(?:^|\s)#([a-zA-Z0-9_-]+)/);
+      if (m && agentNames.has(m[1])) {
+        oneshotAgent = m[1];
+      }
+    }
+
     // Build message content with file references
     let content = rawText;
     if (attachments.length > 0) {
@@ -771,7 +802,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     setStreaming(true);
 
     try {
-      for await (const { event, data } of api.streamMessage(serverUrl, sessionId, content, activeAgent?.name)) {
+      for await (const { event, data } of api.streamMessage(serverUrl, sessionId, content, oneshotAgent ?? activeAgent?.name)) {
         updateMessage(sessionId, asstId, (parts) => {
           const p = [...parts];
           switch (event) {
@@ -818,13 +849,129 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  // ── Reference popover candidates ─────────────────────────
+  // Built from the file tree: / → CLAUDE.md + commands/, # → agents/,
+  // @ → all user files (excluding hoisted resource folders).
+
+  type RefItem = { name: string; path: string; hint?: string };
+  const HOISTED = new Set([
+    "CLAUDE.md",
+    "sessions",
+    "skills",
+    "agents",
+    "commands",
+  ]);
+
+  const candidates: RefItem[] = useMemo(() => {
+    if (!popover) return [];
+    const q = popover.query.toLowerCase();
+    const pool: RefItem[] = [];
+
+    if (popover.trigger === "/") {
+      const claudeMd = files.find((f) => f.name === "CLAUDE.md");
+      if (claudeMd) {
+        pool.push({ name: "CLAUDE.md", path: claudeMd.path || claudeMd.name, hint: "main prompt" });
+      }
+      const cmdFolder = files.find(
+        (f) => f.name === "commands" && f.type === "directory",
+      );
+      for (const c of cmdFolder?.children || []) {
+        if (c.type === "file" && c.name.toLowerCase().endsWith(".md")) {
+          pool.push({ name: c.name.replace(/\.md$/i, ""), path: c.path });
+        }
+      }
+    } else if (popover.trigger === "#") {
+      const agFolder = files.find(
+        (f) => f.name === "agents" && f.type === "directory",
+      );
+      for (const a of agFolder?.children || []) {
+        if (a.type === "file" && a.name.toLowerCase().endsWith(".md")) {
+          pool.push({ name: a.name.replace(/\.md$/i, ""), path: a.path });
+        }
+      }
+    } else if (popover.trigger === "@") {
+      const walk = (list: FileEntry[]) => {
+        for (const f of list) {
+          if (HOISTED.has(f.name)) continue;
+          if (f.type === "file") {
+            pool.push({ name: f.name, path: f.path });
+          }
+          if (f.children) walk(f.children);
+        }
+      };
+      walk(files);
+    }
+
+    return pool
+      .filter((p) => p.name.toLowerCase().includes(q))
+      .slice(0, 8);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popover, files]);
+
+  function handlePopoverSelect(item: RefItem) {
+    if (!popover) return;
+    const ref = popover.trigger + item.name;
+    const before = input.slice(0, popover.startIdx);
+    const after = input.slice(popover.startIdx + 1 + popover.query.length);
+    const newInput = before + ref + " " + after;
+    setInput(newInput);
+    setPopover(null);
+    // For @-file refs, also stash them in the attachments chip strip so
+    // the LLM payload includes the path the same way drag-drop does.
+    if (popover.trigger === "@") {
+      addAttachment(item.path, item.name, "file");
+    }
+    // Refocus textarea so the user can keep typing without re-clicking.
+    requestAnimationFrame(() => textareaRef.current?.focus());
   }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (popover && candidates.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setPopoverIdx((i) => (i + 1) % candidates.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setPopoverIdx((i) => (i - 1 + candidates.length) % candidates.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        handlePopoverSelect(candidates[popoverIdx]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setPopover(null);
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
     e.target.style.height = "auto";
     e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
+
+    // Detect /, #, @ trigger at word boundary just before the cursor.
+    const cursor = e.target.selectionStart ?? e.target.value.length;
+    const beforeCursor = e.target.value.slice(0, cursor);
+    const m = beforeCursor.match(/(?:^|\s)([\/#@])([^\s]*)$/);
+    if (m) {
+      const trigger = m[1] as "/" | "#" | "@";
+      const query = m[2];
+      const startIdx = cursor - query.length - 1;
+      setPopover({ trigger, startIdx, query });
+      setPopoverIdx(0);
+    } else if (popover) {
+      setPopover(null);
+    }
   }
 
   const isEmpty = currentMessages.length === 0;
@@ -870,6 +1017,63 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
             onDragOver={handleInputDragOver}
             onDrop={handleInputDrop}
           >
+            {/* Reference popover (/, #, @ autocomplete) */}
+            {popover && (
+              <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-[260px] overflow-y-auto rounded-xl border border-[#e8e6dc] bg-white p-1 shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
+                <div className="flex items-center justify-between px-3 py-1">
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-[#b0aea5]">
+                    {popover.trigger === "/"
+                      ? "Commands"
+                      : popover.trigger === "#"
+                        ? "Subagents"
+                        : "Files"}
+                  </span>
+                  <span className="text-[10px] text-[#b0aea5]">
+                    ↑↓ to navigate · Enter to insert
+                  </span>
+                </div>
+                {candidates.length === 0 ? (
+                  <div className="px-3 py-2 text-[12px] text-[#b0aea5]">
+                    No matches
+                  </div>
+                ) : (
+                  candidates.map((c, i) => (
+                    <button
+                      key={c.path}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handlePopoverSelect(c);
+                      }}
+                      onMouseEnter={() => setPopoverIdx(i)}
+                      className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[12px] transition ${
+                        i === popoverIdx ? "bg-[#faf9f5]" : ""
+                      }`}
+                    >
+                      <span
+                        className={`shrink-0 text-[11px] font-mono ${
+                          popover.trigger === "/"
+                            ? "text-[#d97757]"
+                            : popover.trigger === "#"
+                              ? "text-[#a07cc5]"
+                              : "text-[#6a9bcc]"
+                        }`}
+                      >
+                        {popover.trigger}
+                      </span>
+                      <span className="truncate font-medium text-[#141413]">
+                        {c.name}
+                      </span>
+                      {c.hint && (
+                        <span className="truncate text-[#b0aea5]">
+                          — {c.hint}
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
             {/* Drop overlay */}
             {isDragging && (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[20px] bg-white/90">

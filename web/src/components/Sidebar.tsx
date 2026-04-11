@@ -50,6 +50,7 @@ const HOISTED_NAMES = new Set([
   "sessions",
   "skills",
   "agents",
+  "commands",
 ]);
 
 // ── Workspace resource tabs ───────────────────────────────────
@@ -65,10 +66,11 @@ const TABS: { key: TabKey; label: string }[] = [
 // Sub-tabs inside the Customize panel (CustomizeSub type imported below)
 // Order: persona first (most common config), tasks last (least frequent)
 const CUSTOMIZE_SUBS: {
-  key: "persona" | "skills" | "dispatch" | "connectors" | "tasks";
+  key: "command" | "subagents" | "skills" | "dispatch" | "connectors" | "tasks";
   label: string;
 }[] = [
-  { key: "persona", label: "Persona" },
+  { key: "command", label: "Command" },
+  { key: "subagents", label: "Subagents" },
   { key: "skills", label: "Skills" },
   { key: "dispatch", label: "Dispatch" },
   { key: "connectors", label: "Connectors" },
@@ -275,7 +277,7 @@ export default function Sidebar({
 
   function handleTopTabClick(next: TabKey) {
     if (next === "customize") {
-      if (!customizeSub) onCustomizeSubChange("persona");
+      if (!customizeSub) onCustomizeSubChange("command");
       return;
     }
     // Files / Datasource — sidebar-only, close any customize takeover

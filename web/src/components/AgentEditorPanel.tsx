@@ -3,7 +3,7 @@ import { useStore } from "../store";
 import * as api from "../api";
 
 export type AgentEditorMode =
-  | { kind: "create" }
+  | { kind: "create"; target?: "agent" | "command" }
   | { kind: "edit"; path: string; initialName: string; lockName?: boolean };
 
 interface Props {
@@ -15,6 +15,15 @@ interface Props {
 }
 
 const AGENTS_DIR = ".claude/agents";
+const COMMANDS_DIR = ".claude/commands";
+
+/** Infer whether an edit-mode path is a subagent, slash command, or
+ *  the project main prompt (CLAUDE.md). */
+function targetFromPath(path: string): "agent" | "command" | "prompt" {
+  if (path.startsWith(COMMANDS_DIR + "/")) return "command";
+  if (path.startsWith(AGENTS_DIR + "/")) return "agent";
+  return "prompt";
+}
 
 function slugify(name: string): string {
   return name
@@ -52,6 +61,18 @@ export default function AgentEditorPanel({ mode, onClose, onSaved }: Props) {
 
   const isEdit = mode.kind === "edit";
   const lockName = isEdit && mode.lockName === true;
+
+  // Effective target: which subdir does this file live in?
+  // - lockName ⇒ CLAUDE.md (prompt, free-form, no frontmatter)
+  // - create with target="command" ⇒ commands dir
+  // - create default ⇒ agents dir
+  // - edit ⇒ infer from existing path
+  const target: "agent" | "command" | "prompt" = lockName
+    ? "prompt"
+    : mode.kind === "create"
+      ? mode.target ?? "agent"
+      : targetFromPath(mode.path);
+  const targetDir = target === "command" ? COMMANDS_DIR : AGENTS_DIR;
 
   const [name, setName] = useState(isEdit ? mode.initialName : "");
   const [description, setDescription] = useState("");
@@ -108,10 +129,10 @@ export default function AgentEditorPanel({ mode, onClose, onSaved }: Props) {
         await api.saveFile(serverUrl, mode.path, text);
         onSaved(mode.path);
       } else if (mode.kind === "edit") {
-        // Subagent — may have been renamed
+        // Subagent or command — may have been renamed
         const slug = slugify(name);
         if (!slug) throw new Error("Invalid name");
-        const newPath = `${AGENTS_DIR}/${slug}.md`;
+        const newPath = `${targetDir}/${slug}.md`;
         const content = buildAgentFile(slug, description, text);
 
         if (newPath !== mode.path) {
@@ -126,10 +147,10 @@ export default function AgentEditorPanel({ mode, onClose, onSaved }: Props) {
         }
         onSaved(newPath);
       } else {
-        // Create new subagent
+        // Create new subagent or command
         const slug = slugify(name);
         if (!slug) throw new Error("Invalid name");
-        const path = `${AGENTS_DIR}/${slug}.md`;
+        const path = `${targetDir}/${slug}.md`;
         const content = buildAgentFile(slug, description, text);
         await api.saveFile(serverUrl, path, content);
         onSaved(path);
@@ -141,17 +162,20 @@ export default function AgentEditorPanel({ mode, onClose, onSaved }: Props) {
     }
   }
 
+  const noun = target === "command" ? "command" : "subagent";
   const title = lockName
-    ? "Edit Main Persona"
+    ? "Edit CLAUDE.md"
     : isEdit
-      ? `Edit subagent · ${mode.initialName}`
-      : "New subagent";
+      ? `Edit ${noun} · ${mode.initialName}`
+      : `New ${noun}`;
 
   const subtitle = lockName
-    ? "The main persona for this project — loaded at the start of every session."
+    ? "The main prompt for this project — loaded at the start of every session."
     : isEdit
-      ? "Rename, describe, or rewrite this subagent's persona."
-      : "Create a subagent with its own persona. You can switch it in on any session from the Persona list.";
+      ? `Rename, describe, or rewrite this ${noun}.`
+      : target === "command"
+        ? "Create a slash command. Users invoke it with /name in chat."
+        : "Create a subagent with its own persona. Reference it with #name in chat.";
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">

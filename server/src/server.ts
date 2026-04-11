@@ -68,6 +68,79 @@ function parseFrontmatter(text: string): {
   return { meta, body: text.slice(match[0].length) };
 }
 
+// ── Slash-command expansion ───────────────────────────────────
+// Mirrors Claude Code's slash-command semantics: a `/name` token at
+// a word boundary is replaced by the body of `.claude/commands/<name>.md`
+// in the project. The args following the command on the same line are
+// substituted into `$ARGUMENTS` if the body uses it, otherwise appended
+// after the body. Tokens that don't resolve to a real file are left as
+// literal text — so accidental slashes don't break user input.
+
+async function expandSlashCommands(
+  text: string,
+  projectDir: string,
+): Promise<string> {
+  if (!text || text.indexOf("/") < 0) return text;
+  const projectRoot = resolve(projectDir);
+  const cache = new Map<string, string | null>();
+
+  async function lookup(name: string): Promise<string | null> {
+    if (cache.has(name)) return cache.get(name)!;
+    const safe = name.replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!safe) {
+      cache.set(name, null);
+      return null;
+    }
+    try {
+      const filePath = resolve(projectRoot, `.claude/commands/${safe}.md`);
+      if (!filePath.startsWith(projectRoot + "/")) {
+        cache.set(name, null);
+        return null;
+      }
+      const raw = await Bun.file(filePath).text();
+      const { body } = parseFrontmatter(raw);
+      const trimmed = body.trim();
+      cache.set(name, trimmed || null);
+      return trimmed || null;
+    } catch {
+      cache.set(name, null);
+      return null;
+    }
+  }
+
+  const cmdRegex = /(^|\s)\/([a-zA-Z0-9_-]+)([^\n]*)/g;
+  const matches: RegExpExecArray[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = cmdRegex.exec(text)) !== null) matches.push(m);
+  if (matches.length === 0) return text;
+
+  await Promise.all(
+    Array.from(new Set(matches.map((x) => x[2]))).map(lookup),
+  );
+
+  let result = "";
+  let lastIdx = 0;
+  for (const match of matches) {
+    result += text.slice(lastIdx, match.index);
+    const leadingWs = match[1];
+    const body = cache.get(match[2]);
+    const args = (match[3] || "").trim();
+    if (body) {
+      const expanded = body.includes("$ARGUMENTS")
+        ? body.replace(/\$ARGUMENTS/g, args)
+        : args
+          ? `${body}\n\n${args}`
+          : body;
+      result += leadingWs + expanded;
+    } else {
+      result += match[0];
+    }
+    lastIdx = match.index + match[0].length;
+  }
+  result += text.slice(lastIdx);
+  return result;
+}
+
 async function listDir(
   dir: string,
   base = "",
@@ -404,10 +477,10 @@ export function createServer(_initialConfig: Config) {
       }));
     }
 
-    // Hoist .claude/{skills,agents}/ as top-level entries for the UI;
-    // paths inside stay as .claude/* so reads still resolve. The raw
-    // .claude folder itself is always stripped from the top-level tree —
-    // it's an internal config dir and has no user-facing meaning.
+    // Hoist .claude/{skills,agents,commands}/ as top-level entries for
+    // the UI; paths inside stay as .claude/* so reads still resolve.
+    // The raw .claude folder itself is always stripped from the top-level
+    // tree — it's an internal config dir and has no user-facing meaning.
     const claudeDir = tree.find((e) => e.name === ".claude" && e.type === "directory");
     const skillsDir = claudeDir?.children?.find(
       (c) => c.name === "skills" && c.type === "directory",
@@ -415,7 +488,11 @@ export function createServer(_initialConfig: Config) {
     const agentsDir = claudeDir?.children?.find(
       (c) => c.name === "agents" && c.type === "directory",
     );
+    const commandsDir = claudeDir?.children?.find(
+      (c) => c.name === "commands" && c.type === "directory",
+    );
     tree = tree.filter((e) => e.name !== ".claude");
+    if (commandsDir) tree.unshift(commandsDir);
     if (agentsDir) tree.unshift(agentsDir);
     if (skillsDir) tree.unshift(skillsDir);
 
@@ -616,9 +693,14 @@ export function createServer(_initialConfig: Config) {
 
       const projectDir = paths.project(session.projectName);
 
+      // Expand `/cmd` slash-command tokens server-side. The original
+      // text stays in session.messages so the UI shows what the user
+      // typed; only the LLM payload sees the resolved bodies.
+      const expandedPrompt = await expandSlashCommands(content, projectDir);
+
       try {
         for await (const event of runAgent({
-          prompt: content,
+          prompt: expandedPrompt,
           cwd: projectDir,
           resumeSessionId: session.sdkSessionId,
           signal: ac.signal,

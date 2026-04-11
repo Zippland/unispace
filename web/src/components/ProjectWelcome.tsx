@@ -159,78 +159,75 @@ export default function ProjectWelcome({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 border-b border-[#e8e6dc] bg-white px-10 py-6">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#b0aea5] transition hover:bg-[#faf9f5] hover:text-[#141413]"
-                title="Back"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-                </svg>
-              </button>
-            )}
-            <h1 className="font-['Poppins',_Arial,_sans-serif] text-[20px] font-semibold text-[#141413]">
-              Start a new project
-            </h1>
+    <div className="relative flex h-full min-h-0 flex-col overflow-y-auto bg-white">
+      {onClose && (
+        <div className="absolute left-6 top-6 z-10">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white/70 px-3 py-1.5 text-[11px] text-[#6b6963] backdrop-blur transition hover:border-[#b0aea5]"
+            title="Back"
+          >
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+            </svg>
+            Back
+          </button>
+        </div>
+      )}
+
+      <div className="mx-auto w-full max-w-4xl px-10 pb-16 pt-20">
+        {/* Hero — mirrors MiraWelcomeMain's scale */}
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#141413] text-[28px]">
+            📁
           </div>
-          <p className={`mt-2 text-[13px] leading-relaxed text-[#6b6963] ${onClose ? "pl-9" : ""}`}>
-            Pick a template published by your BU, or start from a blank
-            canvas. Each template bundles a Main Persona, curated skills, and
-            the recommended runtime — ready to run.
+          <h1 className="font-['Poppins',_Arial,_sans-serif] text-[34px] font-semibold tracking-tight text-[#141413]">
+            Start a new project
+          </h1>
+          <p className="mt-2 text-[14px] text-[#6b6963]">
+            Pick a template published by your BU, or start from a blank canvas
           </p>
         </div>
-      </div>
 
-      {/* BU tab bar */}
-      <div className="shrink-0 border-b border-[#e8e6dc] bg-white px-10">
-        <nav className="flex items-center gap-5 overflow-x-auto">
-          {BU_TABS.map((tab) => {
-            const isActive = activeBU === tab.key;
-            const count =
-              tab.key === "explore"
-                ? templates.length
-                : templates.filter((t) => t.bu === tab.key).length;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveBU(tab.key)}
-                className={`relative flex items-center gap-1.5 pb-3 pt-4 text-[13px] font-medium transition ${
-                  isActive
-                    ? "text-[#141413]"
-                    : "text-[#b0aea5] hover:text-[#6b6963]"
-                }`}
-              >
-                {tab.label}
-                {count > 0 && (
-                  <span className="rounded-full bg-[#141413]/[0.06] px-1.5 py-0.5 text-[10px] text-[#6b6963]">
-                    {count}
-                  </span>
-                )}
-                {isActive && (
-                  <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#141413]" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+        {/* BU tabs */}
+        <div className="mt-12">
+          <div className="mb-5 flex items-center gap-5 overflow-x-auto border-b border-[#e8e6dc] pb-0">
+            {BU_TABS.map((tab) => {
+              const isActive = activeBU === tab.key;
+              const count =
+                tab.key === "explore"
+                  ? templates.length
+                  : templates.filter((t) => t.bu === tab.key).length;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveBU(tab.key)}
+                  className={`relative flex shrink-0 items-center gap-1.5 pb-3 text-[13px] font-medium transition ${
+                    isActive
+                      ? "text-[#141413]"
+                      : "text-[#b0aea5] hover:text-[#6b6963]"
+                  }`}
+                >
+                  {tab.label}
+                  {count > 0 && (
+                    <span className="rounded-full bg-[#141413]/[0.06] px-1.5 py-0.5 text-[10px] text-[#6b6963]">
+                      {count}
+                    </span>
+                  )}
+                  {isActive && (
+                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#141413]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Grid body */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-10 py-8">
           {loading ? (
             <div className="flex h-48 items-center justify-center text-[13px] text-[#b0aea5]">
               Loading templates…
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {/* Blank card — always first */}
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
               <BlankCard
                 onClick={() =>
                   openConfirm({
@@ -271,13 +268,13 @@ export default function ProjectWelcome({
             className="fixed inset-0 z-50 bg-[#141413]/25 backdrop-blur-sm"
             onClick={() => !creating && setPending(null)}
           />
-          <div className="fixed left-1/2 top-1/2 z-50 w-[440px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
-            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">
+          <div className="fixed left-1/2 top-1/2 z-50 w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-8 shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
+            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[22px] font-semibold tracking-tight text-[#141413]">
               Create project from template
             </h3>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-[22px]">{pending.icon || "📁"}</span>
-              <span className="text-[13px] font-medium text-[#141413]">
+            <div className="mt-4 flex items-center gap-3">
+              <span className="text-[28px]">{pending.icon || "📁"}</span>
+              <span className="text-[15px] font-medium text-[#141413]">
                 {pending.name}
               </span>
               {pending.id !== "__blank__" && (
@@ -289,11 +286,11 @@ export default function ProjectWelcome({
                 </span>
               )}
             </div>
-            <p className="mt-2 text-[12px] leading-relaxed text-[#6b6963]">
+            <p className="mt-3 text-[13px] leading-relaxed text-[#6b6963]">
               {pending.description}
             </p>
 
-            <label className="mt-5 block text-[12px] font-medium text-[#6b6963]">
+            <label className="mt-6 block text-[13px] font-medium text-[#6b6963]">
               Project name
             </label>
             <input
@@ -305,22 +302,22 @@ export default function ProjectWelcome({
               }}
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              className="mt-1 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-[13px] text-[#141413] outline-none transition focus:border-[#141413]"
+              className="mt-2 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-4 py-2.5 text-[14px] text-[#141413] outline-none transition focus:border-[#141413]"
             />
             {error && <p className="mt-2 text-[12px] text-[#d97757]">{error}</p>}
 
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-6 flex justify-end gap-2">
               <button
                 onClick={() => setPending(null)}
                 disabled={creating}
-                className="rounded-lg border border-[#e8e6dc] px-4 py-2 text-[13px] text-[#6b6963] transition hover:bg-[#faf9f5] disabled:opacity-50"
+                className="rounded-lg border border-[#e8e6dc] px-5 py-2.5 text-[14px] text-[#6b6963] transition hover:bg-[#faf9f5] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
                 disabled={creating || !pendingName.trim()}
-                className="rounded-lg bg-[#141413] px-4 py-2 text-[13px] font-medium text-white transition hover:bg-[#2a2a28] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-[#141413] px-5 py-2.5 text-[14px] font-medium text-white transition hover:bg-[#2a2a28] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {creating ? "Creating…" : "Create project"}
               </button>
@@ -353,30 +350,30 @@ function TemplateCard({
       onClick={onClick}
       className="group flex flex-col overflow-hidden rounded-2xl border border-[#e8e6dc] bg-white text-left transition hover:border-[#b0aea5] hover:shadow-[0_8px_24px_rgba(20,20,19,0.08)]"
     >
-      <div className={`aspect-[5/3] w-full bg-gradient-to-br ${template.gradient || "from-[#e8e6dc] to-[#d6c5b3]"} relative`}>
-        <div className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-xl bg-white/70 text-[22px] backdrop-blur-sm">
+      <div className={`aspect-[4/3] w-full bg-gradient-to-br ${template.gradient || "from-[#e8e6dc] to-[#d6c5b3]"} relative`}>
+        <div className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-[18px] backdrop-blur-sm">
           {template.icon || "📁"}
         </div>
         <div
-          className="absolute right-4 top-4 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm"
+          className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm"
           style={{ background: buColor(template.bu) }}
         >
           {template.bu}
         </div>
         {template.placeholder && (
-          <div className="absolute bottom-4 left-4 rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-medium text-[#6b6963] backdrop-blur-sm">
+          <div className="absolute bottom-3 left-3 rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-medium text-[#6b6963] backdrop-blur-sm">
             Preview
           </div>
         )}
       </div>
-      <div className="flex-1 px-5 py-4">
-        <div className="text-[14px] font-semibold text-[#141413]">
+      <div className="flex-1 px-4 py-3">
+        <div className="truncate text-[13px] font-medium text-[#141413]">
           {template.name}
         </div>
-        <div className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-[#6b6963]">
+        <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[#6b6963]">
           {template.description}
         </div>
-        <div className="mt-3 text-[11px] text-[#b0aea5]">
+        <div className="mt-2 text-[11px] text-[#b0aea5]">
           by {template.author}
         </div>
       </div>
@@ -392,21 +389,21 @@ function BlankCard({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="group flex flex-col overflow-hidden rounded-2xl border border-dashed border-[#e8e6dc] bg-[#faf9f5] text-left transition hover:border-[#b0aea5] hover:bg-white"
     >
-      <div className="flex aspect-[5/3] w-full items-center justify-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-dashed border-[#b0aea5] text-[#b0aea5] transition group-hover:border-[#141413] group-hover:text-[#141413]">
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <div className="flex aspect-[4/3] w-full items-center justify-center">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-dashed border-[#b0aea5] text-[#b0aea5] transition group-hover:border-[#141413] group-hover:text-[#141413]">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
         </div>
       </div>
-      <div className="flex-1 px-5 py-4">
-        <div className="text-[14px] font-semibold text-[#141413]">
+      <div className="flex-1 px-4 py-3">
+        <div className="truncate text-[13px] font-medium text-[#141413]">
           Blank project
         </div>
-        <div className="mt-1 text-[12px] leading-relaxed text-[#6b6963]">
+        <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[#6b6963]">
           Start empty. Add files, data, and customize agents as you go.
         </div>
-        <div className="mt-3 text-[11px] text-[#b0aea5]">by Mira</div>
+        <div className="mt-2 text-[11px] text-[#b0aea5]">by Mira</div>
       </div>
     </button>
   );
