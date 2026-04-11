@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef, memo, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore, type MessagePart, type ChatMessage } from "../store";
@@ -293,8 +293,10 @@ function emptyBUColor(bu: string) {
 
 function EmptyState({
   onStartFromTemplate,
+  inputBarSlot,
 }: {
   onStartFromTemplate?: (template: api.ProjectTemplate) => void;
+  inputBarSlot?: ReactNode;
 }) {
   const { serverUrl, currentProject } = useStore();
   const [real, setReal] = useState<api.ProjectTemplate[]>([]);
@@ -347,17 +349,21 @@ function EmptyState({
             />
           </svg>
           <h1 className="mt-5 font-['Poppins',_Arial,_sans-serif] text-[24px] font-semibold tracking-tight text-[#141413]">
-            Welcome to{" "}
+            Hi, I'm{" "}
             <span className="text-[#d97757]">
-              {currentProject || "this project"}
+              {currentProject || "your agent"}
             </span>
+            .
           </h1>
           <p className="mt-1.5 font-['Poppins',_Arial,_sans-serif] text-[13px] text-[#b0aea5]">
-            Infrastructure for the agents you define.
+            The agent you define.
           </p>
         </div>
 
-        <div className="mb-8" />
+        {/* Shared input bar — same component as the bottom bar.
+            Rendered here via slot prop so empty state keeps the bar
+            above the gallery without duplicating JSX. */}
+        {inputBarSlot && <div className="mb-8">{inputBarSlot}</div>}
 
         {/* Template gallery — always populated via seed + real merge */}
         <>
@@ -823,32 +829,13 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
 
   const isEmpty = currentMessages.length === 0;
 
-  return (
-    <div className="flex-1 flex flex-col h-full min-w-0">
-      {/* Messages or welcome hero + gallery. The bottom input bar is
-          always rendered below so empty & non-empty share one input. */}
-      {isEmpty ? (
-        <main className="flex-1 flex">
-          <EmptyState onStartFromTemplate={onStartFromTemplate} />
-        </main>
-      ) : (
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto py-6 px-6 space-y-5">
-            {currentMessages.map((msg, i) => (
-              <MessageBubble
-                key={msg.id}
-                msg={msg}
-                streaming={streaming && i === currentMessages.length - 1 && msg.role === "assistant"}
-              />
-            ))}
-            <div ref={bottomRef} />
-          </div>
-        </main>
-      )}
-
-      {/* Bottom input bar — always rendered so empty & non-empty share
-          the same full-featured input (model picker, agent chip, attachments). */}
-      <div className="bg-[#faf9f5] px-4 pb-5 pt-2 shrink-0">
+  // The full-featured input bar is defined once and rendered in one
+  // of two positions: between hero and gallery (empty state) or
+  // pinned at the bottom (non-empty). Same JSX either way — model
+  // picker, agent chip, attachments, streaming/stop button all live
+  // in a single source of truth.
+  const inputBar: ReactNode = (
+    <div className="bg-[#faf9f5] px-4 pb-5 pt-2 shrink-0">
         <div className="relative mx-auto flex max-w-3xl flex-col gap-2">
           {activeAgent && (
             <div className="flex items-center gap-2 self-start rounded-full border border-[#a07cc5]/25 bg-[#a07cc5]/[0.06] pl-2.5 pr-1 py-1 text-[11px]">
@@ -1009,6 +996,34 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
           </div>
         </div>
       </div>
+  );
+
+  return (
+    <div className="flex-1 flex flex-col h-full min-w-0">
+      {isEmpty ? (
+        <main className="flex-1 flex">
+          <EmptyState
+            onStartFromTemplate={onStartFromTemplate}
+            inputBarSlot={inputBar}
+          />
+        </main>
+      ) : (
+        <>
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto py-6 px-6 space-y-5">
+              {currentMessages.map((msg, i) => (
+                <MessageBubble
+                  key={msg.id}
+                  msg={msg}
+                  streaming={streaming && i === currentMessages.length - 1 && msg.role === "assistant"}
+                />
+              ))}
+              <div ref={bottomRef} />
+            </div>
+          </main>
+          {inputBar}
+        </>
+      )}
     </div>
   );
 }
