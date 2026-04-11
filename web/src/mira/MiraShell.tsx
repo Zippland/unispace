@@ -48,12 +48,11 @@ export function MiraBrand({
           Mira
         </span>
         {modeLabel && (
-          <>
-            <span className="text-[13px] text-[#b0aea5]">/</span>
-            <span className="text-[13px] font-medium text-[#6b6963]">
-              {modeLabel}
-            </span>
-          </>
+          <span
+            className="ml-0.5 inline-flex items-center rounded-md bg-gradient-to-br from-[#d97757] to-[#c4613f] px-1.5 py-[3px] font-['Poppins',_Arial,_sans-serif] text-[9px] font-bold uppercase tracking-[0.14em] text-white shadow-[0_1px_3px_rgba(217,119,87,0.35)]"
+          >
+            {modeLabel}
+          </span>
         )}
       </button>
       <button className="flex h-6 w-6 items-center justify-center rounded text-[#b0aea5] hover:text-[#141413]">

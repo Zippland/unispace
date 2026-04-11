@@ -83,6 +83,26 @@ const RECENTS_MIN_HEIGHT = 80;
 const RECENTS_MAX_HEIGHT = 500;
 const RECENTS_HEIGHT_KEY = "us:recents_height";
 
+// ── Files view mode (folder tree vs. time-sorted flat list) ───
+
+type FileViewMode = "folder" | "timeline";
+const FILE_VIEW_MODE_KEY = "us:file_view_mode";
+
+/** Walk a nested FileEntry tree and return every leaf (file, not dir),
+ *  sorted by updatedAt descending. Used for the timeline view. */
+function flattenFiles(nodes: FileEntry[]): FileEntry[] {
+  const out: FileEntry[] = [];
+  const walk = (list: FileEntry[]) => {
+    for (const n of list) {
+      if (n.type === "file") out.push(n);
+      if (n.children) walk(n.children);
+    }
+  };
+  walk(nodes);
+  out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return out;
+}
+
 // ── Sidebar ───────────────────────────────────────────────────
 
 import type { AgentEditorMode } from "./AgentEditorPanel";
@@ -144,6 +164,17 @@ export default function Sidebar({
   // The effective active tab. Customize drives a main-area takeover;
   // files is sidebar-only.
   const activeTabKey: TabKey = customizeSub ? "customize" : "files";
+
+  // Files panel view mode — "folder" tree or "timeline" flat list by mtime.
+  // Persisted so the choice sticks across reloads.
+  const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
+    if (typeof window === "undefined") return "folder";
+    const saved = window.localStorage.getItem(FILE_VIEW_MODE_KEY);
+    return saved === "timeline" ? "timeline" : "folder";
+  });
+  useEffect(() => {
+    window.localStorage.setItem(FILE_VIEW_MODE_KEY, fileViewMode);
+  }, [fileViewMode]);
 
   function handleTopTabClick(next: TabKey) {
     if (next === "customize") {
@@ -435,18 +466,20 @@ export default function Sidebar({
       {miraMode === "project" && (
         <>
           {/* ── Project header (project switcher only) ───── */}
-          <div className="px-5 pt-4 pb-4 border-b border-[#e8e6dc] mt-4">
+          <div className="px-3 pt-5 pb-3">
             {/* ── Project switcher ──────────────────────── */}
             <div className="relative">
           <button
             onClick={() => setProjectMenuOpen(!projectMenuOpen)}
-            className="flex w-full items-center gap-2 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-left text-[13px] text-[#141413] transition hover:border-[#b0aea5]"
+            className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-[#141413]/[0.04]"
           >
-            <svg className="h-3.5 w-3.5 shrink-0 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <svg className="h-3.5 w-3.5 shrink-0 text-[#b0aea5] transition group-hover:text-[#6b6963]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
             </svg>
-            <span className="flex-1 truncate font-medium">{currentProject || "—"}</span>
-            <svg className="h-3 w-3 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <span className="flex-1 truncate font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold tracking-tight text-[#141413]">
+              {currentProject || "—"}
+            </span>
+            <svg className="h-3 w-3 shrink-0 text-[#b0aea5] opacity-0 transition group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
           </button>
@@ -648,12 +681,37 @@ export default function Sidebar({
             })}
           </nav>
           {activeTabKey === "files" && (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
-            >
-              + Upload
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  setFileViewMode(fileViewMode === "folder" ? "timeline" : "folder")
+                }
+                title={
+                  fileViewMode === "folder"
+                    ? "Switch to timeline view"
+                    : "Switch to folder view"
+                }
+                className="flex h-6 w-6 items-center justify-center rounded-md border border-[#e8e6dc] bg-white text-[#b0aea5] transition hover:bg-[#faf9f5] hover:text-[#141413]"
+              >
+                {fileViewMode === "folder" ? (
+                  /* timeline icon — what you'll switch TO */
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+                  </svg>
+                ) : (
+                  /* folder icon — what you'll switch TO */
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+              >
+                + Upload
+              </button>
+            </div>
           )}
           {/* Customize sub actions now live in CustomizePanel's main-area
               header, not here — keeps the sidebar chrome minimal. */}
@@ -707,8 +765,12 @@ export default function Sidebar({
                 <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
                   Drop files here or click upload
                 </p>
-              ) : (
+              ) : fileViewMode === "folder" ? (
                 userFiles.map((f) => (
+                  <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
+                ))
+              ) : (
+                flattenFiles(userFiles).map((f) => (
                   <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
                 ))
               )}

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
-import { readdir } from "fs/promises";
+import { readdir, stat } from "fs/promises";
 import { join, resolve } from "path";
 import { mkdirSync, existsSync } from "fs";
 import {
@@ -83,15 +83,19 @@ async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> 
     // Allow .claude (skills) but skip other dotfiles
     if (e.name.startsWith(".") && e.name !== ".claude") continue;
     const path = base ? `${base}/${e.name}` : e.name;
+    const full = join(dir, e.name);
+    let updatedAt = 0;
+    try { updatedAt = (await stat(full)).mtimeMs; } catch {}
     if (e.isDirectory()) {
       result.push({
         name: e.name,
         path,
         type: "directory",
-        children: await listDir(join(dir, e.name), path, depth + 1),
+        updatedAt,
+        children: await listDir(full, path, depth + 1),
       });
     } else {
-      result.push({ name: e.name, path, type: "file" });
+      result.push({ name: e.name, path, type: "file", updatedAt });
     }
   }
   return result;
