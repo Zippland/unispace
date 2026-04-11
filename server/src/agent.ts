@@ -1,4 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { loadProjectContext } from "./config";
 
 // ── Wire events (kept compatible with the previous agent) ────
 
@@ -52,15 +53,34 @@ export async function* runAgent(
   const agentsRegistry =
     agentName && agentDefinition ? { [agentName]: agentDefinition } : undefined;
 
+  // Project context — CLAUDE.md persona + model — read via the
+  // single source of truth in config.ts. We avoid SDK
+  // `settingSources: ['project']` because that mode auto-injects
+  // every file in `.claude/skills/` into the model's system reminder,
+  // causing the LLM to treat user routing tokens as skill invocations
+  // and leak internal scaffolding into its replies. UniSpace surfaces
+  // skills via dedicated UI; the model only needs the project persona.
+  const projectCtx = loadProjectContext(cwd);
+
   try {
     const q = query({
       prompt,
       options: {
         cwd,
         abortController,
-        // Load CLAUDE.md and .claude/skills/ from the project directory.
-        // This also loads `model` from .claude/settings.json automatically.
-        settingSources: ["project"],
+        // Isolation mode — nothing auto-loaded from .claude/.
+        settingSources: [],
+        // Project persona appended to the Claude Code preset prompt.
+        ...(projectCtx.claudeMd
+          ? {
+              systemPrompt: {
+                type: "preset" as const,
+                preset: "claude_code" as const,
+                append: projectCtx.claudeMd,
+              },
+            }
+          : {}),
+        ...(projectCtx.model ? { model: projectCtx.model } : {}),
         // Demo: skip all permission prompts (sandbox handles isolation in prod)
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,

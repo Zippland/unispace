@@ -133,7 +133,10 @@ async function expandSlashCommands(
           : body;
       result += leadingWs + expanded;
     } else {
-      result += match[0];
+      // Unresolved /cmd — strip the token but keep any args so the
+      // user's actual question isn't lost. Prevents the LLM from
+      // misinterpreting a stray slash as a tool call.
+      result += leadingWs + args;
     }
     lastIdx = match.index + match[0].length;
   }

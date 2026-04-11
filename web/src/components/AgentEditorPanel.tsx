@@ -175,7 +175,7 @@ export default function AgentEditorPanel({ mode, onClose, onSaved }: Props) {
       ? `Rename, describe, or rewrite this ${noun}.`
       : target === "command"
         ? "Create a slash command. Users invoke it with /name in chat."
-        : "Create a subagent with its own persona. Reference it with #name in chat.";
+        : "Create a subagent with its own persona. Activate it from the Subagents list before sending a message.";
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">

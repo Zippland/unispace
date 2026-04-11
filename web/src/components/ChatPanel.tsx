@@ -606,12 +606,12 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ── Reference popover (/, #, @ autocomplete) ────────────
+  // ── Reference popover (/, @ autocomplete) ───────────────
   // Triggers a small picker above the textarea when the user types
   // a sigil at a word boundary. Selecting an item replaces the sigil
   // + query with a `<sigil><name>` reference token.
   const [popover, setPopover] = useState<{
-    trigger: "/" | "#" | "@";
+    trigger: "/" | "@";
     startIdx: number;
     query: string;
   } | null>(null);
@@ -748,35 +748,20 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     setAttachments([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
-    // One-shot subagent routing: if rawText contains a `#name` token at
-    // a word boundary AND that name matches a real subagent file under
-    // .claude/agents/, route this single message through that subagent.
-    // Doesn't mutate the sticky activeAgent — that's a separate UI.
-    let oneshotAgent: string | undefined;
-    {
-      const agentsFolder = files.find(
-        (f) => f.name === "agents" && f.type === "directory",
-      );
-      const agentNames = new Set(
-        (agentsFolder?.children || [])
-          .filter((c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"))
-          .map((c) => c.name.replace(/\.md$/i, "")),
-      );
-      const m = rawText.match(/(?:^|\s)#([a-zA-Z0-9_-]+)/);
-      if (m && agentNames.has(m[1])) {
-        oneshotAgent = m[1];
-      }
-    }
+    // Subagents are invoked via the sticky "Use as persona" button on
+    // the Customize → Subagents detail page (sets activeAgent). The
+    // chat input has no `#name` shortcut.
+    const promptText = rawText;
 
     // Build message content with file references
-    let content = rawText;
+    let content = promptText;
     if (attachments.length > 0) {
       const fileRefs = attachments.filter((a) => a.kind === "file").map((a) => a.path);
       const skillRefs = attachments.filter((a) => a.kind === "skill").map((a) => a.name);
       const parts: string[] = [];
       if (fileRefs.length) parts.push(`[Attached files: ${fileRefs.join(", ")}]`);
       if (skillRefs.length) parts.push(`[Referenced skills: ${skillRefs.join(", ")}]`);
-      content = parts.join("\n") + (rawText ? `\n\n${rawText}` : "");
+      content = parts.join("\n") + (promptText ? `\n\n${promptText}` : "");
     }
 
     const msgFiles = attachments.length > 0 ? attachments.map(({ path, name, kind }) => ({ path, name, kind })) : undefined;
@@ -802,7 +787,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     setStreaming(true);
 
     try {
-      for await (const { event, data } of api.streamMessage(serverUrl, sessionId, content, oneshotAgent ?? activeAgent?.name)) {
+      for await (const { event, data } of api.streamMessage(serverUrl, sessionId, content, activeAgent?.name)) {
         updateMessage(sessionId, asstId, (parts) => {
           const p = [...parts];
           switch (event) {
@@ -850,7 +835,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
   }
 
   // ── Reference popover candidates ─────────────────────────
-  // Built from the file tree: / → CLAUDE.md + commands/, # → agents/,
+  // Built from the file tree: / → CLAUDE.md + commands/,
   // @ → all user files (excluding hoisted resource folders).
 
   type RefItem = { name: string; path: string; hint?: string };
@@ -878,15 +863,6 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
       for (const c of cmdFolder?.children || []) {
         if (c.type === "file" && c.name.toLowerCase().endsWith(".md")) {
           pool.push({ name: c.name.replace(/\.md$/i, ""), path: c.path });
-        }
-      }
-    } else if (popover.trigger === "#") {
-      const agFolder = files.find(
-        (f) => f.name === "agents" && f.type === "directory",
-      );
-      for (const a of agFolder?.children || []) {
-        if (a.type === "file" && a.name.toLowerCase().endsWith(".md")) {
-          pool.push({ name: a.name.replace(/\.md$/i, ""), path: a.path });
         }
       }
     } else if (popover.trigger === "@") {
@@ -959,12 +935,12 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     e.target.style.height = "auto";
     e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
 
-    // Detect /, #, @ trigger at word boundary just before the cursor.
+    // Detect /, @ trigger at word boundary just before the cursor.
     const cursor = e.target.selectionStart ?? e.target.value.length;
     const beforeCursor = e.target.value.slice(0, cursor);
-    const m = beforeCursor.match(/(?:^|\s)([\/#@])([^\s]*)$/);
+    const m = beforeCursor.match(/(?:^|\s)([\/@])([^\s]*)$/);
     if (m) {
-      const trigger = m[1] as "/" | "#" | "@";
+      const trigger = m[1] as "/" | "@";
       const query = m[2];
       const startIdx = cursor - query.length - 1;
       setPopover({ trigger, startIdx, query });
@@ -1022,11 +998,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
               <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-[260px] overflow-y-auto rounded-xl border border-[#e8e6dc] bg-white p-1 shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
                 <div className="flex items-center justify-between px-3 py-1">
                   <span className="text-[10px] font-medium uppercase tracking-wide text-[#b0aea5]">
-                    {popover.trigger === "/"
-                      ? "Commands"
-                      : popover.trigger === "#"
-                        ? "Subagents"
-                        : "Files"}
+                    {popover.trigger === "/" ? "Commands" : "Files"}
                   </span>
                   <span className="text-[10px] text-[#b0aea5]">
                     ↑↓ to navigate · Enter to insert
@@ -1053,9 +1025,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
                         className={`shrink-0 text-[11px] font-mono ${
                           popover.trigger === "/"
                             ? "text-[#d97757]"
-                            : popover.trigger === "#"
-                              ? "text-[#a07cc5]"
-                              : "text-[#6a9bcc]"
+                            : "text-[#6a9bcc]"
                         }`}
                       >
                         {popover.trigger}

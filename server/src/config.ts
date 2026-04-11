@@ -114,23 +114,62 @@ export function projectExists(name: string): boolean {
 }
 
 // ── Project settings (stored in .claude/settings.json) ──────
-// `model` is a native Claude Code field — the SDK auto-loads it via
-// settingSources: ['project']. Thinking effort stays on the SDK
-// default (adaptive), so there is nothing else to manage here.
+// `model` is a Claude Code field name. UniSpace runs the SDK in
+// isolation mode (settingSources: []) so the SDK does NOT auto-load
+// settings.json — `loadProjectContext` below reads it manually and
+// agent.ts passes the model through as a query() option.
 
 export interface ProjectSettings {
   model?: string;
 }
 
-export function readProjectSettings(name: string): ProjectSettings {
-  const file = paths.projectSettings(name);
+/** Path-based settings reader. Source of truth for parsing
+ *  `.claude/settings.json`. Both API endpoints (via `readProjectSettings`)
+ *  and the SDK runner (via `loadProjectContext`) call this. */
+function readProjectSettingsAt(projectDir: string): ProjectSettings {
+  const file = join(projectDir, ".claude", "settings.json");
   if (!existsSync(file)) return {};
   try {
     const raw = JSON.parse(readFileSync(file, "utf-8"));
-    return { model: raw.model };
+    return { model: typeof raw.model === "string" ? raw.model : undefined };
   } catch {
     return {};
   }
+}
+
+export function readProjectSettings(name: string): ProjectSettings {
+  return readProjectSettingsAt(paths.project(name));
+}
+
+// ── Project context (everything the SDK runner needs at run time) ──
+// Single source of truth for "what files in a project dir affect
+// agent behavior". When you add a new project-scoped concept (env
+// vars, permissions, mcp servers, hooks…), extend this — agent.ts
+// stays a thin SDK adapter and never touches the filesystem directly.
+
+export interface ProjectContext {
+  /** Body of the project's CLAUDE.md, if present and non-empty.
+   *  Caller appends this to the SDK's preset system prompt. */
+  claudeMd?: string;
+  /** Model id from `.claude/settings.json`, if set. */
+  model?: string;
+}
+
+export function loadProjectContext(projectDir: string): ProjectContext {
+  const ctx: ProjectContext = {};
+
+  const claudeMdPath = join(projectDir, "CLAUDE.md");
+  if (existsSync(claudeMdPath)) {
+    try {
+      const text = readFileSync(claudeMdPath, "utf-8");
+      if (text.trim()) ctx.claudeMd = text;
+    } catch {}
+  }
+
+  const settings = readProjectSettingsAt(projectDir);
+  if (settings.model) ctx.model = settings.model;
+
+  return ctx;
 }
 
 // ── Channels config ──────────────────────────────────────────
