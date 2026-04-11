@@ -29,7 +29,7 @@ interface Props {
 }
 
 const SUB_TITLES: Record<CustomizeSub, string> = {
-  agents: "Agents",
+  agents: "Persona",
   skills: "Skills",
   dispatch: "Dispatch",
   connectors: "Connectors",
@@ -38,7 +38,7 @@ const SUB_TITLES: Record<CustomizeSub, string> = {
 
 const SUB_SUBTITLES: Record<CustomizeSub, string> = {
   agents:
-    "Project personas — the main CLAUDE.md and any subagents you invoke via Task.",
+    "The main persona that defines this project, plus any subagents you can switch in on demand.",
   skills: "Reusable capabilities the agent can invoke inside a project.",
   dispatch: "Inbound adapters — where the agent receives messages from.",
   connectors: "Outbound integrations — services the agent can reach out to.",
@@ -194,7 +194,7 @@ function buildAgentRows(
   if (globalPrompt) {
     rows.push({
       key: "__project_prompt__",
-      label: "Main Agent",
+      label: "Main Persona",
       path: globalPrompt.path || globalPrompt.name,
       kind: "project-prompt",
       lockName: true,
@@ -363,7 +363,7 @@ function AgentsSplit({
               </button>
 
               {/* Active / Use-as-persona button — only for subagents,
-                  the Main Agent is always on and doesn't need a toggle. */}
+                  the Main Persona is always on and doesn't need a toggle. */}
               {selected.kind === "agent" &&
                 (() => {
                   const isApplied = activeAgent?.name === selected.label;

@@ -344,31 +344,16 @@ function EmptyState({
       <div className="mx-auto w-full max-w-5xl px-8 py-12">
         {/* Compact hero */}
         <div className="mb-6 flex flex-col items-center text-center">
-          {/* ── Project brand mark ──────────────────────────
-              A "paper card" container holding the UniSpace project mark:
-              a 4-point starburst in accent orange. The starburst echoes
-              Anthropic's 8-point brand asterisk at half density, with
-              rounded joins for warmth. 4 points stand in for the four
-              core project resources (Main Agent / Subagents / Skills /
-              Connectors). The container is a warm tri-stop gradient with
-              an inset top highlight and a soft drop shadow to simulate
-              a sheet of paper lifting off the canvas. An orange halo
-              behind the mark adds interior depth. */}
-          <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[#e8e6dc] bg-gradient-to-br from-white via-[#faf9f5] to-[#f1ece0] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_2px_10px_rgba(20,20,19,0.06)]">
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-[22%] rounded-full bg-[#d97757]/[0.12] blur-lg"
+          {/* Project brand mark — 3D cube, same as Project mode shell */}
+          <svg className="h-14 w-14" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"
+              stroke="#d97757"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-            <svg className="relative h-8 w-8" viewBox="0 0 48 48" fill="none">
-              <path
-                d="M24 3.75 L28.5 19.5 L44.25 24 L28.5 28.5 L24 44.25 L19.5 28.5 L3.75 24 L19.5 19.5 Z"
-                fill="#d97757"
-                stroke="#d97757"
-                strokeWidth="2.5"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
+          </svg>
           <h1 className="mt-5 font-['Poppins',_Arial,_sans-serif] text-[24px] font-semibold tracking-tight text-[#141413]">
             Welcome to{" "}
             <span className="text-[#d97757]">

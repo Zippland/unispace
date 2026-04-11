@@ -181,7 +181,7 @@ export default function ProjectWelcome({
           </div>
           <p className={`mt-2 text-[13px] leading-relaxed text-[#6b6963] ${onClose ? "pl-9" : ""}`}>
             Pick a template published by your BU, or start from a blank
-            canvas. Each template bundles a Main Agent, curated skills, and
+            canvas. Each template bundles a Main Persona, curated skills, and
             the recommended runtime — ready to run.
           </p>
         </div>

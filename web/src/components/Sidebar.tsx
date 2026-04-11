@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
 import { SHOW_ALL_FILES_KEY } from "../api";
+import DataSourcePanel from "./DataSourcePanel";
 
 // ── Icons ─────────────────────────────────────────────────────
 
@@ -53,10 +54,11 @@ const HOISTED_NAMES = new Set([
 
 // ── Workspace resource tabs ───────────────────────────────────
 
-type TabKey = "files" | "customize";
+type TabKey = "files" | "datasource" | "customize";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "files", label: "Files" },
+  { key: "datasource", label: "Datasource" },
   { key: "customize", label: "Customize" },
 ];
 
@@ -235,9 +237,14 @@ export default function Sidebar({
   const [projectDeleteTarget, setProjectDeleteTarget] = useState<string | null>(null);
   const [projectDeleteError, setProjectDeleteError] = useState("");
 
-  // The effective active tab. Customize drives a main-area takeover;
-  // files is sidebar-only.
-  const activeTabKey: TabKey = customizeSub ? "customize" : "files";
+  // Sidebar-only tab state (files vs. datasource). Customize is a
+  // separate dimension because it drives a main-area takeover via
+  // customizeSub; when customizeSub is set it wins as the active tab.
+  const [sidebarTab, setSidebarTab] = useState<"files" | "datasource">("files");
+  const activeTabKey: TabKey = customizeSub ? "customize" : sidebarTab;
+
+  // Datasource picker dialog open state (demo — handled inside the panel).
+  const [dsPickerOpen, setDsPickerOpen] = useState(false);
 
   // Files panel view mode — "folder" tree or "timeline" flat list by mtime.
   // Persisted so the choice sticks across reloads.
@@ -269,9 +276,11 @@ export default function Sidebar({
   function handleTopTabClick(next: TabKey) {
     if (next === "customize") {
       if (!customizeSub) onCustomizeSubChange("agents");
-    } else {
-      onCustomizeSubChange(null);
+      return;
     }
+    // Files / Datasource — sidebar-only, close any customize takeover
+    onCustomizeSubChange(null);
+    setSidebarTab(next);
   }
 
   // Dialog state for create-skill (commands/prompt editing lives in the
@@ -783,6 +792,14 @@ export default function Sidebar({
               + Upload
             </button>
           )}
+          {activeTabKey === "datasource" && (
+            <button
+              onClick={() => setDsPickerOpen(true)}
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+            >
+              + Add
+            </button>
+          )}
           {/* Customize sub actions now live in CustomizePanel's main-area
               header, not here — keeps the sidebar chrome minimal. */}
         </div>
@@ -962,6 +979,12 @@ export default function Sidebar({
                 ));
               })()}
             </div>
+          )}
+          {activeTabKey === "datasource" && (
+            <DataSourcePanel
+              pickerOpen={dsPickerOpen}
+              onClosePicker={() => setDsPickerOpen(false)}
+            />
           )}
           {activeTabKey === "customize" && (
             /* Vertical sub-nav. The actual content/config lives in the
