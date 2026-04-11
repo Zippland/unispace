@@ -190,7 +190,7 @@ import {
   GlobalRecentsList,
   MODE_ICONS,
   type MiraMode,
-} from "../mira/MiraShell";
+} from "../mira/MiraChrome";
 
 interface SidebarProps {
   onOpenFile: (path: string, name: string) => void;

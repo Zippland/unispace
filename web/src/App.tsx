@@ -14,12 +14,12 @@ import CustomizePanel, {
 } from "./components/CustomizePanel";
 import ProjectWelcome from "./components/ProjectWelcome";
 import { SkillDialog } from "./components/Sidebar";
+import { type MiraMode } from "./mira/MiraChrome";
 import {
   MiraWelcomeMain,
   TaskPanel,
   GlobalCustomizePanel,
-  type MiraMode,
-} from "./mira/MiraShell";
+} from "./mira/MiraModes";
 
 const IS_DEV = import.meta.env.VITE_DEV_MODE === "true";
 
