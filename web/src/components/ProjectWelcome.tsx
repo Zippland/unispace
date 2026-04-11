@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import * as api from "../api";
+import {
+  mergeTemplates,
+  type SeedTemplate,
+} from "../mira/templateSeed";
 
 // ═══════════════════════════════════════════════════════════════
 //  ProjectWelcome — the BU-federated project template gallery.
@@ -57,12 +61,13 @@ export default function ProjectWelcome({
   initialTemplate,
 }: Props) {
   const { serverUrl } = useStore();
-  const [templates, setTemplates] = useState<api.ProjectTemplate[]>([]);
+  const [real, setReal] = useState<api.ProjectTemplate[]>([]);
   const [activeBU, setActiveBU] = useState<string>("explore");
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Confirm dialog state
-  const [pending, setPending] = useState<api.ProjectTemplate | null>(null);
+  const [pending, setPending] = useState<SeedTemplate | null>(null);
   const [pendingName, setPendingName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -73,10 +78,10 @@ export default function ProjectWelcome({
     api
       .fetchTemplates(serverUrl)
       .then((list) => {
-        if (!cancelled) setTemplates(list);
+        if (!cancelled) setReal(list);
       })
       .catch(() => {
-        if (!cancelled) setTemplates([]);
+        if (!cancelled) setReal([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -85,6 +90,9 @@ export default function ProjectWelcome({
       cancelled = true;
     };
   }, [serverUrl]);
+
+  // Seed + real merged list (seed order preserved, real overlays)
+  const templates = useMemo(() => mergeTemplates(real), [real]);
 
   // If the parent handed us a preselected template, jump straight to the
   // confirm dialog on first mount. Happens when the ChatPanel empty state
@@ -107,8 +115,14 @@ export default function ProjectWelcome({
     return templates.filter((t) => t.bu === activeBU);
   }, [templates, activeBU]);
 
-  // Default project name suggestion when opening a template
-  function openConfirm(tmpl: api.ProjectTemplate) {
+  // Default project name suggestion when opening a template.
+  // Placeholder templates (not yet published) show a toast instead.
+  function openConfirm(tmpl: SeedTemplate) {
+    if (tmpl.placeholder) {
+      setToast(`${tmpl.name} — BU 正在审核中，稍后上线`);
+      window.setTimeout(() => setToast(null), 2500);
+      return;
+    }
     setPending(tmpl);
     setPendingName(
       `${tmpl.bu}-${tmpl.id.split("/")[1]}-${Math.floor(Math.random() * 900 + 100)}`,
@@ -299,6 +313,13 @@ export default function ProjectWelcome({
           </div>
         </>
       )}
+
+      {/* Toast for placeholder clicks */}
+      {toast && (
+        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#141413] px-4 py-2 text-[12px] text-white shadow-lg">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
@@ -309,7 +330,7 @@ function TemplateCard({
   template,
   onClick,
 }: {
-  template: api.ProjectTemplate;
+  template: SeedTemplate;
   onClick: () => void;
 }) {
   return (
@@ -327,6 +348,11 @@ function TemplateCard({
         >
           {template.bu}
         </div>
+        {template.placeholder && (
+          <div className="absolute bottom-4 left-4 rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-medium text-[#6b6963] backdrop-blur-sm">
+            Preview
+          </div>
+        )}
       </div>
       <div className="flex-1 px-5 py-4">
         <div className="text-[14px] font-semibold text-[#141413]">
