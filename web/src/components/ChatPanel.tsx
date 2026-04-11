@@ -273,75 +273,15 @@ const quotes: [string, string][] = [
   ["Good questions", "find their own answers"],
 ];
 
-// ═══════════════════════════════════════════════════════════════
-//  TopOfChatTemplateStrip — pinned at the top of the messages list
-//  so BU templates get exposure every time a user opens the app or
-//  scrolls back to the top. Fades out naturally when users dive into
-//  conversation history.
-// ═══════════════════════════════════════════════════════════════
-
-function TopOfChatTemplateStrip({
-  onPick,
+function EmptyState({
+  onStartFromTemplate,
 }: {
-  onPick: (template: api.ProjectTemplate) => void;
+  onStartFromTemplate?: (template: api.ProjectTemplate) => void;
 }) {
   const { serverUrl } = useStore();
-  const [templates, setTemplates] = useState<api.ProjectTemplate[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .fetchTemplates(serverUrl)
-      .then((list) => {
-        if (!cancelled) setTemplates(list);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [serverUrl]);
-
-  if (templates.length === 0) return null;
-
-  return (
-    <div className="-mx-2 mb-2 rounded-2xl border border-[#e8e6dc] bg-white p-3 shadow-[0_2px_12px_rgba(20,20,19,0.03)]">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-[#b0aea5]">
-          Templates from BU teams
-        </span>
-        <span className="text-[10px] text-[#b0aea5]">
-          scroll to chat ↓
-        </span>
-      </div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {templates.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => onPick(t)}
-            className="group flex shrink-0 items-start gap-2 rounded-xl border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-left transition hover:border-[#b0aea5] hover:bg-white"
-            style={{ minWidth: 180, maxWidth: 200 }}
-          >
-            <span className="mt-0.5 text-[16px] leading-none">
-              {t.icon || "📁"}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[12px] font-medium text-[#141413]">
-                {t.name}
-              </div>
-              <div className="mt-0.5 truncate text-[10px] text-[#b0aea5]">
-                by {t.author}
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function EmptyState() {
   const [index, setIndex] = useState(() => Math.floor(Math.random() * quotes.length));
   const [fade, setFade] = useState(true);
+  const [templates, setTemplates] = useState<api.ProjectTemplate[]>([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -354,6 +294,20 @@ function EmptyState() {
     return () => clearInterval(timer);
   }, []);
 
+  // Fetch project templates once for the BU exposure strip. Silent on error.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .fetchTemplates(serverUrl)
+      .then((list) => {
+        if (!cancelled) setTemplates(list.slice(0, 6));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl]);
+
   const [line1, line2] = quotes[index];
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6">
@@ -365,6 +319,39 @@ function EmptyState() {
         <br />
         <span className="text-[#b0aea5]">{line2}</span>
       </p>
+
+      {/* Template strip — BU-published starters. Clicking one jumps
+          straight to the Project Welcome confirm dialog. */}
+      {templates.length > 0 && onStartFromTemplate && (
+        <div className="mt-12 w-full max-w-2xl">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-[#b0aea5]">
+              Start from a template
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onStartFromTemplate(t)}
+                className="group flex items-start gap-2.5 rounded-xl border border-[#e8e6dc] bg-white px-3 py-2.5 text-left transition hover:border-[#b0aea5] hover:shadow-[0_4px_16px_rgba(20,20,19,0.04)]"
+              >
+                <span className="mt-0.5 text-[18px] leading-none">
+                  {t.icon || "📁"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] font-medium text-[#141413]">
+                    {t.name}
+                  </div>
+                  <div className="mt-0.5 truncate text-[10px] text-[#b0aea5]">
+                    by {t.author}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -738,20 +725,10 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0">
-      {/* Persistent template strip — sits above the message scroll area
-          as a separate flex row so it stays visible regardless of chat
-          scroll position. Every app open / reload / mode switch back to
-          chat = one BU template exposure. */}
-      {onStartFromTemplate && (
-        <div className="shrink-0 px-4 pt-4">
-          <TopOfChatTemplateStrip onPick={onStartFromTemplate} />
-        </div>
-      )}
-
       {/* Messages */}
       {currentMessages.length === 0 ? (
         <main className="flex-1 flex">
-          <EmptyState />
+          <EmptyState onStartFromTemplate={onStartFromTemplate} />
         </main>
       ) : (
         <main className="flex-1 overflow-y-auto">
