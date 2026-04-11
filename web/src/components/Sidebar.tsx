@@ -103,6 +103,79 @@ function flattenFiles(nodes: FileEntry[]): FileEntry[] {
   return out;
 }
 
+/** Keyword-filter a file tree: keep matching files and any directories
+ *  that have at least one matching descendant. Empty dirs are pruned. */
+function filterTree(nodes: FileEntry[], keyword: string): FileEntry[] {
+  const k = keyword.trim().toLowerCase();
+  if (!k) return nodes;
+  const walk = (list: FileEntry[]): FileEntry[] => {
+    const out: FileEntry[] = [];
+    for (const n of list) {
+      if (n.type === "file") {
+        if (n.name.toLowerCase().includes(k)) out.push(n);
+      } else {
+        const kids = walk(n.children || []);
+        if (kids.length > 0) out.push({ ...n, children: kids });
+      }
+    }
+    return out;
+  };
+  return walk(nodes);
+}
+
+/** Keyword-filter a flat file list. */
+function filterFlat(files: FileEntry[], keyword: string): FileEntry[] {
+  const k = keyword.trim().toLowerCase();
+  if (!k) return files;
+  return files.filter((f) => f.name.toLowerCase().includes(k));
+}
+
+/** Short relative time: "now" | "3h" | "2d" | "4m" (month) | "1y". */
+function relTime(ms?: number): string {
+  if (!ms) return "";
+  const diff = Date.now() - ms;
+  if (diff < 0) return "now";
+  const h = Math.floor(diff / 3_600_000);
+  if (h < 1) return "now";
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12) return `${mo}m`;
+  const y = Math.floor(d / 365);
+  return `${y}y`;
+}
+
+/** Bucket a time-sorted flat file list into Today / Yesterday / This week
+ *  / This month / Older groups. Empty buckets are dropped. */
+function groupByTime(
+  files: FileEntry[],
+): { label: string; items: FileEntry[] }[] {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const todayMs = start.getTime();
+  const yesterdayMs = todayMs - 86_400_000;
+  const weekMs = todayMs - 7 * 86_400_000;
+  const monthMs = todayMs - 30 * 86_400_000;
+
+  const buckets: { label: string; items: FileEntry[] }[] = [
+    { label: "Today", items: [] },
+    { label: "Yesterday", items: [] },
+    { label: "This week", items: [] },
+    { label: "This month", items: [] },
+    { label: "Older", items: [] },
+  ];
+  for (const f of files) {
+    const t = f.updatedAt || 0;
+    if (t >= todayMs) buckets[0].items.push(f);
+    else if (t >= yesterdayMs) buckets[1].items.push(f);
+    else if (t >= weekMs) buckets[2].items.push(f);
+    else if (t >= monthMs) buckets[3].items.push(f);
+    else buckets[4].items.push(f);
+  }
+  return buckets.filter((b) => b.items.length > 0);
+}
+
 // ── Sidebar ───────────────────────────────────────────────────
 
 import type { AgentEditorMode } from "./AgentEditorPanel";
@@ -175,6 +248,9 @@ export default function Sidebar({
   useEffect(() => {
     window.localStorage.setItem(FILE_VIEW_MODE_KEY, fileViewMode);
   }, [fileViewMode]);
+
+  // Client-side file search — filters both view modes.
+  const [fileSearch, setFileSearch] = useState("");
 
   function handleTopTabClick(next: TabKey) {
     if (next === "customize") {
@@ -473,8 +549,8 @@ export default function Sidebar({
             onClick={() => setProjectMenuOpen(!projectMenuOpen)}
             className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-[#141413]/[0.04]"
           >
-            <svg className="h-3.5 w-3.5 shrink-0 text-[#b0aea5] transition group-hover:text-[#6b6963]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+            <svg className="h-4 w-4 shrink-0 text-[#b0aea5] transition group-hover:text-[#6b6963]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
             </svg>
             <span className="flex-1 truncate font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold tracking-tight text-[#141413]">
               {currentProject || "—"}
@@ -681,37 +757,12 @@ export default function Sidebar({
             })}
           </nav>
           {activeTabKey === "files" && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() =>
-                  setFileViewMode(fileViewMode === "folder" ? "timeline" : "folder")
-                }
-                title={
-                  fileViewMode === "folder"
-                    ? "Switch to timeline view"
-                    : "Switch to folder view"
-                }
-                className="flex h-6 w-6 items-center justify-center rounded-md border border-[#e8e6dc] bg-white text-[#b0aea5] transition hover:bg-[#faf9f5] hover:text-[#141413]"
-              >
-                {fileViewMode === "folder" ? (
-                  /* timeline icon — what you'll switch TO */
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
-                  </svg>
-                ) : (
-                  /* folder icon — what you'll switch TO */
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-                  </svg>
-                )}
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
-              >
-                + Upload
-              </button>
-            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+            >
+              + Upload
+            </button>
           )}
           {/* Customize sub actions now live in CustomizePanel's main-area
               header, not here — keeps the sidebar chrome minimal. */}
@@ -761,19 +812,117 @@ export default function Sidebar({
           {/* Active tab content */}
           {activeTabKey === "files" && (
             <div className="px-2 pb-2">
-              {userFiles.length === 0 ? (
-                <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
-                  Drop files here or click upload
-                </p>
-              ) : fileViewMode === "folder" ? (
-                userFiles.map((f) => (
-                  <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
-                ))
-              ) : (
-                flattenFiles(userFiles).map((f) => (
-                  <FileNode key={f.path} file={f} depth={0} onOpenFile={onOpenFile} />
-                ))
+              {/* Search input + view mode toggle — hidden when nothing to filter */}
+              {userFiles.length > 0 && (
+                <div className="mb-2 flex items-center gap-1.5 px-1">
+                  <div className="relative flex-1">
+                    <svg
+                      className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[#b0aea5]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                    <input
+                      value={fileSearch}
+                      onChange={(e) => setFileSearch(e.target.value)}
+                      placeholder="Search files…"
+                      className="w-full rounded-md border border-[#e8e6dc] bg-white py-1 pl-6 pr-6 text-[12px] text-[#141413] outline-none transition placeholder:text-[#b0aea5] focus:border-[#b0aea5]"
+                    />
+                    {fileSearch && (
+                      <button
+                        onClick={() => setFileSearch("")}
+                        className="absolute right-1.5 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413]"
+                        title="Clear"
+                      >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() =>
+                      setFileViewMode(fileViewMode === "folder" ? "timeline" : "folder")
+                    }
+                    title={
+                      fileViewMode === "folder"
+                        ? "Switch to timeline view"
+                        : "Switch to folder view"
+                    }
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[#e8e6dc] bg-white text-[#b0aea5] transition hover:bg-[#faf9f5] hover:text-[#141413]"
+                  >
+                    {fileViewMode === "folder" ? (
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               )}
+
+              {(() => {
+                if (userFiles.length === 0) {
+                  return (
+                    <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
+                      Drop files here or click upload
+                    </p>
+                  );
+                }
+                const searching = fileSearch.trim().length > 0;
+
+                if (fileViewMode === "folder") {
+                  const filtered = filterTree(userFiles, fileSearch);
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
+                        No files match "{fileSearch.trim()}"
+                      </p>
+                    );
+                  }
+                  return filtered.map((f) => (
+                    <FileNode
+                      key={searching ? `s:${f.path}` : f.path}
+                      file={f}
+                      depth={0}
+                      onOpenFile={onOpenFile}
+                      defaultExpanded={searching ? true : undefined}
+                    />
+                  ));
+                }
+
+                // timeline mode — flat, search-filtered, grouped by recency
+                const flat = filterFlat(flattenFiles(userFiles), fileSearch);
+                if (flat.length === 0) {
+                  return (
+                    <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
+                      No files match "{fileSearch.trim()}"
+                    </p>
+                  );
+                }
+                return groupByTime(flat).map((g) => (
+                  <div key={g.label} className="mb-2">
+                    <div className="px-3 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-[#b0aea5]">
+                      {g.label}
+                    </div>
+                    {g.items.map((f) => (
+                      <FileNode
+                        key={f.path}
+                        file={f}
+                        depth={0}
+                        onOpenFile={onOpenFile}
+                        timeLabel={relTime(f.updatedAt)}
+                      />
+                    ))}
+                  </div>
+                ));
+              })()}
             </div>
           )}
           {activeTabKey === "customize" && (
@@ -1368,12 +1517,16 @@ function FileNode({
   file,
   depth,
   onOpenFile,
+  timeLabel,
+  defaultExpanded,
 }: {
   file: FileEntry;
   depth: number;
   onOpenFile: (path: string, name: string) => void;
+  timeLabel?: string;
+  defaultExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(depth < 1);
+  const [expanded, setExpanded] = useState(defaultExpanded ?? depth < 1);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { serverUrl, setFiles, closeFile } = useStore();
 
@@ -1413,10 +1566,15 @@ function FileNode({
         <span className={`truncate flex-1 ${file.type === "directory" ? "text-[#141413] font-medium" : "text-[#6b6963]"}`}>
           {file.name}
         </span>
+        {timeLabel && (
+          <span className="shrink-0 text-[10px] tabular-nums text-[#b0aea5] group-hover:hidden">
+            {timeLabel}
+          </span>
+        )}
         {file.type === "file" && (
           <button
             onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-            className="opacity-0 group-hover:opacity-100 flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
+            className="hidden group-hover:flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
             title="Delete"
           >
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1427,7 +1585,13 @@ function FileNode({
       </div>
       {expanded &&
         file.children?.map((c) => (
-          <FileNode key={c.path} file={c} depth={depth + 1} onOpenFile={onOpenFile} />
+          <FileNode
+            key={c.path}
+            file={c}
+            depth={depth + 1}
+            onOpenFile={onOpenFile}
+            defaultExpanded={defaultExpanded}
+          />
         ))}
 
       {/* Delete confirm */}

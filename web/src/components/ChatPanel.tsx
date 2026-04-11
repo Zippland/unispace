@@ -344,16 +344,18 @@ function EmptyState({
       <div className="mx-auto w-full max-w-5xl px-8 py-12">
         {/* Compact hero */}
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141413] text-[22px]">
-            📁
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#e8e6dc] bg-gradient-to-br from-white to-[#faf9f5] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+            <svg className="h-6 w-6 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.4}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+            </svg>
           </div>
-          <h1 className="mt-4 font-['Poppins',_Arial,_sans-serif] text-[24px] font-semibold tracking-tight text-[#141413]">
+          <h1 className="mt-5 font-['Poppins',_Arial,_sans-serif] text-[24px] font-semibold tracking-tight text-[#141413]">
             Welcome to{" "}
             <span className="text-[#d97757]">
               {currentProject || "this project"}
             </span>
           </h1>
-          <p className="mt-1.5 text-[13px] text-[#b0aea5]">
+          <p className="mt-1.5 font-['Poppins',_Arial,_sans-serif] text-[13px] text-[#b0aea5]">
             Ask anything, or spin up a new project from a BU template below.
           </p>
         </div>
