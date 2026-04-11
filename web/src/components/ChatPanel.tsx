@@ -293,16 +293,8 @@ function emptyBUColor(bu: string) {
 
 function EmptyState({
   onStartFromTemplate,
-  input,
-  onInputChange,
-  onSend,
-  streaming,
 }: {
   onStartFromTemplate?: (template: api.ProjectTemplate) => void;
-  input: string;
-  onInputChange: (v: string) => void;
-  onSend: () => void;
-  streaming: boolean;
 }) {
   const { serverUrl, currentProject } = useStore();
   const [real, setReal] = useState<api.ProjectTemplate[]>([]);
@@ -365,50 +357,7 @@ function EmptyState({
           </p>
         </div>
 
-        {/* Focal welcome-style prompt input — shares state with the
-            would-be bottom bar; no duplicate textarea. */}
-        <div className="mx-auto mb-10 max-w-2xl">
-          <div className="rounded-[22px] border border-[#e8e6dc] bg-white px-5 pb-3 pt-5 shadow-[0_4px_20px_rgba(20,20,19,0.04)]">
-            <textarea
-              value={input}
-              onChange={(e) => onInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  onSend();
-                }
-              }}
-              rows={3}
-              placeholder="Ask anything about this project…"
-              className="w-full resize-none border-0 bg-transparent text-[14px] leading-6 text-[#141413] outline-none placeholder:text-[#b0aea5]"
-            />
-            <div className="flex items-center gap-2 pt-2">
-              <span className="text-[11px] text-[#b0aea5]">
-                Enter to send · Shift+Enter for newline
-              </span>
-              <div className="flex-1" />
-              <button
-                onClick={onSend}
-                disabled={streaming || !input.trim()}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#141413] text-white transition hover:bg-[#2a2a28] disabled:cursor-not-allowed disabled:bg-[#b0aea5]/40"
-              >
-                <svg
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
+        <div className="mb-8" />
 
         {/* Template gallery — always populated via seed + real merge */}
         <>
@@ -876,16 +825,11 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0">
-      {/* Messages or welcome/empty state with inline prompt input */}
+      {/* Messages or welcome hero + gallery. The bottom input bar is
+          always rendered below so empty & non-empty share one input. */}
       {isEmpty ? (
         <main className="flex-1 flex">
-          <EmptyState
-            onStartFromTemplate={onStartFromTemplate}
-            input={input}
-            onInputChange={setInput}
-            onSend={sendMessage}
-            streaming={streaming}
-          />
+          <EmptyState onStartFromTemplate={onStartFromTemplate} />
         </main>
       ) : (
         <main className="flex-1 overflow-y-auto">
@@ -902,11 +846,9 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
         </main>
       )}
 
-      {/* Bottom input bar — hidden in empty state (inline input takes over) */}
-      <div
-        className="bg-[#faf9f5] px-4 pb-5 pt-2 shrink-0"
-        style={{ display: isEmpty ? "none" : undefined }}
-      >
+      {/* Bottom input bar — always rendered so empty & non-empty share
+          the same full-featured input (model picker, agent chip, attachments). */}
+      <div className="bg-[#faf9f5] px-4 pb-5 pt-2 shrink-0">
         <div className="relative mx-auto flex max-w-3xl flex-col gap-2">
           {activeAgent && (
             <div className="flex items-center gap-2 self-start rounded-full border border-[#a07cc5]/25 bg-[#a07cc5]/[0.06] pl-2.5 pr-1 py-1 text-[11px]">
