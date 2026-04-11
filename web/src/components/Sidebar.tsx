@@ -82,6 +82,14 @@ const RECENTS_HEIGHT_KEY = "us:recents_height";
 
 import type { AgentEditorMode } from "./AgentEditorPanel";
 import type { CustomizeSub } from "./CustomizePanel";
+import {
+  MiraBrand,
+  MiraModeButton,
+  MiraUserChip,
+  GlobalRecentsList,
+  MODE_ICONS,
+  type MiraMode,
+} from "../mira/MiraShell";
 
 interface SidebarProps {
   onOpenFile: (path: string, name: string) => void;
@@ -90,6 +98,8 @@ interface SidebarProps {
   onOpenAgentEditor: (mode: AgentEditorMode) => void;
   customizeSub: CustomizeSub | null;
   onCustomizeSubChange: (sub: CustomizeSub | null) => void;
+  miraMode: MiraMode;
+  onMiraModeChange: (mode: MiraMode) => void;
 }
 
 export default function Sidebar({
@@ -99,6 +109,8 @@ export default function Sidebar({
   onOpenAgentEditor,
   customizeSub,
   onCustomizeSubChange,
+  miraMode,
+  onMiraModeChange,
 }: SidebarProps) {
   const {
     projects,
@@ -353,34 +365,52 @@ export default function Sidebar({
   const globalPromptFile = files.find((f) => f.name === "CLAUDE.md");
 
   return (
-    <div className="flex flex-col h-full bg-white overflow-hidden">
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div className="px-5 pt-5 pb-4 border-b border-[#e8e6dc]">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#141413] shrink-0">
-            <svg className="h-4 w-4 text-[#faf9f5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
-            </svg>
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413] leading-tight">
-              UniSpace
-            </h1>
-            <p className="text-[10px] text-[#b0aea5] leading-tight mt-0.5">
-              Your own agent, per project
-            </p>
-          </div>
-          <button
-            onClick={onOpenSettings}
-            className="flex h-6 w-6 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413] hover:bg-[#141413]/[0.04]"
-            title="Settings"
-          >
-            <GearIcon className="h-4 w-4" />
-          </button>
-        </div>
+    <div className="flex flex-col h-full bg-white/60 overflow-hidden">
+      {/* ── Mira brand ────────────────────────────────────── */}
+      <MiraBrand />
 
-        {/* ── Project switcher ──────────────────────────── */}
-        <div className="relative mt-3">
+      {/* ── Mira mode buttons ─────────────────────────────── */}
+      <nav className="mt-4 flex flex-col px-3">
+        <MiraModeButton
+          active={miraMode === "new_chat"}
+          onClick={() => onMiraModeChange("new_chat")}
+          label="New Chat"
+          icon={MODE_ICONS.new_chat}
+        />
+        <MiraModeButton
+          active={miraMode === "task"}
+          onClick={() => onMiraModeChange("task")}
+          label="Task"
+          icon={MODE_ICONS.task}
+        />
+        <MiraModeButton
+          active={miraMode === "project"}
+          onClick={() => onMiraModeChange("project")}
+          label="Project"
+          icon={MODE_ICONS.project}
+        />
+        <MiraModeButton
+          active={miraMode === "customize"}
+          onClick={() => onMiraModeChange("customize")}
+          label="Customize"
+          icon={MODE_ICONS.customize}
+        />
+      </nav>
+
+      {/* ── Non-project mode: show global Recents ────────── */}
+      {miraMode !== "project" && (
+        <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-[#e8e6dc] pt-3">
+          <GlobalRecentsList />
+        </div>
+      )}
+
+      {/* ── Project mode: existing UniSpace sidebar body ─── */}
+      {miraMode === "project" && (
+        <>
+          {/* ── Project header (project switcher only) ───── */}
+          <div className="px-5 pt-4 pb-4 border-b border-t border-[#e8e6dc] mt-4">
+            {/* ── Project switcher ──────────────────────── */}
+            <div className="relative">
           <button
             onClick={() => setProjectMenuOpen(!projectMenuOpen)}
             className="flex w-full items-center gap-2 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-left text-[13px] text-[#141413] transition hover:border-[#b0aea5]"
@@ -658,23 +688,28 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* ── Recents panel (resizable, pinned at bottom) ────── */}
-      <RecentsPanel
-        sessions={sessions}
-        height={recentsHeight}
-        isResizing={isResizingRecents}
-        onStartResize={startResizingRecents}
-        onOpen={onOpenFile}
-        onNew={handleNewSession}
-        onDelete={handleDeleteSession}
-      />
+          {/* ── Recents panel (resizable, pinned at bottom) ────── */}
+          <RecentsPanel
+            sessions={sessions}
+            height={recentsHeight}
+            isResizing={isResizingRecents}
+            onStartResize={startResizingRecents}
+            onOpen={onOpenFile}
+            onNew={handleNewSession}
+            onDelete={handleDeleteSession}
+          />
 
-      {skillDialog && (
-        <SkillDialog
-          onClose={() => setSkillDialog(false)}
-          onCreate={handleCreateSkill}
-        />
+          {skillDialog && (
+            <SkillDialog
+              onClose={() => setSkillDialog(false)}
+              onCreate={handleCreateSkill}
+            />
+          )}
+        </>
       )}
+
+      {/* ── Mira user chip (always at bottom) ─────────────── */}
+      <MiraUserChip />
     </div>
   );
 }

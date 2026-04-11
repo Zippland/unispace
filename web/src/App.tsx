@@ -12,6 +12,12 @@ import AgentEditorPanel, {
 import CustomizePanel, {
   type CustomizeSub,
 } from "./components/CustomizePanel";
+import {
+  MiraWelcomeMain,
+  TaskPanel,
+  GlobalCustomizePanel,
+  type MiraMode,
+} from "./mira/MiraShell";
 
 const IS_DEV = import.meta.env.VITE_DEV_MODE === "true";
 
@@ -101,6 +107,7 @@ export default function App() {
   const [devOpen, setDevOpen] = useState(false);
   const [agentEditor, setAgentEditor] = useState<AgentEditorMode | null>(null);
   const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
+  const [miraMode, setMiraMode] = useState<MiraMode>("project");
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -226,6 +233,8 @@ export default function App() {
           onOpenAgentEditor={setAgentEditor}
           customizeSub={customizeSub}
           onCustomizeSubChange={setCustomizeSub}
+          miraMode={miraMode}
+          onMiraModeChange={setMiraMode}
         />
       </div>
 
@@ -234,7 +243,19 @@ export default function App() {
         onResize={(dx) => setSidebarW((w) => clamp(w + dx, 180, 400))}
       />
 
-      {agentEditor ? (
+      {miraMode === "new_chat" ? (
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <MiraWelcomeMain />
+        </div>
+      ) : miraMode === "task" ? (
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <TaskPanel scope="global" />
+        </div>
+      ) : miraMode === "customize" ? (
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <GlobalCustomizePanel />
+        </div>
+      ) : agentEditor ? (
         /* Subagent / prompt editor takes over the entire main area */
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <AgentEditorPanel
