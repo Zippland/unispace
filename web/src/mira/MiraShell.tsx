@@ -18,18 +18,44 @@ import { useState } from "react";
 export type MiraMode = "new_chat" | "task" | "project" | "customize";
 
 // ── Brand ─────────────────────────────────────────────────────
+//
+//  When `modeLabel` is supplied, a small breadcrumb-style label is
+//  rendered after the "Mira" brand (e.g. "Mira · Project"). The whole
+//  brand row becomes clickable so the user can tap to go back.
 
-export function MiraBrand() {
+export function MiraBrand({
+  modeLabel,
+  onBrandClick,
+}: {
+  modeLabel?: string;
+  onBrandClick?: () => void;
+} = {}) {
+  const clickable = !!onBrandClick;
   return (
     <div className="flex items-center justify-between px-5 pt-5">
-      <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onBrandClick}
+        disabled={!clickable}
+        className={`flex items-center gap-2 rounded-md text-left transition ${
+          clickable ? "cursor-pointer hover:opacity-80" : "cursor-default"
+        }`}
+      >
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#141413] text-[14px]">
           🐱
         </div>
         <span className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">
           Mira
         </span>
-      </div>
+        {modeLabel && (
+          <>
+            <span className="text-[13px] text-[#b0aea5]">/</span>
+            <span className="text-[13px] font-medium text-[#6b6963]">
+              {modeLabel}
+            </span>
+          </>
+        )}
+      </button>
       <button className="flex h-6 w-6 items-center justify-center rounded text-[#b0aea5] hover:text-[#141413]">
         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
           <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />

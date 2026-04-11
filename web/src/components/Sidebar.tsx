@@ -365,38 +365,47 @@ export default function Sidebar({
 
   const globalPromptFile = files.find((f) => f.name === "CLAUDE.md");
 
+  const inProject = miraMode === "project";
+
   return (
     <div className="flex flex-col h-full bg-white/60 overflow-hidden">
       {/* ── Mira brand ────────────────────────────────────── */}
-      <MiraBrand />
+      {/*   Project mode: brand gets a "/ Project" chip and acts as a
+           back button to the mode hub. Other modes: plain brand. */}
+      <MiraBrand
+        modeLabel={inProject ? "Project" : undefined}
+        onBrandClick={inProject ? () => onMiraModeChange("new_chat") : undefined}
+      />
 
-      {/* ── Mira mode buttons ─────────────────────────────── */}
-      <nav className="mt-4 flex flex-col px-3">
-        <MiraModeButton
-          active={miraMode === "new_chat"}
-          onClick={() => onMiraModeChange("new_chat")}
-          label="New Chat"
-          icon={MODE_ICONS.new_chat}
-        />
-        <MiraModeButton
-          active={miraMode === "task"}
-          onClick={() => onMiraModeChange("task")}
-          label="Task"
-          icon={MODE_ICONS.task}
-        />
-        <MiraModeButton
-          active={miraMode === "project"}
-          onClick={() => onMiraModeChange("project")}
-          label="Project"
-          icon={MODE_ICONS.project}
-        />
-        <MiraModeButton
-          active={miraMode === "customize"}
-          onClick={() => onMiraModeChange("customize")}
-          label="Customize"
-          icon={MODE_ICONS.customize}
-        />
-      </nav>
+      {/* ── Mira mode buttons (hidden in Project mode) ────── */}
+      {!inProject && (
+        <nav className="mt-4 flex flex-col px-3">
+          <MiraModeButton
+            active={miraMode === "new_chat"}
+            onClick={() => onMiraModeChange("new_chat")}
+            label="New Chat"
+            icon={MODE_ICONS.new_chat}
+          />
+          <MiraModeButton
+            active={miraMode === "task"}
+            onClick={() => onMiraModeChange("task")}
+            label="Task"
+            icon={MODE_ICONS.task}
+          />
+          <MiraModeButton
+            active={false /* we're inside !inProject */}
+            onClick={() => onMiraModeChange("project")}
+            label="Project"
+            icon={MODE_ICONS.project}
+          />
+          <MiraModeButton
+            active={miraMode === "customize"}
+            onClick={() => onMiraModeChange("customize")}
+            label="Customize"
+            icon={MODE_ICONS.customize}
+          />
+        </nav>
+      )}
 
       {/* ── Non-project mode: show global Recents ────────── */}
       {miraMode !== "project" && (
@@ -409,7 +418,7 @@ export default function Sidebar({
       {miraMode === "project" && (
         <>
           {/* ── Project header (project switcher only) ───── */}
-          <div className="px-5 pt-4 pb-4 border-b border-t border-[#e8e6dc] mt-4">
+          <div className="px-5 pt-4 pb-4 border-b border-[#e8e6dc] mt-4">
             {/* ── Project switcher ──────────────────────── */}
             <div className="relative">
           <button
