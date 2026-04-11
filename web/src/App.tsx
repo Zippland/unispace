@@ -13,6 +13,7 @@ import CustomizePanel, {
   type CustomizeSub,
 } from "./components/CustomizePanel";
 import ProjectWelcome from "./components/ProjectWelcome";
+import { SkillDialog } from "./components/Sidebar";
 import {
   MiraWelcomeMain,
   TaskPanel,
@@ -110,6 +111,7 @@ export default function App() {
   const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
   const [miraMode, setMiraMode] = useState<MiraMode>("project");
   const [projectWelcomeOpen, setProjectWelcomeOpen] = useState(false);
+  const [skillDialogOpen, setSkillDialogOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -309,6 +311,7 @@ export default function App() {
             onClose={() => setCustomizeSub(null)}
             onOpenDispatch={() => setDispatchOpen(true)}
             onOpenAgentEditor={setAgentEditor}
+            onCreateSkill={() => setSkillDialogOpen(true)}
           />
         </div>
       ) : hasTabs ? (
@@ -414,6 +417,25 @@ export default function App() {
 
       <ConfigDialog open={configOpen} onClose={() => setConfigOpen(false)} />
       <DispatchDialog open={dispatchOpen} onClose={() => setDispatchOpen(false)} />
+      {skillDialogOpen && (
+        <SkillDialog
+          onClose={() => setSkillDialogOpen(false)}
+          onCreate={async (name) => {
+            const slug = name
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9-]+/g, "-")
+              .replace(/^-+|-+$/g, "");
+            if (!slug) throw new Error("Invalid name");
+            const path = `.claude/skills/${slug}/SKILL.md`;
+            const stub = `---\nname: ${slug}\ndescription: describe what this skill does\n---\n\n# ${name.trim()}\n\nDescribe how to use this skill.\n`;
+            await api.saveFile(serverUrl, path, stub);
+            const files = await api.fetchFiles(serverUrl);
+            setFiles(files);
+            setSkillDialogOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

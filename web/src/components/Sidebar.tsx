@@ -566,30 +566,8 @@ export default function Sidebar({
               + Upload
             </button>
           )}
-          {activeTabKey === "customize" && customizeSub === "agents" && (
-            <button
-              onClick={() => onOpenAgentEditor({ kind: "create" })}
-              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
-            >
-              + New
-            </button>
-          )}
-          {activeTabKey === "customize" && customizeSub === "skills" && (
-            <button
-              onClick={() => setSkillDialog(true)}
-              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
-            >
-              + New
-            </button>
-          )}
-          {activeTabKey === "customize" && customizeSub === "dispatch" && (
-            <button
-              onClick={onOpenDispatch}
-              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
-            >
-              Configure
-            </button>
-          )}
+          {/* Customize sub actions now live in CustomizePanel's main-area
+              header, not here — keeps the sidebar chrome minimal. */}
         </div>
 
         {/* Tab content (scrollable, drag-drop target) */}
@@ -1316,7 +1294,7 @@ function FileNode({
 
 // ── Skill dialog (create skill — minimal) ─────────────────────
 
-function SkillDialog({
+export function SkillDialog({
   onClose,
   onCreate,
 }: {

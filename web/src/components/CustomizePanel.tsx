@@ -25,6 +25,7 @@ interface Props {
   onClose: () => void;
   onOpenDispatch: () => void;
   onOpenAgentEditor: (mode: AgentEditorMode) => void;
+  onCreateSkill: () => void;
 }
 
 const SUB_TITLES: Record<CustomizeSub, string> = {
@@ -49,6 +50,7 @@ export default function CustomizePanel({
   onClose,
   onOpenDispatch,
   onOpenAgentEditor,
+  onCreateSkill,
 }: Props) {
   const { files } = useStore();
 
@@ -68,6 +70,23 @@ export default function CustomizePanel({
     (c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"),
   );
   const globalPromptFile = files.find((f) => f.name === "CLAUDE.md");
+
+  // Header action button depends on the current sub
+  let headerAction: React.ReactNode = null;
+  if (sub === "agents") {
+    headerAction = (
+      <HeaderAction
+        label="New agent"
+        onClick={() => onOpenAgentEditor({ kind: "create" })}
+      />
+    );
+  } else if (sub === "skills") {
+    headerAction = <HeaderAction label="New skill" onClick={onCreateSkill} />;
+  } else if (sub === "dispatch") {
+    headerAction = (
+      <HeaderAction label="Configure" onClick={onOpenDispatch} plus={false} />
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
@@ -92,6 +111,7 @@ export default function CustomizePanel({
             {SUB_SUBTITLES[sub]}
           </p>
         </div>
+        {headerAction && <div className="shrink-0">{headerAction}</div>}
       </div>
 
       {/* Body */}
@@ -117,6 +137,42 @@ export default function CustomizePanel({
         {sub === "tasks" && <TaskPanel scope="project" />}
       </div>
     </div>
+  );
+}
+
+// ── Header action pill (right side of CustomizePanel header) ──
+
+function HeaderAction({
+  label,
+  onClick,
+  plus = true,
+}: {
+  label: string;
+  onClick: () => void;
+  plus?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 rounded-full bg-[#141413] px-4 py-2 text-[12px] font-medium text-white transition hover:bg-[#2a2a28]"
+    >
+      {plus && (
+        <svg
+          className="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 4.5v15m7.5-7.5h-15"
+          />
+        </svg>
+      )}
+      {label}
+    </button>
   );
 }
 
@@ -164,7 +220,7 @@ function AgentsSplit({
   agents: FileEntry[];
   onOpenAgentEditor: (mode: AgentEditorMode) => void;
 }) {
-  const { serverUrl } = useStore();
+  const { serverUrl, activeAgent, setActiveAgent } = useStore();
 
   // Memoize the list so the reference is stable across renders.
   // Without useMemo, every render produces a new array and every effect
@@ -241,14 +297,15 @@ function AgentsSplit({
       <div className="w-[240px] shrink-0 border-r border-[#e8e6dc] overflow-y-auto">
         <div className="py-2">
           {rows.map((row) => {
-            const isActive = row.key === selectedKey;
+            const isSelected = row.key === selectedKey;
             const isPrompt = row.kind === "project-prompt";
+            const isApplied = !isPrompt && activeAgent?.name === row.label;
             return (
               <button
                 key={row.key}
                 onClick={() => setSelectedKey(row.key)}
                 className={`group flex w-full items-center gap-2 px-4 py-1.5 text-left text-[13px] transition ${
-                  isActive
+                  isSelected
                     ? "bg-[#141413]/[0.04] text-[#141413] font-medium"
                     : "text-[#6b6963] hover:bg-[#141413]/[0.03] hover:text-[#141413]"
                 }`}
@@ -262,7 +319,13 @@ function AgentsSplit({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
                   </svg>
                 )}
-                <span className="truncate">{row.label}</span>
+                <span className="flex-1 truncate">{row.label}</span>
+                {isApplied && (
+                  <span
+                    className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#7c9a5e]"
+                    title="Currently active persona"
+                  />
+                )}
               </button>
             );
           })}
@@ -298,6 +361,30 @@ function AgentsSplit({
                 </svg>
                 Edit
               </button>
+
+              {/* Active / Use-as-persona button — only for subagents,
+                  Project Prompt is always on and doesn't need a toggle. */}
+              {selected.kind === "agent" &&
+                (() => {
+                  const isApplied = activeAgent?.name === selected.label;
+                  return isApplied ? (
+                    <button
+                      onClick={() => setActiveAgent(null)}
+                      className="flex items-center gap-1.5 rounded-full bg-[#7c9a5e] px-3 py-1 text-[11px] font-medium text-white transition hover:bg-[#68864d]"
+                    >
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-white" />
+                      Active
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setActiveAgent({ name: selected.label })}
+                      className="flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white px-3 py-1 text-[11px] text-[#141413] transition hover:border-[#7c9a5e] hover:text-[#7c9a5e]"
+                    >
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b0aea5]/50" />
+                      Use as persona
+                    </button>
+                  );
+                })()}
             </div>
             <div className="prose text-[14px] leading-7 text-[#141413]">
               <Markdown remarkPlugins={[remarkGfm]}>{body || "*(empty)*"}</Markdown>
