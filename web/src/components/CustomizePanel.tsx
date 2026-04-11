@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore, type FileEntry } from "../store";
@@ -122,26 +122,19 @@ export default function CustomizePanel({
 
 // ── Agents sub — list + inline markdown preview + Edit button ──
 
-function AgentsSplit({
-  globalPrompt,
-  agents,
-  onOpenAgentEditor,
-}: {
-  globalPrompt: FileEntry | undefined;
-  agents: FileEntry[];
-  onOpenAgentEditor: (mode: AgentEditorMode) => void;
-}) {
-  const { serverUrl } = useStore();
+interface AgentRow {
+  key: string;
+  label: string;
+  path: string;
+  kind: "project-prompt" | "agent";
+  lockName?: boolean;
+}
 
-  // Combined list: Project Prompt (if present) + each agent .md
-  interface Row {
-    key: string;
-    label: string;
-    path: string;
-    kind: "project-prompt" | "agent";
-    lockName?: boolean;
-  }
-  const rows: Row[] = [];
+function buildAgentRows(
+  globalPrompt: FileEntry | undefined,
+  agents: FileEntry[],
+): AgentRow[] {
+  const rows: AgentRow[] = [];
   if (globalPrompt) {
     rows.push({
       key: "__project_prompt__",
@@ -159,31 +152,62 @@ function AgentsSplit({
       kind: "agent",
     });
   }
+  return rows;
+}
+
+function AgentsSplit({
+  globalPrompt,
+  agents,
+  onOpenAgentEditor,
+}: {
+  globalPrompt: FileEntry | undefined;
+  agents: FileEntry[];
+  onOpenAgentEditor: (mode: AgentEditorMode) => void;
+}) {
+  const { serverUrl } = useStore();
+
+  // Memoize the list so the reference is stable across renders.
+  // Without useMemo, every render produces a new array and every effect
+  // that depends on it refires — which with content-fetching effects
+  // creates a setState → rerender → refetch loop.
+  const rows = useMemo(
+    () => buildAgentRows(globalPrompt, agents),
+    [globalPrompt, agents],
+  );
 
   const [selectedKey, setSelectedKey] = useState<string | null>(
-    rows[0]?.key ?? null,
+    () => rows[0]?.key ?? null,
   );
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  // Keep selection in sync if the list shifts
+  // If the currently selected key disappears (list shifted), fall back
+  // to the first row. Only depends on rows' content via its reference,
+  // which is now stable thanks to useMemo.
   useEffect(() => {
-    if (selectedKey && rows.find((r) => r.key === selectedKey)) return;
+    if (selectedKey && rows.some((r) => r.key === selectedKey)) return;
     setSelectedKey(rows[0]?.key ?? null);
   }, [rows, selectedKey]);
 
-  const selected = rows.find((r) => r.key === selectedKey) || null;
+  // Resolve the effective selection; falls back to first row if the
+  // stored key is stale.
+  const selectedPath = useMemo(() => {
+    const match = rows.find((r) => r.key === selectedKey);
+    return match?.path ?? rows[0]?.path ?? null;
+  }, [rows, selectedKey]);
 
-  // Load the selected file body
+  // Load the selected file body — depends on the PRIMITIVE path string
+  // (not an object reference), so it only re-fires when the path
+  // actually changes.
   useEffect(() => {
-    if (!selected) {
+    if (!selectedPath) {
       setContent("");
       return;
     }
     let cancelled = false;
     setLoading(true);
     api
-      .fetchFileContent(serverUrl, selected.path)
+      .fetchFileContent(serverUrl, selectedPath)
       .then((text) => {
         if (!cancelled) setContent(text);
       })
@@ -196,7 +220,9 @@ function AgentsSplit({
     return () => {
       cancelled = true;
     };
-  }, [selected, serverUrl]);
+  }, [selectedPath, serverUrl]);
+
+  const selected = rows.find((r) => r.key === selectedKey) || rows[0] || null;
 
   if (rows.length === 0) {
     return (
