@@ -1,0 +1,8 @@
+{
+  "name": "Q4 Financial Analysis",
+  "description": "Generate quarterly financial reports with trend analysis, variance breakdown, and executive summaries.",
+  "author": "Finance BU",
+  "bu": "finance",
+  "icon": "📊",
+  "gradient": "from-[#f0e9dc] to-[#d6c5b3]"
+}

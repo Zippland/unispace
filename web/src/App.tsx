@@ -12,6 +12,7 @@ import AgentEditorPanel, {
 import CustomizePanel, {
   type CustomizeSub,
 } from "./components/CustomizePanel";
+import ProjectWelcome from "./components/ProjectWelcome";
 import {
   MiraWelcomeMain,
   TaskPanel,
@@ -108,6 +109,7 @@ export default function App() {
   const [agentEditor, setAgentEditor] = useState<AgentEditorMode | null>(null);
   const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
   const [miraMode, setMiraMode] = useState<MiraMode>("project");
+  const [projectWelcomeOpen, setProjectWelcomeOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -235,6 +237,10 @@ export default function App() {
           onCustomizeSubChange={setCustomizeSub}
           miraMode={miraMode}
           onMiraModeChange={setMiraMode}
+          onOpenProjectWelcome={() => {
+            setMiraMode("project");
+            setProjectWelcomeOpen(true);
+          }}
         />
       </div>
 
@@ -254,6 +260,30 @@ export default function App() {
       ) : miraMode === "customize" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <GlobalCustomizePanel />
+        </div>
+      ) : projectWelcomeOpen ? (
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <ProjectWelcome
+            onClose={() => setProjectWelcomeOpen(false)}
+            onProjectCreated={async (name) => {
+              // Switch current project on the server, refresh client state
+              try {
+                await api.switchProject(serverUrl, name);
+                const [projectsResp, sessions, files] = await Promise.all([
+                  api.fetchProjects(serverUrl),
+                  api.fetchSessions(serverUrl),
+                  api.fetchFiles(serverUrl),
+                ]);
+                useStore.getState().setProjects(
+                  projectsResp.projects,
+                  projectsResp.current,
+                );
+                useStore.getState().setSessions(sessions);
+                useStore.getState().setFiles(files);
+              } catch {}
+              setProjectWelcomeOpen(false);
+            }}
+          />
         </div>
       ) : agentEditor ? (
         /* Subagent / prompt editor takes over the entire main area */

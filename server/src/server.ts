@@ -14,6 +14,8 @@ import {
   listProjects,
   projectExists,
   cloneProject,
+  listTemplates,
+  createProjectFromTemplate,
   readProjectSettings,
   writeProjectSettings,
 } from "./config";
@@ -270,6 +272,24 @@ export function createServer(_initialConfig: Config) {
     try {
       cloneProject(from, to);
       return c.json({ ok: true, name: to });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400);
+    }
+  });
+
+  // ── Project templates (BU-federated gallery) ─────────────
+  app.get("/api/templates", (c) => {
+    return c.json({ templates: listTemplates() });
+  });
+
+  app.post("/api/projects/from-template", async (c) => {
+    const { templateId, projectName } = await c.req.json();
+    if (!templateId || !projectName) {
+      return c.json({ error: "templateId and projectName required" }, 400);
+    }
+    try {
+      createProjectFromTemplate(templateId, projectName);
+      return c.json({ ok: true, name: projectName });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);
     }

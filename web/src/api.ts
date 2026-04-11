@@ -62,6 +62,41 @@ export async function cloneProject(url: string, from: string, to: string) {
   return res.json();
 }
 
+// ── Project templates (BU-federated gallery) ─────────────────
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  bu: string;
+  icon?: string;
+  gradient?: string;
+}
+
+export async function fetchTemplates(url: string) {
+  const res = await fetch(`${url}/api/templates`);
+  const data = await res.json();
+  return (data.templates || []) as ProjectTemplate[];
+}
+
+export async function createProjectFromTemplate(
+  url: string,
+  templateId: string,
+  projectName: string,
+) {
+  const res = await fetch(`${url}/api/projects/from-template`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ templateId, projectName }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Create failed" }));
+    throw new Error(err.error || "Create failed");
+  }
+  return res.json();
+}
+
 // ── Project settings (currently just model) ───────────────────
 
 export interface ProjectSettings {

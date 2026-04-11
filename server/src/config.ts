@@ -26,6 +26,7 @@ export const paths = {
   config: () => join(getDir(), "config.json"),
   channels: () => join(getDir(), "channels.json"),
   projectsRoot: () => join(getDir(), "projects"),
+  templatesRoot: () => join(getDir(), "project-templates"),
 
   // Per-project
   project: (name: string) => join(getDir(), "projects", name),
@@ -171,6 +172,92 @@ export function writeProjectSettings(
   }
 
   writeFileSync(file, JSON.stringify(merged, null, 2) + "\n");
+}
+
+// ── Project templates (BU-federated) ─────────────────────────
+
+export interface TemplateInfo {
+  id: string;              // e.g. "finance/q4-analysis"
+  name: string;
+  description: string;
+  author: string;
+  bu: string;
+  icon?: string;
+  gradient?: string;
+}
+
+/** Scan `project-templates/<bu>/<slug>/template.json` and return all
+ *  registered templates, grouped later by BU on the client. */
+export function listTemplates(): TemplateInfo[] {
+  const root = paths.templatesRoot();
+  if (!existsSync(root)) return [];
+
+  const out: TemplateInfo[] = [];
+  for (const buEntry of readdirSync(root, { withFileTypes: true })) {
+    if (!buEntry.isDirectory()) continue;
+    const buDir = join(root, buEntry.name);
+    for (const tmplEntry of readdirSync(buDir, { withFileTypes: true })) {
+      if (!tmplEntry.isDirectory()) continue;
+      const metaPath = join(buDir, tmplEntry.name, "template.json");
+      if (!existsSync(metaPath)) continue;
+      try {
+        const raw = JSON.parse(readFileSync(metaPath, "utf-8"));
+        out.push({
+          id: `${buEntry.name}/${tmplEntry.name}`,
+          name: raw.name || tmplEntry.name,
+          description: raw.description || "",
+          author: raw.author || buEntry.name,
+          bu: raw.bu || buEntry.name,
+          icon: raw.icon,
+          gradient: raw.gradient,
+        });
+      } catch {
+        // skip bad templates
+      }
+    }
+  }
+  return out;
+}
+
+/** Create a new project by cloning a template. Throws if target exists. */
+export function createProjectFromTemplate(
+  templateId: string,
+  projectName: string,
+): void {
+  // Validate template id shape: "<bu>/<slug>", no path traversal
+  if (!/^[a-zA-Z0-9-_]+\/[a-zA-Z0-9-_]+$/.test(templateId)) {
+    throw new Error(`Invalid template id: ${templateId}`);
+  }
+  const [bu, slug] = templateId.split("/");
+  const src = join(paths.templatesRoot(), bu, slug);
+  if (!existsSync(src)) throw new Error(`Template not found: ${templateId}`);
+
+  const safeName = projectName.trim().replace(/[^a-zA-Z0-9-_]/g, "-");
+  if (!safeName) throw new Error("Invalid project name");
+  const dst = paths.project(safeName);
+  if (existsSync(dst)) throw new Error(`Project already exists: ${safeName}`);
+
+  // Ensure projects root exists then copy
+  if (!existsSync(paths.projectsRoot())) {
+    mkdirSync(paths.projectsRoot(), { recursive: true });
+  }
+  cpSync(src, dst, { recursive: true });
+
+  // Strip the template metadata file from the clone — it's only used at
+  // gallery time and has no meaning inside an instantiated project.
+  const tmplMeta = join(dst, "template.json");
+  if (existsSync(tmplMeta)) {
+    try {
+      unlinkSync(tmplMeta);
+    } catch {}
+  }
+
+  // Templates don't ship a sessions/ subdir — every project needs one
+  const sessDir = paths.projectSessions(safeName);
+  if (!existsSync(sessDir)) mkdirSync(sessDir, { recursive: true });
+  // Same for a files/ scratch dir
+  const filesDir = join(dst, "files");
+  if (!existsSync(filesDir)) mkdirSync(filesDir, { recursive: true });
 }
 
 /** Clone a project folder. Throws if dst already exists. */

@@ -1,0 +1,8 @@
+{
+  "name": "Insights Dashboard",
+  "description": "Turn CSV or SQL query results into narrative insights with charts, significance tests, and next-step recommendations.",
+  "author": "Data Analytics BU",
+  "bu": "da",
+  "icon": "📈",
+  "gradient": "from-[#e0d5e5] to-[#b5a6bf]"
+}

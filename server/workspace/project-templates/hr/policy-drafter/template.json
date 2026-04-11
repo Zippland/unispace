@@ -1,0 +1,8 @@
+{
+  "name": "Policy Drafter",
+  "description": "Draft, review, and localize HR policies. Keeps voice consistent with ByteDance employee handbook.",
+  "author": "HR BU",
+  "bu": "hr",
+  "icon": "📘",
+  "gradient": "from-[#dfe2d0] to-[#b9bfa0]"
+}

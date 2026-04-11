@@ -100,6 +100,7 @@ interface SidebarProps {
   onCustomizeSubChange: (sub: CustomizeSub | null) => void;
   miraMode: MiraMode;
   onMiraModeChange: (mode: MiraMode) => void;
+  onOpenProjectWelcome: () => void;
 }
 
 export default function Sidebar({
@@ -111,6 +112,7 @@ export default function Sidebar({
   onCustomizeSubChange,
   miraMode,
   onMiraModeChange,
+  onOpenProjectWelcome,
 }: SidebarProps) {
   const {
     projects,
@@ -449,6 +451,18 @@ export default function Sidebar({
                   ))}
                 </div>
                 <div className="border-t border-[#e8e6dc] py-1">
+                  <button
+                    onClick={() => {
+                      setProjectMenuOpen(false);
+                      onOpenProjectWelcome();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-[#d97757] transition hover:bg-[#faf9f5]"
+                  >
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    New from template…
+                  </button>
                   <button
                     onClick={() => {
                       setProjectMenuOpen(false);
