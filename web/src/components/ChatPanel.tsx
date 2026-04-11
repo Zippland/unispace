@@ -356,7 +356,7 @@ function EmptyState({
             .
           </h1>
           <p className="mt-1.5 font-['Poppins',_Arial,_sans-serif] text-[13px] text-[#b0aea5]">
-            The agent you define.
+            Defined by you. Powered by Mira.
           </p>
         </div>
 
