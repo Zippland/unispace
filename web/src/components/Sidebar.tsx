@@ -68,7 +68,7 @@ const CUSTOMIZE_SUBS: {
   key: "agents" | "skills" | "dispatch" | "connectors" | "tasks";
   label: string;
 }[] = [
-  { key: "agents", label: "Agents" },
+  { key: "agents", label: "Persona" },
   { key: "skills", label: "Skills" },
   { key: "dispatch", label: "Dispatch" },
   { key: "connectors", label: "Connectors" },
