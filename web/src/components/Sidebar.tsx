@@ -60,10 +60,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "customize", label: "Customize" },
 ];
 
-// Sub-tabs inside the Customize panel
-type CustomizeSub = "skills" | "dispatch" | "connectors";
-
-const CUSTOMIZE_SUBS: { key: CustomizeSub; label: string }[] = [
+// Sub-tabs inside the Customize panel (CustomizeSub type imported below)
+const CUSTOMIZE_SUBS: { key: "skills" | "dispatch" | "connectors"; label: string }[] = [
   { key: "skills", label: "Skills" },
   { key: "dispatch", label: "Dispatch" },
   { key: "connectors", label: "Connectors" },
@@ -83,12 +81,15 @@ const RECENTS_HEIGHT_KEY = "us:recents_height";
 // ── Sidebar ───────────────────────────────────────────────────
 
 import type { AgentEditorMode } from "./AgentEditorPanel";
+import type { CustomizeSub } from "./CustomizePanel";
 
 interface SidebarProps {
   onOpenFile: (path: string, name: string) => void;
   onOpenSettings: () => void;
   onOpenDispatch: () => void;
   onOpenAgentEditor: (mode: AgentEditorMode) => void;
+  customizeSub: CustomizeSub | null;
+  onCustomizeSubChange: (sub: CustomizeSub | null) => void;
 }
 
 export default function Sidebar({
@@ -96,6 +97,8 @@ export default function Sidebar({
   onOpenSettings,
   onOpenDispatch,
   onOpenAgentEditor,
+  customizeSub,
+  onCustomizeSubChange,
 }: SidebarProps) {
   const {
     projects,
@@ -118,8 +121,22 @@ export default function Sidebar({
   const [cloneError, setCloneError] = useState("");
 
   // Active workspace tab
-  const [activeTabKey, setActiveTabKey] = useState<TabKey>("files");
-  const [customizeSub, setCustomizeSub] = useState<CustomizeSub>("skills");
+  // Track the non-customize tab (Files / Agents) separately so we can
+  // restore it when the user backs out of Customize.
+  const [baseTab, setBaseTab] = useState<"files" | "agents">("files");
+
+  // The effective active tab. Customize wins if a sub is selected.
+  const activeTabKey: TabKey = customizeSub ? "customize" : baseTab;
+
+  function handleTopTabClick(next: TabKey) {
+    if (next === "customize") {
+      // Entering Customize — default to Skills if nothing was selected before.
+      if (!customizeSub) onCustomizeSubChange("skills");
+    } else {
+      setBaseTab(next);
+      onCustomizeSubChange(null);
+    }
+  }
 
   // Dialog state for create-skill (commands/prompt editing lives in the
   // main area via onOpenAgentEditor, not a modal)
@@ -477,7 +494,7 @@ export default function Sidebar({
               return (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTabKey(tab.key)}
+                  onClick={() => handleTopTabClick(tab.key)}
                   className={`font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium transition ${
                     isActive
                       ? "text-[#141413]"
@@ -522,28 +539,6 @@ export default function Sidebar({
             </button>
           )}
         </div>
-
-        {/* Customize sub-nav (only when Customize tab is active) */}
-        {activeTabKey === "customize" && (
-          <nav className="mt-3 flex items-center gap-1 rounded-lg bg-[#f3f1ea] p-1 shrink-0">
-            {CUSTOMIZE_SUBS.map((sub) => {
-              const isActive = customizeSub === sub.key;
-              return (
-                <button
-                  key={sub.key}
-                  onClick={() => setCustomizeSub(sub.key)}
-                  className={`flex-1 rounded-md px-2.5 py-1 text-[12px] font-medium transition ${
-                    isActive
-                      ? "bg-white text-[#141413] shadow-[0_1px_2px_rgba(20,20,19,0.06)]"
-                      : "text-[#6b6963] hover:text-[#141413]"
-                  }`}
-                >
-                  {sub.label}
-                </button>
-              );
-            })}
-          </nav>
-        )}
 
         {/* Tab content (scrollable, drag-drop target) */}
         <div
@@ -600,9 +595,6 @@ export default function Sidebar({
               )}
             </div>
           )}
-          {activeTabKey === "customize" && customizeSub === "skills" && (
-            <SkillsPanel skills={skillsList} onOpenFile={onOpenFile} />
-          )}
           {activeTabKey === "agents" && (
             <PromptPanel
               globalPrompt={globalPromptFile}
@@ -636,14 +628,32 @@ export default function Sidebar({
               }}
             />
           )}
-          {activeTabKey === "customize" && customizeSub === "dispatch" && (
-            <DispatchPanel
-              serverUrl={serverUrl}
-              onOpenDispatch={onOpenDispatch}
-            />
-          )}
-          {activeTabKey === "customize" && customizeSub === "connectors" && (
-            <ConnectorsPanel />
+          {activeTabKey === "customize" && (
+            /* Vertical sub-nav. The actual content/config lives in the
+               CustomizePanel in the main area. */
+            <nav className="px-2 pb-2 pt-1 space-y-0.5">
+              {CUSTOMIZE_SUBS.map((sub) => {
+                const isActive = customizeSub === sub.key;
+                return (
+                  <button
+                    key={sub.key}
+                    onClick={() => onCustomizeSubChange(sub.key)}
+                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition ${
+                      isActive
+                        ? "bg-[#141413]/[0.04] text-[#141413] font-medium"
+                        : "text-[#6b6963] hover:bg-[#141413]/[0.03] hover:text-[#141413]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+                        isActive ? "bg-[#d97757]" : "bg-transparent"
+                      }`}
+                    />
+                    <span className="flex-1">{sub.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
           )}
         </div>
       </div>

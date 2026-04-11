@@ -9,6 +9,9 @@ import DevPanel from "./components/DevPanel";
 import AgentEditorPanel, {
   type AgentEditorMode,
 } from "./components/AgentEditorPanel";
+import CustomizePanel, {
+  type CustomizeSub,
+} from "./components/CustomizePanel";
 
 const IS_DEV = import.meta.env.VITE_DEV_MODE === "true";
 
@@ -97,6 +100,7 @@ export default function App() {
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
   const [agentEditor, setAgentEditor] = useState<AgentEditorMode | null>(null);
+  const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -220,6 +224,8 @@ export default function App() {
           onOpenSettings={() => setConfigOpen(true)}
           onOpenDispatch={() => setDispatchOpen(true)}
           onOpenAgentEditor={setAgentEditor}
+          customizeSub={customizeSub}
+          onCustomizeSubChange={setCustomizeSub}
         />
       </div>
 
@@ -241,6 +247,16 @@ export default function App() {
                 setFiles(files);
               } catch {}
             }}
+          />
+        </div>
+      ) : customizeSub ? (
+        /* Customize (skills / dispatch / connectors) takes over the main area */
+        <div className="flex-1 flex flex-col min-w-0 h-full">
+          <CustomizePanel
+            sub={customizeSub}
+            onClose={() => setCustomizeSub(null)}
+            onOpenFile={handleOpenFile}
+            onOpenDispatch={() => setDispatchOpen(true)}
           />
         </div>
       ) : hasTabs ? (
