@@ -138,6 +138,8 @@ export default function Sidebar({
   const [cloneDialog, setCloneDialog] = useState(false);
   const [cloneName, setCloneName] = useState("");
   const [cloneError, setCloneError] = useState("");
+  const [projectDeleteTarget, setProjectDeleteTarget] = useState<string | null>(null);
+  const [projectDeleteError, setProjectDeleteError] = useState("");
 
   // The effective active tab. Customize drives a main-area takeover;
   // files is sidebar-only.
@@ -228,6 +230,21 @@ export default function Sidebar({
       setActiveTab(null);
     } catch {}
     setProjectMenuOpen(false);
+  }
+
+  async function handleDeleteProjectConfirm() {
+    if (!projectDeleteTarget) return;
+    try {
+      await api.deleteProject(serverUrl, projectDeleteTarget);
+      const projectsResp = await api.fetchProjects(serverUrl);
+      useStore
+        .getState()
+        .setProjects(projectsResp.projects, projectsResp.current);
+      setProjectDeleteTarget(null);
+      setProjectDeleteError("");
+    } catch (e: any) {
+      setProjectDeleteError(e?.message || "Failed to delete");
+    }
   }
 
   async function handleCloneConfirm() {
@@ -441,22 +458,49 @@ export default function Sidebar({
               />
               <div className="absolute left-0 right-0 top-full z-40 mt-1 rounded-lg border border-[#e8e6dc] bg-white shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
                 <div className="max-h-[220px] overflow-y-auto py-1">
-                  {projects.map((p) => (
-                    <button
-                      key={p.name}
-                      onClick={() => handleSwitchProject(p.name)}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition hover:bg-[#faf9f5] ${
-                        p.name === currentProject
-                          ? "text-[#141413] font-medium"
-                          : "text-[#6b6963]"
-                      }`}
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full shrink-0"
-                        style={{ background: p.name === currentProject ? "#d97757" : "transparent" }}
-                      />
-                      <span className="flex-1 truncate">{p.name}</span>
-                    </button>
-                  ))}
+                  {projects.map((p) => {
+                    const isCurrent = p.name === currentProject;
+                    const isOnly = projects.length <= 1;
+                    const canDelete = !isCurrent && !isOnly;
+                    return (
+                      <div
+                        key={p.name}
+                        className="group flex items-center gap-2 pr-1.5 transition hover:bg-[#faf9f5]"
+                      >
+                        <button
+                          onClick={() => handleSwitchProject(p.name)}
+                          className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-[13px] ${
+                            isCurrent
+                              ? "text-[#141413] font-medium"
+                              : "text-[#6b6963]"
+                          }`}
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full shrink-0"
+                            style={{
+                              background: isCurrent ? "#d97757" : "transparent",
+                            }}
+                          />
+                          <span className="flex-1 truncate">{p.name}</span>
+                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setProjectDeleteTarget(p.name);
+                              setProjectMenuOpen(false);
+                            }}
+                            title="Delete project"
+                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#b0aea5] opacity-0 transition hover:text-[#d97757] group-hover:opacity-100"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="border-t border-[#e8e6dc] py-1">
                   <button
@@ -530,6 +574,51 @@ export default function Sidebar({
                 className="rounded-lg bg-[#141413] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#2a2a28]"
               >
                 Clone
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Delete project confirm dialog ───────────────── */}
+      {projectDeleteTarget && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-[#141413]/20 backdrop-blur-sm"
+            onClick={() => {
+              setProjectDeleteTarget(null);
+              setProjectDeleteError("");
+            }}
+          />
+          <div className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-[0_16px_48px_rgba(20,20,19,0.15)]">
+            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold text-[#141413] mb-1.5">
+              Delete project
+            </h3>
+            <p className="text-[13px] leading-relaxed text-[#6b6963] mb-2">
+              Delete <span className="font-mono text-[#141413]">{projectDeleteTarget}</span> and
+              all of its sessions, files, skills, and agents?
+            </p>
+            <p className="text-[12px] leading-relaxed text-[#d97757] mb-4">
+              This cannot be undone.
+            </p>
+            {projectDeleteError && (
+              <p className="mb-4 text-[12px] text-[#d97757]">{projectDeleteError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setProjectDeleteTarget(null);
+                  setProjectDeleteError("");
+                }}
+                className="rounded-lg border border-[#e8e6dc] px-4 py-1.5 text-[13px] text-[#6b6963] hover:bg-[#faf9f5]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteProjectConfirm}
+                className="rounded-lg bg-[#d97757] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#c4613f]"
+              >
+                Delete
               </button>
             </div>
           </div>

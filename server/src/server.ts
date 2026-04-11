@@ -14,6 +14,7 @@ import {
   listProjects,
   projectExists,
   cloneProject,
+  deleteProject,
   listTemplates,
   createProjectFromTemplate,
   readProjectSettings,
@@ -304,6 +305,39 @@ export function createServer(_initialConfig: Config) {
     cfg.currentProject = name;
     saveConfig(cfg);
     return c.json({ ok: true, current: name });
+  });
+
+  app.delete("/api/projects/:name", async (c) => {
+    const name = c.req.param("name");
+    const cfg = loadConfig();
+
+    // Safety: never delete the project currently in use. Client must
+    // switch away first.
+    if (name === cfg.currentProject) {
+      return c.json(
+        { error: "Cannot delete the current project. Switch away first." },
+        400,
+      );
+    }
+    // Safety: never leave the user with zero projects.
+    if (listProjects().length <= 1) {
+      return c.json({ error: "Cannot delete the only remaining project." }, 400);
+    }
+    if (!projectExists(name)) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    try {
+      // Drop any in-memory sessions tied to this project so the UI stays
+      // consistent on next listing.
+      for (const s of listSessions(name)) {
+        deleteSession(s.id);
+      }
+      deleteProject(name);
+      return c.json({ ok: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400);
+    }
   });
 
   // Per-project settings: model + effort, persisted to .claude/settings.json

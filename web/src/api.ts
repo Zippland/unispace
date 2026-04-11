@@ -62,6 +62,17 @@ export async function cloneProject(url: string, from: string, to: string) {
   return res.json();
 }
 
+export async function deleteProject(url: string, name: string) {
+  const res = await fetch(`${url}/api/projects/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Delete failed" }));
+    throw new Error(err.error || "Delete failed");
+  }
+  return res.json();
+}
+
 // ── Project templates (BU-federated gallery) ─────────────────
 
 export interface ProjectTemplate {

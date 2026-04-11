@@ -10,6 +10,7 @@ import {
   statSync,
   unlinkSync,
   mkdirSync,
+  rmSync,
 } from "fs";
 
 // ── Paths ─────────────────────────────────────────────────────
@@ -258,6 +259,15 @@ export function createProjectFromTemplate(
   // Same for a files/ scratch dir
   const filesDir = join(dst, "files");
   if (!existsSync(filesDir)) mkdirSync(filesDir, { recursive: true });
+}
+
+/** Recursively delete a project folder. Throws if it doesn't exist.
+ *  Caller is responsible for enforcing "can't delete current / only
+ *  project" policy at the API layer. */
+export function deleteProject(name: string): void {
+  const dir = paths.project(name);
+  if (!existsSync(dir)) throw new Error(`Project not found: ${name}`);
+  rmSync(dir, { recursive: true, force: true });
 }
 
 /** Clone a project folder. Throws if dst already exists. */
