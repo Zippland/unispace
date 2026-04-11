@@ -436,15 +436,14 @@ export function TaskPanel({ scope }: { scope: "global" | "project" }) {
   const [activeTab, setActiveTab] = useState<"Today" | "All">("Today");
   const [showToast, setShowToast] = useState(false);
 
-  const tasks = scope === "global" ? GLOBAL_TASKS : PROJECT_TASKS;
-  const emptyTitle =
-    scope === "global"
-      ? "Let's create a new task!"
-      : "Create your first project task";
-  const emptySubtitle =
-    scope === "global"
-      ? "Creating a task will automatically perform the operation"
-      : "Tasks run against the current project's files, skills, and agents";
+  const isGlobal = scope === "global";
+  const tasks = isGlobal ? GLOBAL_TASKS : PROJECT_TASKS;
+  const emptyTitle = isGlobal
+    ? "Let's create a new task!"
+    : "Create your first project task";
+  const emptySubtitle = isGlobal
+    ? "Creating a task will automatically perform the operation"
+    : "Tasks run against the current project's files, skills, and agents";
 
   function handleNewTask() {
     setShowToast(true);
@@ -453,13 +452,22 @@ export function TaskPanel({ scope }: { scope: "global" | "project" }) {
 
   return (
     <div className="relative flex min-h-full flex-col overflow-y-auto bg-white">
-      <div className="mx-auto w-full max-w-5xl px-10 pb-16 pt-14">
-        <h1 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#141413]">
-          Task
-        </h1>
+      {/* Standalone (Mira Task mode) keeps its own h1 and wide top padding.
+          Embedded (inside CustomizePanel) delegates the header to the parent
+          and tightens the top padding so cards sit under the outer header. */}
+      <div
+        className={`mx-auto w-full max-w-5xl px-10 pb-16 ${
+          isGlobal ? "pt-14" : "pt-6"
+        }`}
+      >
+        {isGlobal && (
+          <h1 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#141413]">
+            Task
+          </h1>
+        )}
 
         {/* Task cards */}
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className={`${isGlobal ? "mt-5" : ""} grid grid-cols-1 gap-3 md:grid-cols-3`}>
           {tasks.map((task) => (
             <button
               key={task.id}
