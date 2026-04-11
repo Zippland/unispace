@@ -52,20 +52,24 @@ const HOISTED_NAMES = new Set([
 
 // ── Workspace resource tabs ───────────────────────────────────
 
-type TabKey = "files" | "agents" | "customize" | "tasks";
+type TabKey = "files" | "customize";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "files", label: "Files" },
-  { key: "agents", label: "Agents" },
   { key: "customize", label: "Customize" },
-  { key: "tasks", label: "Tasks" },
 ];
 
 // Sub-tabs inside the Customize panel (CustomizeSub type imported below)
-const CUSTOMIZE_SUBS: { key: "skills" | "dispatch" | "connectors"; label: string }[] = [
+// Order: agents first (most common config), tasks last (least frequent)
+const CUSTOMIZE_SUBS: {
+  key: "agents" | "skills" | "dispatch" | "connectors" | "tasks";
+  label: string;
+}[] = [
+  { key: "agents", label: "Agents" },
   { key: "skills", label: "Skills" },
   { key: "dispatch", label: "Dispatch" },
   { key: "connectors", label: "Connectors" },
+  { key: "tasks", label: "Tasks" },
 ];
 
 // ── Paths (mirror server hoisting) ────────────────────────────
@@ -102,8 +106,6 @@ interface SidebarProps {
   miraMode: MiraMode;
   onMiraModeChange: (mode: MiraMode) => void;
   onOpenProjectWelcome: () => void;
-  projectTasksOpen: boolean;
-  onProjectTasksChange: (open: boolean) => void;
 }
 
 export default function Sidebar({
@@ -116,8 +118,6 @@ export default function Sidebar({
   miraMode,
   onMiraModeChange,
   onOpenProjectWelcome,
-  projectTasksOpen,
-  onProjectTasksChange,
 }: SidebarProps) {
   const {
     projects,
@@ -139,30 +139,15 @@ export default function Sidebar({
   const [cloneName, setCloneName] = useState("");
   const [cloneError, setCloneError] = useState("");
 
-  // Active workspace tab
-  // Track the non-customize tab (Files / Agents) separately so we can
-  // restore it when the user backs out of Customize.
-  const [baseTab, setBaseTab] = useState<"files" | "agents">("files");
-
-  // The effective active tab. Customize and Tasks both drive their own
-  // main-area takeovers; files / agents are sidebar-only.
-  const activeTabKey: TabKey = customizeSub
-    ? "customize"
-    : projectTasksOpen
-      ? "tasks"
-      : baseTab;
+  // The effective active tab. Customize drives a main-area takeover;
+  // files is sidebar-only.
+  const activeTabKey: TabKey = customizeSub ? "customize" : "files";
 
   function handleTopTabClick(next: TabKey) {
     if (next === "customize") {
-      if (!customizeSub) onCustomizeSubChange("skills");
-      onProjectTasksChange(false);
-    } else if (next === "tasks") {
-      onProjectTasksChange(true);
-      onCustomizeSubChange(null);
+      if (!customizeSub) onCustomizeSubChange("agents");
     } else {
-      setBaseTab(next);
       onCustomizeSubChange(null);
-      onProjectTasksChange(false);
     }
   }
 
@@ -572,7 +557,7 @@ export default function Sidebar({
               + Upload
             </button>
           )}
-          {activeTabKey === "agents" && (
+          {activeTabKey === "customize" && customizeSub === "agents" && (
             <button
               onClick={() => onOpenAgentEditor({ kind: "create" })}
               className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
@@ -652,39 +637,6 @@ export default function Sidebar({
                 ))
               )}
             </div>
-          )}
-          {activeTabKey === "agents" && (
-            <PromptPanel
-              globalPrompt={globalPromptFile}
-              agents={agentsList}
-              activeAgentName={activeAgent?.name || null}
-              onApplyAgent={(agent) => {
-                const name = agent.name.replace(/\.md$/i, "");
-                setActiveAgent({ name });
-              }}
-              onEditProjectPrompt={() => {
-                if (!globalPromptFile) return;
-                onOpenAgentEditor({
-                  kind: "edit",
-                  path: globalPromptFile.path || globalPromptFile.name,
-                  initialName: "Project Prompt",
-                  lockName: true,
-                });
-              }}
-              onEditAgent={(agent) =>
-                onOpenAgentEditor({
-                  kind: "edit",
-                  path: agent.path,
-                  initialName: agent.name.replace(/\.md$/i, ""),
-                })
-              }
-              onDeleteAgent={async (path, name) => {
-                await api.deleteFile(serverUrl, path);
-                const stem = name.replace(/\.md$/i, "");
-                if (activeAgent?.name === stem) setActiveAgent(null);
-                await refreshFiles();
-              }}
-            />
           )}
           {activeTabKey === "customize" && (
             /* Vertical sub-nav. The actual content/config lives in the

@@ -3,25 +3,52 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
+import { TaskPanel } from "../mira/MiraShell";
+import type { AgentEditorMode } from "./AgentEditorPanel";
 
 // ═══════════════════════════════════════════════════════════════
-//  CustomizePanel — replaces chat/preview when user is configuring
-//  skills / dispatch / connectors. Lives in the main area so
-//  config surfaces get real estate.
+//  CustomizePanel — single surface for everything that configures
+//  the current project: agents / skills / dispatch / connectors /
+//  tasks. Takes over the main area; the sidebar shows the vertical
+//  sub-nav.
 // ═══════════════════════════════════════════════════════════════
 
-export type CustomizeSub = "skills" | "dispatch" | "connectors";
+export type CustomizeSub =
+  | "agents"
+  | "skills"
+  | "dispatch"
+  | "connectors"
+  | "tasks";
 
 interface Props {
   sub: CustomizeSub;
   onClose: () => void;
   onOpenDispatch: () => void;
+  onOpenAgentEditor: (mode: AgentEditorMode) => void;
 }
+
+const SUB_TITLES: Record<CustomizeSub, string> = {
+  agents: "Agents",
+  skills: "Skills",
+  dispatch: "Dispatch",
+  connectors: "Connectors",
+  tasks: "Tasks",
+};
+
+const SUB_SUBTITLES: Record<CustomizeSub, string> = {
+  agents:
+    "Project personas — the main CLAUDE.md and any subagents you invoke via Task.",
+  skills: "Reusable capabilities the agent can invoke inside a project.",
+  dispatch: "Inbound adapters — where the agent receives messages from.",
+  connectors: "Outbound integrations — services the agent can reach out to.",
+  tasks: "Recurring project operations — scheduled or on-demand.",
+};
 
 export default function CustomizePanel({
   sub,
   onClose,
   onOpenDispatch,
+  onOpenAgentEditor,
 }: Props) {
   const { files } = useStore();
 
@@ -32,6 +59,15 @@ export default function CustomizePanel({
   const skillsList = (skillsFolder?.children || []).filter(
     (f) => f.type === "directory",
   );
+
+  // Agents: global CLAUDE.md + .claude/agents/*.md
+  const agentsFolder = files.find(
+    (f) => f.name === "agents" && f.type === "directory",
+  );
+  const agentsList = (agentsFolder?.children || []).filter(
+    (c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"),
+  );
+  const globalPromptFile = files.find((f) => f.name === "CLAUDE.md");
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
@@ -49,24 +85,24 @@ export default function CustomizePanel({
               </svg>
             </button>
             <h2 className="font-['Poppins',_Arial,_sans-serif] text-[16px] font-semibold text-[#141413]">
-              {sub === "skills" && "Skills"}
-              {sub === "dispatch" && "Dispatch"}
-              {sub === "connectors" && "Connectors"}
+              {SUB_TITLES[sub]}
             </h2>
           </div>
           <p className="mt-2 pl-9 text-[12px] leading-relaxed text-[#b0aea5]">
-            {sub === "skills" &&
-              "Reusable capabilities the agent can invoke inside a project."}
-            {sub === "dispatch" &&
-              "Inbound adapters — where the agent receives messages from."}
-            {sub === "connectors" &&
-              "Outbound integrations — services the agent can reach out to."}
+            {SUB_SUBTITLES[sub]}
           </p>
         </div>
       </div>
 
       {/* Body */}
       <div className="min-h-0 flex-1 overflow-hidden">
+        {sub === "agents" && (
+          <AgentsSplit
+            globalPrompt={globalPromptFile}
+            agents={agentsList}
+            onOpenAgentEditor={onOpenAgentEditor}
+          />
+        )}
         {sub === "skills" && <SkillsSplit skills={skillsList} />}
         {sub === "dispatch" && (
           <div className="mx-auto max-w-4xl px-8 py-6 overflow-y-auto h-full">
@@ -76,6 +112,170 @@ export default function CustomizePanel({
         {sub === "connectors" && (
           <div className="mx-auto max-w-4xl px-8 py-6 overflow-y-auto h-full">
             <ConnectorsTable />
+          </div>
+        )}
+        {sub === "tasks" && <TaskPanel scope="project" />}
+      </div>
+    </div>
+  );
+}
+
+// ── Agents sub — list + inline markdown preview + Edit button ──
+
+function AgentsSplit({
+  globalPrompt,
+  agents,
+  onOpenAgentEditor,
+}: {
+  globalPrompt: FileEntry | undefined;
+  agents: FileEntry[];
+  onOpenAgentEditor: (mode: AgentEditorMode) => void;
+}) {
+  const { serverUrl } = useStore();
+
+  // Combined list: Project Prompt (if present) + each agent .md
+  interface Row {
+    key: string;
+    label: string;
+    path: string;
+    kind: "project-prompt" | "agent";
+    lockName?: boolean;
+  }
+  const rows: Row[] = [];
+  if (globalPrompt) {
+    rows.push({
+      key: "__project_prompt__",
+      label: "Project Prompt",
+      path: globalPrompt.path || globalPrompt.name,
+      kind: "project-prompt",
+      lockName: true,
+    });
+  }
+  for (const a of agents) {
+    rows.push({
+      key: a.path,
+      label: a.name.replace(/\.md$/i, ""),
+      path: a.path,
+      kind: "agent",
+    });
+  }
+
+  const [selectedKey, setSelectedKey] = useState<string | null>(
+    rows[0]?.key ?? null,
+  );
+  const [content, setContent] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+
+  // Keep selection in sync if the list shifts
+  useEffect(() => {
+    if (selectedKey && rows.find((r) => r.key === selectedKey)) return;
+    setSelectedKey(rows[0]?.key ?? null);
+  }, [rows, selectedKey]);
+
+  const selected = rows.find((r) => r.key === selectedKey) || null;
+
+  // Load the selected file body
+  useEffect(() => {
+    if (!selected) {
+      setContent("");
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchFileContent(serverUrl, selected.path)
+      .then((text) => {
+        if (!cancelled) setContent(text);
+      })
+      .catch(() => {
+        if (!cancelled) setContent("");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, serverUrl]);
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-[13px] text-[#b0aea5]">
+        No agents yet — click + New to add one.
+      </div>
+    );
+  }
+
+  // Strip YAML frontmatter for display
+  const body = content.replace(/^---\n[\s\S]*?\n---\n?/, "");
+
+  return (
+    <div className="flex h-full min-h-0">
+      {/* List column */}
+      <div className="w-[240px] shrink-0 border-r border-[#e8e6dc] overflow-y-auto">
+        <div className="py-2">
+          {rows.map((row) => {
+            const isActive = row.key === selectedKey;
+            const isPrompt = row.kind === "project-prompt";
+            return (
+              <button
+                key={row.key}
+                onClick={() => setSelectedKey(row.key)}
+                className={`group flex w-full items-center gap-2 px-4 py-1.5 text-left text-[13px] transition ${
+                  isActive
+                    ? "bg-[#141413]/[0.04] text-[#141413] font-medium"
+                    : "text-[#6b6963] hover:bg-[#141413]/[0.03] hover:text-[#141413]"
+                }`}
+              >
+                {isPrompt ? (
+                  <svg className="h-3.5 w-3.5 shrink-0 text-[#6a9bcc]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v16.5M3.75 3.75h16.5m-16.5 0L9 9m-5.25-5.25L3.75 9m16.5-5.25v16.5m0-16.5L15 9m5.25-5.25L20.25 9M3.75 20.25h16.5m-16.5 0L9 15m-5.25 5.25L3.75 15m16.5 5.25L15 15m5.25 5.25L20.25 15" />
+                  </svg>
+                ) : (
+                  <svg className="h-3.5 w-3.5 shrink-0 text-[#a07cc5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
+                  </svg>
+                )}
+                <span className="truncate">{row.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Detail column */}
+      <div className="flex-1 min-w-0 overflow-y-auto bg-white">
+        {loading ? (
+          <div className="flex h-full items-center justify-center text-[13px] text-[#b0aea5]">
+            Loading…
+          </div>
+        ) : !selected ? (
+          <div className="flex h-full items-center justify-center text-[13px] text-[#b0aea5]">
+            Select an agent
+          </div>
+        ) : (
+          <div className="mx-auto max-w-3xl px-8 py-6">
+            <div className="mb-4 flex items-center gap-2">
+              <button
+                onClick={() =>
+                  onOpenAgentEditor({
+                    kind: "edit",
+                    path: selected.path,
+                    initialName: selected.label,
+                    lockName: selected.lockName,
+                  })
+                }
+                className="flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white px-3 py-1 text-[11px] text-[#141413] transition hover:border-[#b0aea5]"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.862 4.487Zm0 0L19.5 7.125" />
+                </svg>
+                Edit
+              </button>
+            </div>
+            <div className="prose text-[14px] leading-7 text-[#141413]">
+              <Markdown remarkPlugins={[remarkGfm]}>{body || "*(empty)*"}</Markdown>
+            </div>
           </div>
         )}
       </div>
