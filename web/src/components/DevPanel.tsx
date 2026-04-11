@@ -152,7 +152,7 @@ function ProjectTab({ data }: { data: InspectData }) {
         <KeyValue label="Skills" value={String(data.skills.length)} />
       </Section>
 
-      <Section label="CLAUDE.md (project prompt)">
+      <Section label="CLAUDE.md (Main Agent)">
         <p className="mb-2 text-[11px] leading-relaxed text-[#b0aea5]">
           This is the project-level instructions loaded at the start of every
           session. It's <span className="text-[#d97757]">one input</span> to

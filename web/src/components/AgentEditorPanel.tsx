@@ -142,16 +142,16 @@ export default function AgentEditorPanel({ mode, onClose, onSaved }: Props) {
   }
 
   const title = lockName
-    ? "Edit project prompt"
+    ? "Edit Main Agent"
     : isEdit
       ? `Edit subagent · ${mode.initialName}`
       : "New subagent";
 
   const subtitle = lockName
-    ? "Project-level instructions loaded at the start of every session."
+    ? "The default instructions for this project, loaded at the start of every session."
     : isEdit
       ? "Rename, describe, or rewrite this subagent's persona."
-      : "Create a subagent with its own system prompt. You can apply it to any session from the sidebar.";
+      : "Create a subagent with its own instructions. You can apply it to any session from the Agents list.";
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">

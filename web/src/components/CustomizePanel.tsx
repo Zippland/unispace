@@ -194,7 +194,7 @@ function buildAgentRows(
   if (globalPrompt) {
     rows.push({
       key: "__project_prompt__",
-      label: "Project Prompt",
+      label: "Main Agent",
       path: globalPrompt.path || globalPrompt.name,
       kind: "project-prompt",
       lockName: true,
@@ -363,7 +363,7 @@ function AgentsSplit({
               </button>
 
               {/* Active / Use-as-persona button — only for subagents,
-                  Project Prompt is always on and doesn't need a toggle. */}
+                  the Main Agent is always on and doesn't need a toggle. */}
               {selected.kind === "agent" &&
                 (() => {
                   const isApplied = activeAgent?.name === selected.label;
