@@ -262,45 +262,50 @@ function CollapsibleProcess({
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Empty State (rotating quotes)
+//  Empty State — project welcome + full BU template gallery
 // ═══════════════════════════════════════════════════════════════
 
-const quotes: [string, string][] = [
-  ["Start with a question", "end with a solution"],
-  ["Clear description", "is half the work done"],
-  ["Complex things", "begin with a single sentence"],
-  ["Precise conclusions", "start from a vague thought"],
-  ["Good questions", "find their own answers"],
+const EMPTY_BU_TABS = [
+  { key: "explore", label: "Explore" },
+  { key: "finance", label: "Finance" },
+  { key: "hr", label: "HR" },
+  { key: "da", label: "DA" },
+  { key: "pmo", label: "PMO" },
+  { key: "legal", label: "Legal" },
+  { key: "community", label: "Community" },
 ];
+
+const EMPTY_BU_COLORS: Record<string, string> = {
+  finance: "#d97757",
+  hr: "#7c9a5e",
+  da: "#a07cc5",
+  pmo: "#6a9bcc",
+  legal: "#9b8757",
+  rd: "#507a96",
+  design: "#c4688a",
+  community: "#5a8d7a",
+};
+
+function emptyBUColor(bu: string) {
+  return EMPTY_BU_COLORS[bu] || "#b0aea5";
+}
 
 function EmptyState({
   onStartFromTemplate,
 }: {
   onStartFromTemplate?: (template: api.ProjectTemplate) => void;
 }) {
-  const { serverUrl } = useStore();
-  const [index, setIndex] = useState(() => Math.floor(Math.random() * quotes.length));
-  const [fade, setFade] = useState(true);
+  const { serverUrl, currentProject } = useStore();
   const [templates, setTemplates] = useState<api.ProjectTemplate[]>([]);
+  const [activeBU, setActiveBU] = useState<string>("explore");
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setFade(false);
-      setTimeout(() => {
-        setIndex((i) => (i + 1) % quotes.length);
-        setFade(true);
-      }, 400);
-    }, 12000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Fetch project templates once for the BU exposure strip. Silent on error.
+  // Fetch all project templates for the welcome gallery. Silent on error.
   useEffect(() => {
     let cancelled = false;
     api
       .fetchTemplates(serverUrl)
       .then((list) => {
-        if (!cancelled) setTemplates(list.slice(0, 6));
+        if (!cancelled) setTemplates(list);
       })
       .catch(() => {});
     return () => {
@@ -308,50 +313,108 @@ function EmptyState({
     };
   }, [serverUrl]);
 
-  const [line1, line2] = quotes[index];
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6">
-      <svg className="h-6 w-6 text-[#d97757]/25" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M4.583 17.321C3.553 16.227 3 15 3 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179zm10 0C13.553 16.227 13 15 13 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179z" />
-      </svg>
-      <p className={`mt-3 text-center text-xl font-medium leading-snug tracking-tight text-[#141413] transition-opacity duration-400 ${fade ? "opacity-100" : "opacity-0"}`}>
-        {line1}
-        <br />
-        <span className="text-[#b0aea5]">{line2}</span>
-      </p>
+  const visible =
+    activeBU === "explore"
+      ? templates
+      : templates.filter((t) => t.bu === activeBU);
 
-      {/* Template strip — BU-published starters. Clicking one jumps
-          straight to the Project Welcome confirm dialog. */}
-      {templates.length > 0 && onStartFromTemplate && (
-        <div className="mt-12 w-full max-w-2xl">
-          <div className="mb-3 flex items-center justify-between px-1">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-[#b0aea5]">
-              Start from a template
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="mx-auto w-full max-w-5xl px-8 py-12">
+        {/* Compact hero */}
+        <div className="mb-10 flex flex-col items-center text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141413] text-[22px]">
+            📁
+          </div>
+          <h1 className="mt-4 font-['Poppins',_Arial,_sans-serif] text-[24px] font-semibold tracking-tight text-[#141413]">
+            Welcome to{" "}
+            <span className="text-[#d97757]">
+              {currentProject || "this project"}
             </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {templates.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => onStartFromTemplate(t)}
-                className="group flex items-start gap-2.5 rounded-xl border border-[#e8e6dc] bg-white px-3 py-2.5 text-left transition hover:border-[#b0aea5] hover:shadow-[0_4px_16px_rgba(20,20,19,0.04)]"
-              >
-                <span className="mt-0.5 text-[18px] leading-none">
-                  {t.icon || "📁"}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] font-medium text-[#141413]">
-                    {t.name}
-                  </div>
-                  <div className="mt-0.5 truncate text-[10px] text-[#b0aea5]">
-                    by {t.author}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+          </h1>
+          <p className="mt-1.5 text-[13px] text-[#b0aea5]">
+            Start a chat below, or spin up a new project from a BU template.
+          </p>
         </div>
-      )}
+
+        {/* Template gallery */}
+        {templates.length > 0 && onStartFromTemplate && (
+          <>
+            {/* BU tab bar */}
+            <div className="mb-5 flex items-center gap-5 overflow-x-auto border-b border-[#e8e6dc]">
+              {EMPTY_BU_TABS.map((tab) => {
+                const isActive = activeBU === tab.key;
+                const count =
+                  tab.key === "explore"
+                    ? templates.length
+                    : templates.filter((t) => t.bu === tab.key).length;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveBU(tab.key)}
+                    className={`relative flex items-center gap-1.5 pb-3 pt-1 text-[12px] font-medium transition ${
+                      isActive
+                        ? "text-[#141413]"
+                        : "text-[#b0aea5] hover:text-[#6b6963]"
+                    }`}
+                  >
+                    {tab.label}
+                    {count > 0 && (
+                      <span className="rounded-full bg-[#141413]/[0.06] px-1.5 py-0.5 text-[10px] text-[#6b6963]">
+                        {count}
+                      </span>
+                    )}
+                    {isActive && (
+                      <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#141413]" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Grid */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {visible.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onStartFromTemplate(t)}
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-[#e8e6dc] bg-white text-left transition hover:border-[#b0aea5] hover:shadow-[0_4px_20px_rgba(20,20,19,0.06)]"
+                >
+                  <div
+                    className={`aspect-[5/3] w-full bg-gradient-to-br ${t.gradient || "from-[#e8e6dc] to-[#d6c5b3]"} relative`}
+                  >
+                    <div className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg bg-white/70 text-[16px] backdrop-blur-sm">
+                      {t.icon || "📁"}
+                    </div>
+                    <div
+                      className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm"
+                      style={{ background: emptyBUColor(t.bu) }}
+                    >
+                      {t.bu}
+                    </div>
+                  </div>
+                  <div className="flex-1 px-4 py-3">
+                    <div className="truncate text-[13px] font-semibold text-[#141413]">
+                      {t.name}
+                    </div>
+                    <div className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-[#b0aea5]">
+                      {t.description}
+                    </div>
+                    <div className="mt-2 text-[10px] text-[#b0aea5]">
+                      by {t.author}
+                    </div>
+                  </div>
+                </button>
+              ))}
+              {visible.length === 0 && (
+                <div className="col-span-full flex h-24 items-center justify-center text-[12px] text-[#b0aea5]">
+                  No templates from this BU yet.
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
