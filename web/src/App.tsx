@@ -192,13 +192,10 @@ export default function App() {
           <h1 className="font-['Poppins',_Arial,_sans-serif] text-xl font-semibold tracking-tight text-[#141413]">
             UniSpace
           </h1>
-          <p className="mt-1 font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium tracking-tight text-[#d97757]">
-            Agent infrastructure for every team
-          </p>
-          <p className="mt-4 mb-6 text-[13px] leading-relaxed text-[#b0aea5]">
+          <p className="mt-1 mb-6 text-[13px] text-[#b0aea5]">
             {checking
               ? "Searching for a local runtime…"
-              : "Connect to the UniSpace runtime on this machine to start managing your team's agents."}
+              : "Connect to your local runtime to continue."}
           </p>
           <div className="flex gap-2">
             <input

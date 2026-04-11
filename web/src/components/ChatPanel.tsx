@@ -376,7 +376,7 @@ function EmptyState({
             </span>
           </h1>
           <p className="mt-1.5 font-['Poppins',_Arial,_sans-serif] text-[13px] text-[#b0aea5]">
-            Talk to this agent, or bootstrap another one from a BU template below.
+            Infrastructure for the agents you define.
           </p>
         </div>
 
