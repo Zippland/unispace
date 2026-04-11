@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
 
@@ -13,14 +15,12 @@ export type CustomizeSub = "skills" | "dispatch" | "connectors";
 interface Props {
   sub: CustomizeSub;
   onClose: () => void;
-  onOpenFile: (path: string, name: string) => void;
   onOpenDispatch: () => void;
 }
 
 export default function CustomizePanel({
   sub,
   onClose,
-  onOpenFile,
   onOpenDispatch,
 }: Props) {
   const { files } = useStore();
@@ -66,71 +66,121 @@ export default function CustomizePanel({
       </div>
 
       {/* Body */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-8 py-6">
-          {sub === "skills" && (
-            <SkillsTable skills={skillsList} onOpenFile={onOpenFile} />
-          )}
-          {sub === "dispatch" && <DispatchTable onOpenDispatch={onOpenDispatch} />}
-          {sub === "connectors" && <ConnectorsTable />}
-        </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {sub === "skills" && <SkillsSplit skills={skillsList} />}
+        {sub === "dispatch" && (
+          <div className="mx-auto max-w-4xl px-8 py-6 overflow-y-auto h-full">
+            <DispatchTable onOpenDispatch={onOpenDispatch} />
+          </div>
+        )}
+        {sub === "connectors" && (
+          <div className="mx-auto max-w-4xl px-8 py-6 overflow-y-auto h-full">
+            <ConnectorsTable />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Skills sub ───────────────────────────────────────────────
+// ── Skills sub — two-column split (list + inline detail) ───
 
-function SkillsTable({
-  skills,
-  onOpenFile,
-}: {
-  skills: FileEntry[];
-  onOpenFile: (path: string, name: string) => void;
-}) {
+function SkillsSplit({ skills }: { skills: FileEntry[] }) {
+  const { serverUrl } = useStore();
+  const [selectedPath, setSelectedPath] = useState<string | null>(
+    () => skills[0]?.children?.find((c) => c.name === "SKILL.md")?.path ?? null,
+  );
+  const [content, setContent] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+
+  // Auto-select first skill when the list changes and nothing is selected
+  useEffect(() => {
+    if (selectedPath) return;
+    const first = skills[0]?.children?.find((c) => c.name === "SKILL.md")?.path;
+    if (first) setSelectedPath(first);
+  }, [skills, selectedPath]);
+
+  // Load content whenever the selection changes
+  useEffect(() => {
+    if (!selectedPath) {
+      setContent("");
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchFileContent(serverUrl, selectedPath)
+      .then((text) => {
+        if (!cancelled) setContent(text);
+      })
+      .catch(() => {
+        if (!cancelled) setContent("");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPath, serverUrl]);
+
   if (skills.length === 0) {
     return (
-      <div className="py-12 text-center text-[13px] text-[#b0aea5]">
+      <div className="flex h-full items-center justify-center text-[13px] text-[#b0aea5]">
         No skills in this project yet.
       </div>
     );
   }
 
+  // Strip YAML frontmatter for display
+  const body = content.replace(/^---\n[\s\S]*?\n---\n?/, "");
+
   return (
-    <div className="divide-y divide-[#f0efe9] rounded-xl border border-[#e8e6dc] bg-white">
-      {skills.map((skill) => {
-        const skillMd = skill.children?.find((c) => c.name === "SKILL.md");
-        return (
-          <button
-            key={skill.path}
-            onClick={() => {
-              if (skillMd) onOpenFile(skillMd.path, skillMd.name);
-            }}
-            className="group flex w-full items-start gap-3 px-5 py-3.5 text-left transition hover:bg-[#faf9f5]"
-          >
-            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#d97757]/10 text-[#d97757]">
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
-              </svg>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-medium text-[#141413]">{skill.name}</div>
-              <div className="mt-0.5 text-[11px] text-[#b0aea5]">
-                {skill.children?.length ?? 0} files · click to open SKILL.md
-              </div>
-            </div>
-            <svg
-              className="mt-1 h-3.5 w-3.5 shrink-0 text-[#b0aea5] opacity-0 transition group-hover:opacity-100"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-            </svg>
-          </button>
-        );
-      })}
+    <div className="flex h-full min-h-0">
+      {/* List column */}
+      <div className="w-[220px] shrink-0 border-r border-[#e8e6dc] overflow-y-auto">
+        <div className="py-2">
+          {skills.map((skill) => {
+            const skillMd = skill.children?.find((c) => c.name === "SKILL.md");
+            const isActive = skillMd?.path === selectedPath;
+            return (
+              <button
+                key={skill.path}
+                onClick={() => {
+                  if (skillMd) setSelectedPath(skillMd.path);
+                }}
+                className={`group flex w-full items-center gap-2 px-4 py-1.5 text-left text-[13px] transition ${
+                  isActive
+                    ? "bg-[#141413]/[0.04] text-[#141413] font-medium"
+                    : "text-[#6b6963] hover:bg-[#141413]/[0.03] hover:text-[#141413]"
+                }`}
+              >
+                <svg className="h-3.5 w-3.5 shrink-0 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+                </svg>
+                <span className="truncate">{skill.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Detail column */}
+      <div className="flex-1 min-w-0 overflow-y-auto bg-white">
+        {loading ? (
+          <div className="flex h-full items-center justify-center text-[13px] text-[#b0aea5]">
+            Loading…
+          </div>
+        ) : !selectedPath ? (
+          <div className="flex h-full items-center justify-center text-[13px] text-[#b0aea5]">
+            Select a skill
+          </div>
+        ) : (
+          <div className="mx-auto max-w-3xl px-8 py-6 prose text-[14px] leading-7 text-[#141413]">
+            <Markdown remarkPlugins={[remarkGfm]}>{body || "*(empty)*"}</Markdown>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

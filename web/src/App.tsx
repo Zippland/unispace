@@ -255,7 +255,6 @@ export default function App() {
           <CustomizePanel
             sub={customizeSub}
             onClose={() => setCustomizeSub(null)}
-            onOpenFile={handleOpenFile}
             onOpenDispatch={() => setDispatchOpen(true)}
           />
         </div>
