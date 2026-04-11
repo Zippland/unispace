@@ -431,7 +431,7 @@ export default function ChatPanel() {
     serverUrl, activeSessionId, messages, streaming, currentProject,
     setActiveSession, addSession, appendMessage, updateMessage,
     setStreaming, setFiles, setSessions,
-    activeCommand, setActiveCommand,
+    activeAgent, setActiveAgent,
   } = useStore();
 
   const [input, setInput] = useState("");
@@ -534,19 +534,12 @@ export default function ChatPanel() {
     setIsDragging(false);
     dragCounterRef.current = 0;
 
-    // Internal drag from sidebar (file, skill, or command)
+    // Internal drag from sidebar (file or skill)
     if (e.dataTransfer.types.includes("x-unispace-drag")) {
       try {
         const data = JSON.parse(e.dataTransfer.getData("application/json"));
         if (data.type === "file" || data.type === "skill") {
           addAttachment(data.path, data.name, data.type);
-        } else if (data.type === "command") {
-          // Commands: fetch content and inject into input for the user to edit/send
-          try {
-            const text = await api.fetchFileContent(serverUrl, data.path);
-            setInput((prev) => (prev ? `${prev}\n\n${text}` : text));
-            textareaRef.current?.focus();
-          } catch {}
         }
       } catch {}
       return;
@@ -614,7 +607,7 @@ export default function ChatPanel() {
     setStreaming(true);
 
     try {
-      for await (const { event, data } of api.streamMessage(serverUrl, sessionId, content, activeCommand?.path)) {
+      for await (const { event, data } of api.streamMessage(serverUrl, sessionId, content, activeAgent?.name)) {
         updateMessage(sessionId, asstId, (parts) => {
           const p = [...parts];
           switch (event) {
@@ -695,7 +688,7 @@ export default function ChatPanel() {
       {/* Input area */}
       <div className="bg-[#faf9f5] px-4 pb-5 pt-2 shrink-0">
         <div className="relative mx-auto flex max-w-3xl flex-col gap-2">
-          {activeCommand && (
+          {activeAgent && (
             <div className="flex items-center gap-2 self-start rounded-full border border-[#a07cc5]/25 bg-[#a07cc5]/[0.06] pl-2.5 pr-1 py-1 text-[11px]">
               <svg
                 className="h-3 w-3 shrink-0 text-[#a07cc5]"
@@ -707,9 +700,9 @@ export default function ChatPanel() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
               </svg>
               <span className="text-[#6b4f88] font-medium">Agent:</span>
-              <span className="max-w-[160px] truncate text-[#141413]">{activeCommand.name}</span>
+              <span className="max-w-[160px] truncate text-[#141413]">{activeAgent.name}</span>
               <button
-                onClick={() => setActiveCommand(null)}
+                onClick={() => setActiveAgent(null)}
                 className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[#a07cc5]/70 transition hover:bg-[#a07cc5]/15 hover:text-[#a07cc5]"
                 title="Unapply"
               >

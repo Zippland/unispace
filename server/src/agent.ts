@@ -23,9 +23,15 @@ export interface RunAgentOptions {
    *  reading `.claude/settings.json`. Nothing for us to pass here. */
   resumeSessionId?: string;
   signal?: AbortSignal;
-  /** Optional text appended to the project's system prompt for this turn —
-   *  used by the "apply command as agent persona" flow. */
-  appendSystemPrompt?: string;
+  /** Optional main-thread subagent for this turn. The SDK does NOT
+   *  auto-discover `.claude/agents/*.md` — the caller must supply both
+   *  `agentName` and the full `agentDefinition` (parsed from the project
+   *  file). Passed through as `options.agent` + `options.agents`. */
+  agentName?: string;
+  agentDefinition?: {
+    description: string;
+    prompt: string;
+  };
 }
 
 // ── Runner ───────────────────────────────────────────────────
@@ -33,12 +39,18 @@ export interface RunAgentOptions {
 export async function* runAgent(
   opts: RunAgentOptions,
 ): AsyncGenerator<AgentEvent> {
-  const { prompt, cwd, resumeSessionId, signal, appendSystemPrompt } = opts;
+  const { prompt, cwd, resumeSessionId, signal, agentName, agentDefinition } = opts;
 
   const abortController = new AbortController();
   if (signal) signal.addEventListener("abort", () => abortController.abort());
 
   let emittedSessionId = false;
+
+  // Programmatic subagent registration — the SDK does not auto-load
+  // `.claude/agents/*.md` via settingSources, so we pass the definition
+  // we parsed on disk straight into options.agents.
+  const agentsRegistry =
+    agentName && agentDefinition ? { [agentName]: agentDefinition } : undefined;
 
   try {
     const q = query({
@@ -53,14 +65,8 @@ export async function* runAgent(
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
-        ...(appendSystemPrompt
-          ? {
-              systemPrompt: {
-                type: "preset" as const,
-                preset: "claude_code" as const,
-                append: appendSystemPrompt,
-              },
-            }
+        ...(agentsRegistry && agentName
+          ? { agent: agentName, agents: agentsRegistry }
           : {}),
       },
     });

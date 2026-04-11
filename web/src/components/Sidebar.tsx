@@ -47,23 +47,30 @@ const HOISTED_NAMES = new Set([
   "CLAUDE.md",
   "sessions",
   "skills",
-  "commands",
+  "agents",
 ]);
 
 // ── Workspace resource tabs ───────────────────────────────────
 
-type TabKey = "skills" | "prompt" | "files" | "connectors";
+type TabKey =
+  | "files"
+  // Customize group — project-level agent configuration
+  | "agents"
+  | "skills"
+  | "dispatch"
+  | "connectors";
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "skills", label: "Skills" },
-  { key: "prompt", label: "Prompt" },
+const TABS: { key: TabKey; label: string; group?: "customize" }[] = [
   { key: "files", label: "Files" },
-  { key: "connectors", label: "Connectors" },
+  { key: "agents", label: "Agents", group: "customize" },
+  { key: "skills", label: "Skills", group: "customize" },
+  { key: "dispatch", label: "Dispatch", group: "customize" },
+  { key: "connectors", label: "Connectors", group: "customize" },
 ];
 
 // ── Paths (mirror server hoisting) ────────────────────────────
 
-const COMMANDS_DIR = ".claude/commands";
+const AGENTS_DIR = ".claude/agents";
 const SKILLS_DIR = ".claude/skills";
 
 // ── Recents panel height ──────────────────────────────────────
@@ -74,20 +81,20 @@ const RECENTS_HEIGHT_KEY = "us:recents_height";
 
 // ── Sidebar ───────────────────────────────────────────────────
 
-import type { CommandEditorMode } from "./CommandEditorPanel";
+import type { AgentEditorMode } from "./AgentEditorPanel";
 
 interface SidebarProps {
   onOpenFile: (path: string, name: string) => void;
   onOpenSettings: () => void;
   onOpenDispatch: () => void;
-  onOpenCommandEditor: (mode: CommandEditorMode) => void;
+  onOpenAgentEditor: (mode: AgentEditorMode) => void;
 }
 
 export default function Sidebar({
   onOpenFile,
   onOpenSettings,
   onOpenDispatch,
-  onOpenCommandEditor,
+  onOpenAgentEditor,
 }: SidebarProps) {
   const {
     projects,
@@ -99,8 +106,8 @@ export default function Sidebar({
     setActiveTab,
     removeSession,
     setSessions,
-    activeCommand,
-    setActiveCommand,
+    activeAgent,
+    setActiveAgent,
   } = useStore();
 
   // Project switcher state
@@ -113,7 +120,7 @@ export default function Sidebar({
   const [activeTabKey, setActiveTabKey] = useState<TabKey>("files");
 
   // Dialog state for create-skill (commands/prompt editing lives in the
-  // main area via onOpenCommandEditor, not a modal)
+  // main area via onOpenAgentEditor, not a modal)
   const [skillDialog, setSkillDialog] = useState(false);
 
   function slugify(name: string): string {
@@ -317,10 +324,10 @@ export default function Sidebar({
     (s) => s.type === "directory",
   );
 
-  const commandsFolder = files.find(
-    (f) => f.name === "commands" && f.type === "directory",
+  const agentsFolder = files.find(
+    (f) => f.name === "agents" && f.type === "directory",
   );
-  const commandsList = (commandsFolder?.children || []).filter(
+  const agentsList = (agentsFolder?.children || []).filter(
     (c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"),
   );
 
@@ -460,23 +467,34 @@ export default function Sidebar({
 
       {/* ── Resource area: tab nav + action + content ─────── */}
       <div className="flex flex-1 flex-col min-h-0 overflow-hidden px-4 pt-3">
-        {/* Tab nav row (finance_agent style — no underline, text color only) */}
+        {/* Tab nav row — Files on the left, Customize group on the right.
+            The "|" divider visually separates the two concerns. */}
         <div className="flex items-center justify-between shrink-0">
-          <nav className="flex gap-4">
-            {TABS.map((tab) => {
+          <nav className="flex items-center gap-3 overflow-x-auto">
+            {TABS.map((tab, i) => {
+              const prev = TABS[i - 1];
+              const needsDivider = prev && prev.group !== tab.group;
               const isActive = activeTabKey === tab.key;
               return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTabKey(tab.key)}
-                  className={`font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium transition ${
-                    isActive
-                      ? "text-[#141413]"
-                      : "text-[#b0aea5] hover:text-[#141413]"
-                  }`}
-                >
-                  {tab.label}
-                </button>
+                <div key={tab.key} className="flex items-center gap-3">
+                  {needsDivider && (
+                    <span
+                      className="h-3.5 w-px bg-[#e8e6dc]"
+                      aria-hidden
+                      title="Customize"
+                    />
+                  )}
+                  <button
+                    onClick={() => setActiveTabKey(tab.key)}
+                    className={`font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium transition ${
+                      isActive
+                        ? "text-[#141413]"
+                        : "text-[#b0aea5] hover:text-[#141413]"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                </div>
               );
             })}
           </nav>
@@ -496,15 +514,15 @@ export default function Sidebar({
               + New
             </button>
           )}
-          {activeTabKey === "prompt" && (
+          {activeTabKey === "agents" && (
             <button
-              onClick={() => onOpenCommandEditor({ kind: "create" })}
+              onClick={() => onOpenAgentEditor({ kind: "create" })}
               className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
             >
               + New
             </button>
           )}
-          {activeTabKey === "connectors" && (
+          {activeTabKey === "dispatch" && (
             <button
               onClick={onOpenDispatch}
               className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
@@ -572,46 +590,46 @@ export default function Sidebar({
           {activeTabKey === "skills" && (
             <SkillsPanel skills={skillsList} onOpenFile={onOpenFile} />
           )}
-          {activeTabKey === "prompt" && (
+          {activeTabKey === "agents" && (
             <PromptPanel
               globalPrompt={globalPromptFile}
-              commands={commandsList}
-              activeCommandPath={activeCommand?.path || null}
-              onApplyCommand={(cmd) =>
-                setActiveCommand({
-                  path: cmd.path,
-                  name: cmd.name.replace(/\.md$/i, ""),
-                })
-              }
+              agents={agentsList}
+              activeAgentName={activeAgent?.name || null}
+              onApplyAgent={(agent) => {
+                const name = agent.name.replace(/\.md$/i, "");
+                setActiveAgent({ name });
+              }}
               onEditProjectPrompt={() => {
                 if (!globalPromptFile) return;
-                onOpenCommandEditor({
+                onOpenAgentEditor({
                   kind: "edit",
                   path: globalPromptFile.path || globalPromptFile.name,
                   initialName: "Project Prompt",
                   lockName: true,
                 });
               }}
-              onEditCommand={(cmd) =>
-                onOpenCommandEditor({
+              onEditAgent={(agent) =>
+                onOpenAgentEditor({
                   kind: "edit",
-                  path: cmd.path,
-                  initialName: cmd.name.replace(/\.md$/i, ""),
+                  path: agent.path,
+                  initialName: agent.name.replace(/\.md$/i, ""),
                 })
               }
-              onDeleteCommand={async (path) => {
+              onDeleteAgent={async (path, name) => {
                 await api.deleteFile(serverUrl, path);
-                if (activeCommand?.path === path) setActiveCommand(null);
+                const stem = name.replace(/\.md$/i, "");
+                if (activeAgent?.name === stem) setActiveAgent(null);
                 await refreshFiles();
               }}
             />
           )}
-          {activeTabKey === "connectors" && (
-            <ConnectorsPanel
+          {activeTabKey === "dispatch" && (
+            <DispatchPanel
               serverUrl={serverUrl}
               onOpenDispatch={onOpenDispatch}
             />
           )}
+          {activeTabKey === "connectors" && <ConnectorsPanel />}
         </div>
       </div>
 
@@ -779,29 +797,29 @@ function SkillChildNode({
   );
 }
 
-// ── Prompt panel — Global project prompt + draggable Commands ──
+// ── Prompt panel — Global project prompt + Subagents ─────────
 
 function PromptPanel({
   globalPrompt,
-  commands,
-  activeCommandPath,
-  onApplyCommand,
+  agents,
+  activeAgentName,
+  onApplyAgent,
   onEditProjectPrompt,
-  onEditCommand,
-  onDeleteCommand,
+  onEditAgent,
+  onDeleteAgent,
 }: {
   globalPrompt: FileEntry | undefined;
-  commands: FileEntry[];
-  activeCommandPath: string | null;
-  onApplyCommand: (cmd: FileEntry) => void;
+  agents: FileEntry[];
+  activeAgentName: string | null;
+  onApplyAgent: (agent: FileEntry) => void;
   onEditProjectPrompt: () => void;
-  onEditCommand: (cmd: FileEntry) => void;
-  onDeleteCommand: (path: string) => Promise<void>;
+  onEditAgent: (agent: FileEntry) => void;
+  onDeleteAgent: (path: string, name: string) => Promise<void>;
 }) {
   const [confirmDelete, setConfirmDelete] = useState<FileEntry | null>(null);
 
-  const commandIconPath =
-    "M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z";
+  const agentIconPath =
+    "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z";
 
   return (
     <div className="py-1">
@@ -837,36 +855,24 @@ function PromptPanel({
         </div>
       )}
 
-      {/* Commands section */}
+      {/* Subagents section */}
       <div className="mt-4 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
-        Commands
+        Subagents
       </div>
-      {commands.length === 0 ? (
+      {agents.length === 0 ? (
         <div className="px-3 py-2 text-[11px] text-[#b0aea5]">
-          No commands yet. Click + New to create one.
+          No subagents yet. Click + New to create one.
         </div>
       ) : (
-        commands.map((cmd) => {
-          const displayName = cmd.name.replace(/\.md$/i, "");
+        agents.map((agent) => {
+          const displayName = agent.name.replace(/\.md$/i, "");
+          const isActive = activeAgentName === displayName;
           return (
             <div
-              key={cmd.path}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData(
-                  "application/json",
-                  JSON.stringify({
-                    type: "command",
-                    path: cmd.path,
-                    name: displayName,
-                  }),
-                );
-                e.dataTransfer.setData("x-unispace-drag", "command");
-                e.dataTransfer.effectAllowed = "copy";
-              }}
-              onClick={() => onEditCommand(cmd)}
+              key={agent.path}
+              onClick={() => onEditAgent(agent)}
               className={`group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition ${
-                activeCommandPath === cmd.path
+                isActive
                   ? "bg-[#a07cc5]/[0.08] ring-1 ring-inset ring-[#a07cc5]/20"
                   : "hover:bg-[#faf9f5]"
               }`}
@@ -878,12 +884,12 @@ function PromptPanel({
                 stroke="currentColor"
                 strokeWidth={1.5}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d={commandIconPath} />
+                <path strokeLinecap="round" strokeLinejoin="round" d={agentIconPath} />
               </svg>
               <span className="min-w-0 flex-1 truncate text-[#141413]">
                 {displayName}
               </span>
-              {activeCommandPath === cmd.path && (
+              {isActive && (
                 <span className="shrink-0 rounded-full bg-[#a07cc5]/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-[#a07cc5]">
                   active
                 </span>
@@ -891,10 +897,10 @@ function PromptPanel({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onApplyCommand(cmd);
+                  onApplyAgent(agent);
                 }}
                 className="rounded p-0.5 text-[#b0aea5] opacity-0 transition hover:text-[#a07cc5] group-hover:opacity-100"
-                title={activeCommandPath === cmd.path ? "Already active" : "Apply as agent"}
+                title={isActive ? "Already active" : "Use as agent"}
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
@@ -903,7 +909,7 @@ function PromptPanel({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setConfirmDelete(cmd);
+                  setConfirmDelete(agent);
                 }}
                 className="rounded p-0.5 text-[#b0aea5] opacity-0 transition hover:text-[#d97757] group-hover:opacity-100"
                 title="Delete"
@@ -919,10 +925,10 @@ function PromptPanel({
 
       {confirmDelete && (
         <ConfirmDialog
-          title="Delete command"
+          title="Delete subagent"
           message={`Delete "${confirmDelete.name.replace(/\.md$/i, "")}" permanently?`}
           onConfirm={async () => {
-            await onDeleteCommand(confirmDelete.path);
+            await onDeleteAgent(confirmDelete.path, confirmDelete.name);
             setConfirmDelete(null);
           }}
           onCancel={() => setConfirmDelete(null)}
@@ -932,15 +938,15 @@ function PromptPanel({
   );
 }
 
-// ── Connectors panel — inbound channel dispatch ──────────────
+// ── Dispatch panel — inbound channel adapters (Feishu, Slack, …) ─
 
-interface ConnectorMeta {
+interface DispatchMeta {
   id: string;
   label: string;
   description: string;
 }
 
-const CONNECTORS: ConnectorMeta[] = [
+const DISPATCH_CHANNELS: DispatchMeta[] = [
   {
     id: "feishu",
     label: "Feishu",
@@ -948,7 +954,7 @@ const CONNECTORS: ConnectorMeta[] = [
   },
 ];
 
-function ConnectorsPanel({
+function DispatchPanel({
   serverUrl,
   onOpenDispatch,
 }: {
@@ -972,7 +978,11 @@ function ConnectorsPanel({
 
   return (
     <div className="px-2 pb-2">
-      {CONNECTORS.map((c) => {
+      <p className="px-3 pb-2 pt-1 text-[11px] leading-relaxed text-[#b0aea5]">
+        Inbound adapters — where the agent receives messages from. Each
+        external chat becomes a session in the current project.
+      </p>
+      {DISPATCH_CHANNELS.map((c) => {
         const enabled = !!channels[c.id]?.enabled;
         return (
           <button
@@ -1001,8 +1011,70 @@ function ConnectorsPanel({
           </button>
         );
       })}
-      <p className="px-3 pt-3 text-[10px] leading-relaxed text-[#b0aea5]">
-        Click a connector to edit credentials. Changes require a server restart.
+    </div>
+  );
+}
+
+// ── Connectors panel — outbound integrations (MCP / external apps) ─
+
+interface ConnectorEntry {
+  id: string;
+  label: string;
+  group: "Web" | "Desktop" | "Not connected";
+  emoji: string;
+}
+
+const CONNECTOR_CATALOG: ConnectorEntry[] = [
+  { id: "github", label: "GitHub", group: "Web", emoji: "🐙" },
+  { id: "notion", label: "Notion", group: "Web", emoji: "📓" },
+  { id: "linear", label: "Linear", group: "Web", emoji: "📋" },
+  { id: "chrome", label: "Claude in Chrome", group: "Desktop", emoji: "🌐" },
+  { id: "mac", label: "Control your Mac", group: "Desktop", emoji: "🖥️" },
+  { id: "gmail", label: "Gmail", group: "Not connected", emoji: "✉️" },
+  { id: "gcal", label: "Google Calendar", group: "Not connected", emoji: "📅" },
+  { id: "gdrive", label: "Google Drive", group: "Not connected", emoji: "📁" },
+];
+
+function ConnectorsPanel() {
+  const groups = ["Web", "Desktop", "Not connected"] as const;
+  return (
+    <div className="px-2 pb-2">
+      <p className="px-3 pb-2 pt-1 text-[11px] leading-relaxed text-[#b0aea5]">
+        Outbound integrations — services the agent can reach out to. Wire
+        these up through MCP servers.
+      </p>
+      {groups.map((g) => {
+        const items = CONNECTOR_CATALOG.filter((c) => c.group === g);
+        if (items.length === 0) return null;
+        return (
+          <div key={g} className="mt-2">
+            <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
+              {g}
+            </div>
+            {items.map((c) => (
+              <div
+                key={c.id}
+                className="group flex items-start gap-2 rounded-md px-2 py-1.5 transition hover:bg-[#141413]/[0.03]"
+              >
+                <span className="mt-0.5 text-[14px] leading-none">{c.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[13px] font-medium text-[#141413]">
+                      {c.label}
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide text-[#b0aea5]">
+                      soon
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      <p className="px-3 pt-4 text-[10px] leading-relaxed text-[#b0aea5]">
+        Connector management is a preview of what's coming — for now, wire
+        MCP servers directly via <span className="font-mono">.claude/settings.json</span>.
       </p>
     </div>
   );

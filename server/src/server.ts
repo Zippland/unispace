@@ -44,10 +44,24 @@ const IGNORE = new Set([
   ".cache", ".vscode", ".idea",
 ]);
 
-/** Strip a leading YAML frontmatter block (--- … ---) from a markdown file. */
-function stripFrontmatter(text: string): string {
-  const match = text.match(/^---\n[\s\S]*?\n---\n?/);
-  return match ? text.slice(match[0].length) : text;
+/** Parse a simple `key: value` YAML frontmatter block from a markdown file.
+ *  Does NOT support nested keys, multiline values, or quoted strings —
+ *  sufficient for agent metadata (name, description). */
+function parseFrontmatter(text: string): {
+  meta: Record<string, string>;
+  body: string;
+} {
+  const match = text.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!match) return { meta: {}, body: text };
+  const meta: Record<string, string> = {};
+  for (const line of match[1].split("\n")) {
+    const idx = line.indexOf(":");
+    if (idx < 0) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1).trim();
+    if (key) meta[key] = value;
+  }
+  return { meta, body: text.slice(match[0].length) };
 }
 
 async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> {
@@ -224,19 +238,19 @@ export function createServer(_initialConfig: Config) {
       }));
     }
 
-    // Hoist .claude/{skills,commands}/ as top-level entries for the UI;
+    // Hoist .claude/{skills,agents}/ as top-level entries for the UI;
     // paths inside stay as .claude/* so reads still resolve.
     const claudeDir = tree.find((e) => e.name === ".claude" && e.type === "directory");
     if (claudeDir?.children) {
       const skillsDir = claudeDir.children.find(
         (c) => c.name === "skills" && c.type === "directory",
       );
-      const commandsDir = claudeDir.children.find(
-        (c) => c.name === "commands" && c.type === "directory",
+      const agentsDir = claudeDir.children.find(
+        (c) => c.name === "agents" && c.type === "directory",
       );
-      if (skillsDir || commandsDir) {
+      if (skillsDir || agentsDir) {
         tree = tree.filter((e) => e.name !== ".claude");
-        if (commandsDir) tree.unshift(commandsDir);
+        if (agentsDir) tree.unshift(agentsDir);
         if (skillsDir) tree.unshift(skillsDir);
       }
     }
@@ -379,7 +393,7 @@ export function createServer(_initialConfig: Config) {
     const session = getSession(c.req.param("id"));
     if (!session) return c.json({ error: "Session not found" }, 404);
 
-    const { content, commandPath } = await c.req.json();
+    const { content, agent: requestedAgent } = await c.req.json();
     if (!content) return c.json({ error: "content required" }, 400);
 
     // Auto-title from first user message
@@ -403,17 +417,33 @@ export function createServer(_initialConfig: Config) {
     };
     session.messages.push(assistantMsg);
 
-    // Load the command body (if any) to append on top of CLAUDE.md as the
-    // active agent persona for this turn.
-    let appendSystemPrompt: string | undefined;
-    if (typeof commandPath === "string" && commandPath) {
-      try {
-        const full = resolve(currentProjectDir(), commandPath);
-        if (full.startsWith(resolve(currentProjectDir()) + "/")) {
-          const raw = await Bun.file(full).text();
-          appendSystemPrompt = stripFrontmatter(raw).trim() || undefined;
-        }
-      } catch {}
+    // Load the subagent definition (if any) from `.claude/agents/<name>.md`.
+    // The SDK doesn't auto-discover this directory, so we parse frontmatter +
+    // body here and pass the result programmatically to runAgent.
+    let agentName: string | undefined;
+    let agentDefinition: { description: string; prompt: string } | undefined;
+    if (typeof requestedAgent === "string" && requestedAgent) {
+      const safe = requestedAgent.replace(/[^a-zA-Z0-9-_]/g, "");
+      if (safe) {
+        try {
+          const full = resolve(
+            currentProjectDir(),
+            `.claude/agents/${safe}.md`,
+          );
+          if (full.startsWith(resolve(currentProjectDir()) + "/")) {
+            const raw = await Bun.file(full).text();
+            const { meta, body } = parseFrontmatter(raw);
+            const prompt = body.trim();
+            if (prompt) {
+              agentName = safe;
+              agentDefinition = {
+                description: meta.description || safe,
+                prompt,
+              };
+            }
+          }
+        } catch {}
+      }
     }
 
     return streamSSE(c, async (stream) => {
@@ -428,7 +458,8 @@ export function createServer(_initialConfig: Config) {
           cwd: projectDir,
           resumeSessionId: session.sdkSessionId,
           signal: ac.signal,
-          appendSystemPrompt,
+          agentName,
+          agentDefinition,
         })) {
           applyAgentEvent(event, assistantMsg, session);
           try {

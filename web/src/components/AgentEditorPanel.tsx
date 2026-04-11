@@ -2,19 +2,19 @@ import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import * as api from "../api";
 
-export type CommandEditorMode =
+export type AgentEditorMode =
   | { kind: "create" }
   | { kind: "edit"; path: string; initialName: string; lockName?: boolean };
 
 interface Props {
-  mode: CommandEditorMode;
+  mode: AgentEditorMode;
   onClose: () => void;
   /** Called after a successful save. Receives the final file path so the
    *  caller can refresh the sidebar listing. */
   onSaved: (path: string) => void;
 }
 
-const COMMANDS_DIR = ".claude/commands";
+const AGENTS_DIR = ".claude/agents";
 
 function slugify(name: string): string {
   return name
@@ -24,13 +24,37 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export default function CommandEditorPanel({ mode, onClose, onSaved }: Props) {
+/** Parse `---\nkey: value\n---\n<body>` — returns meta + body. */
+function parseFrontmatter(text: string): {
+  meta: Record<string, string>;
+  body: string;
+} {
+  const match = text.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!match) return { meta: {}, body: text };
+  const meta: Record<string, string> = {};
+  for (const line of match[1].split("\n")) {
+    const idx = line.indexOf(":");
+    if (idx < 0) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1).trim();
+    if (key) meta[key] = value;
+  }
+  return { meta, body: text.slice(match[0].length) };
+}
+
+function buildAgentFile(name: string, description: string, prompt: string): string {
+  const desc = description.replace(/\n/g, " ").trim();
+  return `---\nname: ${name}\ndescription: ${desc}\n---\n\n${prompt.trim()}\n`;
+}
+
+export default function AgentEditorPanel({ mode, onClose, onSaved }: Props) {
   const { serverUrl } = useStore();
 
   const isEdit = mode.kind === "edit";
   const lockName = isEdit && mode.lockName === true;
 
   const [name, setName] = useState(isEdit ? mode.initialName : "");
+  const [description, setDescription] = useState("");
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -44,7 +68,17 @@ export default function CommandEditorPanel({ mode, onClose, onSaved }: Props) {
     api
       .fetchFileContent(serverUrl, mode.path)
       .then((content) => {
-        if (!cancelled) setText(content);
+        if (cancelled) return;
+        if (mode.lockName) {
+          // Project prompt is free-form markdown, no frontmatter.
+          setText(content);
+        } else {
+          // Subagent file — parse frontmatter to prefill name/description.
+          const { meta, body } = parseFrontmatter(content);
+          if (meta.name) setName(meta.name);
+          if (meta.description) setDescription(meta.description);
+          setText(body.trim());
+        }
       })
       .catch(() => {
         if (!cancelled) setText("");
@@ -57,7 +91,11 @@ export default function CommandEditorPanel({ mode, onClose, onSaved }: Props) {
     };
   }, [mode, serverUrl]);
 
-  const canSubmit = (lockName || name.trim()) && text.trim() && !saving && !loading;
+  const canSubmit =
+    (lockName || (name.trim() && description.trim())) &&
+    text.trim() &&
+    !saving &&
+    !loading;
 
   async function handleSave() {
     if (!canSubmit) return;
@@ -66,32 +104,34 @@ export default function CommandEditorPanel({ mode, onClose, onSaved }: Props) {
 
     try {
       if (mode.kind === "edit" && lockName) {
-        // Project prompt — name locked, just overwrite
+        // Project prompt — write body verbatim
         await api.saveFile(serverUrl, mode.path, text);
         onSaved(mode.path);
       } else if (mode.kind === "edit") {
-        // Command — may have been renamed
+        // Subagent — may have been renamed
         const slug = slugify(name);
         if (!slug) throw new Error("Invalid name");
-        const newPath = `${COMMANDS_DIR}/${slug}.md`;
+        const newPath = `${AGENTS_DIR}/${slug}.md`;
+        const content = buildAgentFile(slug, description, text);
 
         if (newPath !== mode.path) {
-          await api.saveFile(serverUrl, newPath, text);
+          await api.saveFile(serverUrl, newPath, content);
           try {
             await api.deleteFile(serverUrl, mode.path);
           } catch {
             /* tolerate */
           }
         } else {
-          await api.saveFile(serverUrl, mode.path, text);
+          await api.saveFile(serverUrl, mode.path, content);
         }
         onSaved(newPath);
       } else {
-        // Create new command
+        // Create new subagent
         const slug = slugify(name);
         if (!slug) throw new Error("Invalid name");
-        const path = `${COMMANDS_DIR}/${slug}.md`;
-        await api.saveFile(serverUrl, path, text);
+        const path = `${AGENTS_DIR}/${slug}.md`;
+        const content = buildAgentFile(slug, description, text);
+        await api.saveFile(serverUrl, path, content);
         onSaved(path);
       }
       onClose();
@@ -104,14 +144,14 @@ export default function CommandEditorPanel({ mode, onClose, onSaved }: Props) {
   const title = lockName
     ? "Edit project prompt"
     : isEdit
-      ? `Edit command · ${mode.initialName}`
-      : "New command";
+      ? `Edit subagent · ${mode.initialName}`
+      : "New subagent";
 
   const subtitle = lockName
-    ? "Project-level instructions loaded as CLAUDE.md at the start of every session."
+    ? "Project-level instructions loaded at the start of every session."
     : isEdit
-      ? "Update the trigger name or the prompt text injected into chat."
-      : "Create a reusable prompt you can drag into the chat input.";
+      ? "Rename, describe, or rewrite this subagent's persona."
+      : "Create a subagent with its own system prompt. You can apply it to any session from the sidebar.";
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
@@ -147,25 +187,40 @@ export default function CommandEditorPanel({ mode, onClose, onSaved }: Props) {
         ) : (
           <>
             {!lockName && (
-              <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-[#6b6963]">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Summarize this file"
-                  maxLength={64}
-                  autoFocus={mode.kind === "create"}
-                  className="w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2.5 text-[13px] text-[#141413] outline-none transition focus:border-[#a07cc5]/60 focus:ring-1 focus:ring-[#a07cc5]/20"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-medium text-[#6b6963]">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. code-reviewer"
+                    maxLength={64}
+                    autoFocus={mode.kind === "create"}
+                    className="w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2.5 text-[13px] text-[#141413] outline-none transition focus:border-[#a07cc5]/60 focus:ring-1 focus:ring-[#a07cc5]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-medium text-[#6b6963]">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="One-line summary of when to use this agent"
+                    maxLength={200}
+                    className="w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2.5 text-[13px] text-[#141413] outline-none transition focus:border-[#a07cc5]/60 focus:ring-1 focus:ring-[#a07cc5]/20"
+                  />
+                </div>
+              </>
             )}
 
             <div className="flex min-h-0 flex-1 flex-col">
               <label className="mb-1.5 block text-[12px] font-medium text-[#6b6963]">
-                {lockName ? "Content" : "Prompt text"}
+                {lockName ? "Content" : "System prompt"}
               </label>
               <textarea
                 value={text}
@@ -174,8 +229,8 @@ export default function CommandEditorPanel({ mode, onClose, onSaved }: Props) {
                 autoFocus={isEdit}
                 placeholder={
                   lockName
-                    ? "# Project instructions\n\nDescribe what this agent does, what it knows, and how it should behave."
-                    : "This text will be injected into the chat input.\n\nExample:\nSummarize the attached file in 5 bullet points. Focus on the key decisions and open questions."
+                    ? "# Project instructions\n\nDescribe what this workspace does, its conventions, and any context every session should know."
+                    : "You are a ...\n\nDescribe the subagent's role, voice, and any constraints on how it should answer."
                 }
                 className="min-h-0 flex-1 w-full resize-none rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-4 py-3 font-mono text-[13px] leading-6 text-[#141413] outline-none transition focus:border-[#a07cc5]/60 focus:ring-1 focus:ring-[#a07cc5]/20"
               />
