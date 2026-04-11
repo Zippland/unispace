@@ -68,7 +68,12 @@ function parseFrontmatter(text: string): {
   return { meta, body: text.slice(match[0].length) };
 }
 
-async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> {
+async function listDir(
+  dir: string,
+  base = "",
+  depth = 0,
+  showAll = false,
+): Promise<FileEntry[]> {
   if (depth > 5) return [];
   let entries;
   try { entries = await readdir(dir, { withFileTypes: true }); } catch { return []; }
@@ -79,9 +84,13 @@ async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> 
   });
   const result: FileEntry[] = [];
   for (const e of sorted) {
-    if (IGNORE.has(e.name)) continue;
-    // Allow .claude (skills) but skip other dotfiles
-    if (e.name.startsWith(".") && e.name !== ".claude") continue;
+    // .git is noisy and useless regardless of mode — always skip.
+    if (e.name === ".git") continue;
+    if (!showAll) {
+      if (IGNORE.has(e.name)) continue;
+      // Allow .claude (skills) but skip other dotfiles
+      if (e.name.startsWith(".") && e.name !== ".claude") continue;
+    }
     const path = base ? `${base}/${e.name}` : e.name;
     const full = join(dir, e.name);
     let updatedAt = 0;
@@ -92,7 +101,7 @@ async function listDir(dir: string, base = "", depth = 0): Promise<FileEntry[]> 
         path,
         type: "directory",
         updatedAt,
-        children: await listDir(full, path, depth + 1),
+        children: await listDir(full, path, depth + 1, showAll),
       });
     } else {
       result.push({ name: e.name, path, type: "file", updatedAt });
@@ -372,9 +381,15 @@ export function createServer(_initialConfig: Config) {
   });
 
   // ── Files (scoped to current project) ────────────────────
+  // `?all=1` returns the raw project tree without dotfile/IGNORE
+  // filtering, without session enrichment, and without .claude
+  // hoisting — so users can inspect the full on-disk layout.
   app.get("/api/files", async (c) => {
     const dir = currentProjectDir();
-    let tree = await listDir(dir);
+    const showAll = c.req.query("all") === "1";
+    let tree = await listDir(dir, "", 0, showAll);
+
+    if (showAll) return c.json(tree);
 
     // Enrich sessions directory: replace raw filenames with session titles
     const sessDir = tree.find((e) => e.name === "sessions" && e.type === "directory");

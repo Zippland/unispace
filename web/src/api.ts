@@ -164,8 +164,21 @@ export async function deleteSession(url: string, id: string) {
   await fetch(`${url}/api/sessions/${id}`, { method: "DELETE" });
 }
 
+// Unfiltered-files toggle is persisted in localStorage so the sidebar
+// setting survives reloads AND any caller that refreshes the file tree
+// (ChatPanel auto-refresh, App bootstrap, etc.) stays consistent with
+// the sidebar's current preference without having to thread a flag
+// through every call site.
+export const SHOW_ALL_FILES_KEY = "us:file_show_all";
+
+function getShowAllFiles(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(SHOW_ALL_FILES_KEY) === "1";
+}
+
 export async function fetchFiles(url: string) {
-  const res = await fetch(`${url}/api/files`);
+  const q = getShowAllFiles() ? "?all=1" : "";
+  const res = await fetch(`${url}/api/files${q}`);
   return res.json();
 }
 

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
+import { SHOW_ALL_FILES_KEY } from "../api";
 
 // ── Icons ─────────────────────────────────────────────────────
 
@@ -252,6 +253,19 @@ export default function Sidebar({
   // Client-side file search — filters both view modes.
   const [fileSearch, setFileSearch] = useState("");
 
+  // "Show all" — bypass the hoisted/ignored filter and fetch the raw
+  // project tree. Persisted in localStorage under the same key that
+  // api.fetchFiles reads, so the server call auto-includes ?all=1.
+  const [showAllFiles, setShowAllFiles] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(SHOW_ALL_FILES_KEY) === "1";
+  });
+  useEffect(() => {
+    window.localStorage.setItem(SHOW_ALL_FILES_KEY, showAllFiles ? "1" : "0");
+    // Refetch so the server returns the right tree under the new flag.
+    api.fetchFiles(serverUrl).then(setFiles).catch(() => {});
+  }, [showAllFiles, serverUrl, setFiles]);
+
   function handleTopTabClick(next: TabKey) {
     if (next === "customize") {
       if (!customizeSub) onCustomizeSubChange("agents");
@@ -467,7 +481,12 @@ export default function Sidebar({
     refreshFiles();
   }
 
-  const userFiles = files.filter((f) => !HOISTED_NAMES.has(f.name));
+  // In "show all" mode, surface the raw tree as-is. Otherwise strip
+  // entries surfaced under their own tabs (CLAUDE.md, sessions, etc.)
+  // so they don't appear twice.
+  const userFiles = showAllFiles
+    ? files
+    : files.filter((f) => !HOISTED_NAMES.has(f.name));
   const sessionsFolder = files.find(
     (f) => f.name === "sessions" && f.type === "directory",
   );
@@ -812,9 +831,10 @@ export default function Sidebar({
           {/* Active tab content */}
           {activeTabKey === "files" && (
             <div className="px-2 pb-2">
-              {/* Search input + view mode toggle — hidden when nothing to filter */}
-              {userFiles.length > 0 && (
-                <div className="mb-2 flex items-center gap-1.5 px-1">
+              {/* Search input + view mode + show-all toggles — always
+                  visible so users can reach the show-all toggle even on
+                  empty projects where userFiles has been filtered out. */}
+              <div className="mb-2 flex items-center gap-1.5 px-1">
                   <div className="relative flex-1">
                     <svg
                       className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[#b0aea5]"
@@ -864,8 +884,26 @@ export default function Sidebar({
                       </svg>
                     )}
                   </button>
+                  <button
+                    onClick={() => setShowAllFiles((v) => !v)}
+                    title={
+                      showAllFiles
+                        ? "Exit super admin mode"
+                        : "Super admin — reveal every file on disk"
+                    }
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition ${
+                      showAllFiles
+                        ? "border-[#d97757] bg-[#d97757] text-white hover:bg-[#c4613f]"
+                        : "border-[#e8e6dc] bg-white text-[#b0aea5] hover:bg-[#faf9f5] hover:text-[#141413]"
+                    }`}
+                  >
+                    {/* shield-check — conveys "elevated privilege" at both
+                        rest and active; active state is driven by bg color. */}
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                    </svg>
+                  </button>
                 </div>
-              )}
 
               {(() => {
                 if (userFiles.length === 0) {
