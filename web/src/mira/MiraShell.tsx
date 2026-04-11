@@ -379,11 +379,15 @@ function ChatTemplateCard({ template }: { template: ChatTemplate }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Task panel (used for both outer Mira Task mode and inner
-//  Project.Tasks tab — same component, different static data)
+//  Task panel — Mira's global Task mode landing page.
+//
+//  UniSpace's project-scoped task view lives in its own file
+//  (components/ProjectTasksPanel.tsx) because the two surfaces
+//  have different semantics and will diverge. This component
+//  stays dedicated to Mira's global (cross-project) task mode.
 // ═══════════════════════════════════════════════════════════════
 
-export interface TaskCard {
+interface TaskCard {
   id: string;
   icon: string;
   title: string;
@@ -411,39 +415,9 @@ const GLOBAL_TASKS: TaskCard[] = [
   },
 ];
 
-const PROJECT_TASKS: TaskCard[] = [
-  {
-    id: "1",
-    icon: "📝",
-    title: "Weekly Report Auto-Draft",
-    description: "Generate a weekly status report from session history",
-  },
-  {
-    id: "2",
-    icon: "🔍",
-    title: "File Change Digest",
-    description: "Summarize new and modified files since yesterday",
-  },
-  {
-    id: "3",
-    icon: "✅",
-    title: "Daily TODO Reminder",
-    description: "Check project todos and ping uncompleted ones",
-  },
-];
-
-export function TaskPanel({ scope }: { scope: "global" | "project" }) {
+export function TaskPanel() {
   const [activeTab, setActiveTab] = useState<"Today" | "All">("Today");
   const [showToast, setShowToast] = useState(false);
-
-  const isGlobal = scope === "global";
-  const tasks = isGlobal ? GLOBAL_TASKS : PROJECT_TASKS;
-  const emptyTitle = isGlobal
-    ? "Let's create a new task!"
-    : "Create your first project task";
-  const emptySubtitle = isGlobal
-    ? "Creating a task will automatically perform the operation"
-    : "Tasks run against the current project's files, skills, and agents";
 
   function handleNewTask() {
     setShowToast(true);
@@ -452,23 +426,14 @@ export function TaskPanel({ scope }: { scope: "global" | "project" }) {
 
   return (
     <div className="relative flex min-h-full flex-col overflow-y-auto bg-white">
-      {/* Standalone (Mira Task mode) keeps its own h1 and wide top padding.
-          Embedded (inside CustomizePanel) delegates the header to the parent
-          and tightens the top padding so cards sit under the outer header. */}
-      <div
-        className={`mx-auto w-full max-w-5xl px-10 pb-16 ${
-          isGlobal ? "pt-14" : "pt-6"
-        }`}
-      >
-        {isGlobal && (
-          <h1 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#141413]">
-            Task
-          </h1>
-        )}
+      <div className="mx-auto w-full max-w-5xl px-10 pb-16 pt-14">
+        <h1 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#141413]">
+          Task
+        </h1>
 
         {/* Task cards */}
-        <div className={`${isGlobal ? "mt-5" : ""} grid grid-cols-1 gap-3 md:grid-cols-3`}>
-          {tasks.map((task) => (
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {GLOBAL_TASKS.map((task) => (
             <button
               key={task.id}
               className="group flex items-start gap-3 rounded-2xl border border-[#e8e6dc] bg-white px-5 py-4 text-left transition hover:border-[#b0aea5] hover:shadow-[0_4px_20px_rgba(20,20,19,0.04)]"
@@ -511,9 +476,11 @@ export function TaskPanel({ scope }: { scope: "global" | "project" }) {
         <div className="mt-16 flex flex-col items-center">
           <div className="text-[28px]">⏰</div>
           <div className="mt-2 text-[14px] font-medium text-[#141413]">
-            {emptyTitle}
+            Let's create a new task!
           </div>
-          <div className="mt-1 text-[12px] text-[#b0aea5]">{emptySubtitle}</div>
+          <div className="mt-1 text-[12px] text-[#b0aea5]">
+            Creating a task will automatically perform the operation
+          </div>
           <button
             onClick={handleNewTask}
             className="mt-5 flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white px-4 py-2 text-[13px] text-[#141413] transition hover:border-[#b0aea5]"

@@ -63,12 +63,12 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 // Sub-tabs inside the Customize panel (CustomizeSub type imported below)
-// Order: agents first (most common config), tasks last (least frequent)
+// Order: persona first (most common config), tasks last (least frequent)
 const CUSTOMIZE_SUBS: {
-  key: "agents" | "skills" | "dispatch" | "connectors" | "tasks";
+  key: "persona" | "skills" | "dispatch" | "connectors" | "tasks";
   label: string;
 }[] = [
-  { key: "agents", label: "Persona" },
+  { key: "persona", label: "Persona" },
   { key: "skills", label: "Skills" },
   { key: "dispatch", label: "Dispatch" },
   { key: "connectors", label: "Connectors" },
@@ -275,7 +275,7 @@ export default function Sidebar({
 
   function handleTopTabClick(next: TabKey) {
     if (next === "customize") {
-      if (!customizeSub) onCustomizeSubChange("agents");
+      if (!customizeSub) onCustomizeSubChange("persona");
       return;
     }
     // Files / Datasource — sidebar-only, close any customize takeover

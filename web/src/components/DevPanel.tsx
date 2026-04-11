@@ -37,7 +37,7 @@ interface InspectData {
   };
 }
 
-type Tab = "project" | "agents" | "skills" | "runtime";
+type Tab = "project" | "persona" | "skills" | "runtime";
 
 export default function DevPanel() {
   const { serverUrl, activeSessionId, activeAgent, messages } = useStore();
@@ -66,7 +66,7 @@ export default function DevPanel() {
         <nav className="flex gap-4">
           {([
             { id: "project", label: "Project" },
-            { id: "agents", label: "Agents" },
+            { id: "persona", label: "Persona" },
             { id: "skills", label: "Skills" },
             { id: "runtime", label: "Runtime" },
           ] as const).map((t) => (
@@ -114,8 +114,8 @@ export default function DevPanel() {
           </div>
         ) : tab === "project" ? (
           <ProjectTab data={data} />
-        ) : tab === "agents" ? (
-          <AgentsTab
+        ) : tab === "persona" ? (
+          <PersonaTab
             agents={data.agents}
             activeAgentName={activeAgent?.name || null}
           />
@@ -152,7 +152,7 @@ function ProjectTab({ data }: { data: InspectData }) {
         <KeyValue label="Skills" value={String(data.skills.length)} />
       </Section>
 
-      <Section label="CLAUDE.md (Main Agent)">
+      <Section label="Main Persona (CLAUDE.md)">
         <p className="mb-2 text-[11px] leading-relaxed text-[#b0aea5]">
           This is the project-level instructions loaded at the start of every
           session. It's <span className="text-[#d97757]">one input</span> to
@@ -182,9 +182,9 @@ function ProjectTab({ data }: { data: InspectData }) {
   );
 }
 
-// ── Agents tab ───────────────────────────────────────────────
+// ── Persona tab ──────────────────────────────────────────────
 
-function AgentsTab({
+function PersonaTab({
   agents,
   activeAgentName,
 }: {

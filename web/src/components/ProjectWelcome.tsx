@@ -176,7 +176,7 @@ export default function ProjectWelcome({
               </button>
             )}
             <h1 className="font-['Poppins',_Arial,_sans-serif] text-[20px] font-semibold text-[#141413]">
-              Start a new agent
+              Start a new project
             </h1>
           </div>
           <p className={`mt-2 text-[13px] leading-relaxed text-[#6b6963] ${onClose ? "pl-9" : ""}`}>

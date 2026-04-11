@@ -3,7 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
-import { TaskPanel } from "../mira/MiraShell";
+import ProjectTasksPanel from "./ProjectTasksPanel";
 import type { AgentEditorMode } from "./AgentEditorPanel";
 
 // ═══════════════════════════════════════════════════════════════
@@ -14,7 +14,7 @@ import type { AgentEditorMode } from "./AgentEditorPanel";
 // ═══════════════════════════════════════════════════════════════
 
 export type CustomizeSub =
-  | "agents"
+  | "persona"
   | "skills"
   | "dispatch"
   | "connectors"
@@ -29,7 +29,7 @@ interface Props {
 }
 
 const SUB_TITLES: Record<CustomizeSub, string> = {
-  agents: "Persona",
+  persona: "Persona",
   skills: "Skills",
   dispatch: "Dispatch",
   connectors: "Connectors",
@@ -37,7 +37,7 @@ const SUB_TITLES: Record<CustomizeSub, string> = {
 };
 
 const SUB_SUBTITLES: Record<CustomizeSub, string> = {
-  agents:
+  persona:
     "The main persona that defines this project, plus any subagents you can switch in on demand.",
   skills: "Reusable capabilities the agent can invoke inside a project.",
   dispatch: "Inbound adapters — where the agent receives messages from.",
@@ -73,10 +73,10 @@ export default function CustomizePanel({
 
   // Header action button depends on the current sub
   let headerAction: React.ReactNode = null;
-  if (sub === "agents") {
+  if (sub === "persona") {
     headerAction = (
       <HeaderAction
-        label="New agent"
+        label="New subagent"
         onClick={() => onOpenAgentEditor({ kind: "create" })}
       />
     );
@@ -116,7 +116,7 @@ export default function CustomizePanel({
 
       {/* Body */}
       <div className="min-h-0 flex-1 overflow-hidden">
-        {sub === "agents" && (
+        {sub === "persona" && (
           <AgentsSplit
             globalPrompt={globalPromptFile}
             agents={agentsList}
@@ -134,7 +134,7 @@ export default function CustomizePanel({
             <ConnectorsTable />
           </div>
         )}
-        {sub === "tasks" && <TaskPanel scope="project" />}
+        {sub === "tasks" && <ProjectTasksPanel />}
       </div>
     </div>
   );

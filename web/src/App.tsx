@@ -259,7 +259,7 @@ export default function App() {
         </div>
       ) : miraMode === "task" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-          <TaskPanel scope="global" />
+          <TaskPanel />
         </div>
       ) : miraMode === "customize" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
