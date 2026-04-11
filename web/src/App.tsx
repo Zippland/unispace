@@ -111,6 +111,8 @@ export default function App() {
   const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
   const [miraMode, setMiraMode] = useState<MiraMode>("project");
   const [projectWelcomeOpen, setProjectWelcomeOpen] = useState(false);
+  const [welcomeInitialTemplate, setWelcomeInitialTemplate] =
+    useState<api.ProjectTemplate | null>(null);
   const [skillDialogOpen, setSkillDialogOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
@@ -266,7 +268,11 @@ export default function App() {
       ) : projectWelcomeOpen ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <ProjectWelcome
-            onClose={() => setProjectWelcomeOpen(false)}
+            onClose={() => {
+              setProjectWelcomeOpen(false);
+              setWelcomeInitialTemplate(null);
+            }}
+            initialTemplate={welcomeInitialTemplate ?? undefined}
             onProjectCreated={async (name) => {
               // Switch current project on the server, refresh client state
               try {
@@ -284,6 +290,7 @@ export default function App() {
                 useStore.getState().setFiles(files);
               } catch {}
               setProjectWelcomeOpen(false);
+              setWelcomeInitialTemplate(null);
             }}
           />
         </div>
@@ -321,7 +328,12 @@ export default function App() {
             style={{ width: chatW }}
             className="shrink-0 flex flex-col h-full"
           >
-            <ChatPanel />
+            <ChatPanel
+              onStartFromTemplate={(t) => {
+                setWelcomeInitialTemplate(t);
+                setProjectWelcomeOpen(true);
+              }}
+            />
           </div>
 
           {/* Handle: chat ↔ preview */}
@@ -384,7 +396,12 @@ export default function App() {
       ) : (
         /* No preview: chat fills all remaining space */
         <div className="flex-1 flex flex-col min-w-0 h-full">
-          <ChatPanel />
+          <ChatPanel
+            onStartFromTemplate={(t) => {
+              setWelcomeInitialTemplate(t);
+              setProjectWelcomeOpen(true);
+            }}
+          />
         </div>
       )}
 

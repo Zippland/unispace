@@ -273,9 +273,15 @@ const quotes: [string, string][] = [
   ["Good questions", "find their own answers"],
 ];
 
-function EmptyState() {
+function EmptyState({
+  onStartFromTemplate,
+}: {
+  onStartFromTemplate?: (template: api.ProjectTemplate) => void;
+}) {
+  const { serverUrl } = useStore();
   const [index, setIndex] = useState(() => Math.floor(Math.random() * quotes.length));
   const [fade, setFade] = useState(true);
+  const [templates, setTemplates] = useState<api.ProjectTemplate[]>([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -288,9 +294,23 @@ function EmptyState() {
     return () => clearInterval(timer);
   }, []);
 
+  // Fetch project templates once for the BU exposure strip. Silent on error.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .fetchTemplates(serverUrl)
+      .then((list) => {
+        if (!cancelled) setTemplates(list.slice(0, 6));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl]);
+
   const [line1, line2] = quotes[index];
   return (
-    <div className="flex flex-1 flex-col items-center justify-center">
+    <div className="flex flex-1 flex-col items-center justify-center px-6">
       <svg className="h-6 w-6 text-[#d97757]/25" viewBox="0 0 24 24" fill="currentColor">
         <path d="M4.583 17.321C3.553 16.227 3 15 3 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179zm10 0C13.553 16.227 13 15 13 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179z" />
       </svg>
@@ -299,6 +319,39 @@ function EmptyState() {
         <br />
         <span className="text-[#b0aea5]">{line2}</span>
       </p>
+
+      {/* Template strip — BU-published starters. Clicking one jumps
+          straight to the Project Welcome confirm dialog. */}
+      {templates.length > 0 && onStartFromTemplate && (
+        <div className="mt-12 w-full max-w-2xl">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-[#b0aea5]">
+              Start from a template
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onStartFromTemplate(t)}
+                className="group flex items-start gap-2.5 rounded-xl border border-[#e8e6dc] bg-white px-3 py-2.5 text-left transition hover:border-[#b0aea5] hover:shadow-[0_4px_16px_rgba(20,20,19,0.04)]"
+              >
+                <span className="mt-0.5 text-[18px] leading-none">
+                  {t.icon || "📁"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] font-medium text-[#141413]">
+                    {t.name}
+                  </div>
+                  <div className="mt-0.5 truncate text-[10px] text-[#b0aea5]">
+                    by {t.author}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -426,7 +479,14 @@ function modelLabel(id?: string): string {
   return match?.label ?? id ?? "Sonnet 4.5";
 }
 
-export default function ChatPanel() {
+interface ChatPanelProps {
+  /** Called when user clicks a template card in the empty state's
+   *  "Start from template" strip. Parent typically opens the Project
+   *  Welcome gallery preselected to this template. */
+  onStartFromTemplate?: (template: api.ProjectTemplate) => void;
+}
+
+export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) {
   const {
     serverUrl, activeSessionId, messages, streaming, currentProject,
     setActiveSession, addSession, appendMessage, updateMessage,
@@ -668,7 +728,7 @@ export default function ChatPanel() {
       {/* Messages */}
       {currentMessages.length === 0 ? (
         <main className="flex-1 flex">
-          <EmptyState />
+          <EmptyState onStartFromTemplate={onStartFromTemplate} />
         </main>
       ) : (
         <main className="flex-1 overflow-y-auto">

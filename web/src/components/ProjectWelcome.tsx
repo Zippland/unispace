@@ -15,6 +15,10 @@ interface Props {
   /** Optional close handler — when rendered as takeover with a project
    *  already active, the user can back out. */
   onClose?: () => void;
+  /** If provided, auto-open the create-project confirm dialog for this
+   *  template as soon as the gallery mounts. Used by ChatPanel's empty
+   *  state "start from template" strip to jump straight to the confirm. */
+  initialTemplate?: api.ProjectTemplate;
 }
 
 // Demo BU list — order matters (Explore is pinned first)
@@ -47,7 +51,11 @@ function buColor(bu: string) {
   return BU_COLORS[bu] || "#b0aea5";
 }
 
-export default function ProjectWelcome({ onProjectCreated, onClose }: Props) {
+export default function ProjectWelcome({
+  onProjectCreated,
+  onClose,
+  initialTemplate,
+}: Props) {
   const { serverUrl } = useStore();
   const [templates, setTemplates] = useState<api.ProjectTemplate[]>([]);
   const [activeBU, setActiveBU] = useState<string>("explore");
@@ -77,6 +85,22 @@ export default function ProjectWelcome({ onProjectCreated, onClose }: Props) {
       cancelled = true;
     };
   }, [serverUrl]);
+
+  // If the parent handed us a preselected template, jump straight to the
+  // confirm dialog on first mount. Happens when the ChatPanel empty state
+  // strip is clicked — user already made a choice, no need to show the
+  // full gallery.
+  useEffect(() => {
+    if (initialTemplate && !pending) {
+      setPending(initialTemplate);
+      setPendingName(
+        `${initialTemplate.bu}-${initialTemplate.id.split("/")[1]}-${Math.floor(
+          Math.random() * 900 + 100,
+        )}`,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTemplate]);
 
   const visible = useMemo(() => {
     if (activeBU === "explore") return templates;
