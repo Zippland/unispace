@@ -52,20 +52,21 @@ const HOISTED_NAMES = new Set([
 
 // ── Workspace resource tabs ───────────────────────────────────
 
-type TabKey =
-  | "files"
-  // Customize group — project-level agent configuration
-  | "agents"
-  | "skills"
-  | "dispatch"
-  | "connectors";
+type TabKey = "files" | "agents" | "customize";
 
-const TABS: { key: TabKey; label: string; group?: "customize" }[] = [
+const TABS: { key: TabKey; label: string }[] = [
   { key: "files", label: "Files" },
-  { key: "agents", label: "Agents", group: "customize" },
-  { key: "skills", label: "Skills", group: "customize" },
-  { key: "dispatch", label: "Dispatch", group: "customize" },
-  { key: "connectors", label: "Connectors", group: "customize" },
+  { key: "agents", label: "Agents" },
+  { key: "customize", label: "Customize" },
+];
+
+// Sub-tabs inside the Customize panel
+type CustomizeSub = "skills" | "dispatch" | "connectors";
+
+const CUSTOMIZE_SUBS: { key: CustomizeSub; label: string }[] = [
+  { key: "skills", label: "Skills" },
+  { key: "dispatch", label: "Dispatch" },
+  { key: "connectors", label: "Connectors" },
 ];
 
 // ── Paths (mirror server hoisting) ────────────────────────────
@@ -118,6 +119,7 @@ export default function Sidebar({
 
   // Active workspace tab
   const [activeTabKey, setActiveTabKey] = useState<TabKey>("files");
+  const [customizeSub, setCustomizeSub] = useState<CustomizeSub>("skills");
 
   // Dialog state for create-skill (commands/prompt editing lives in the
   // main area via onOpenAgentEditor, not a modal)
@@ -467,34 +469,23 @@ export default function Sidebar({
 
       {/* ── Resource area: tab nav + action + content ─────── */}
       <div className="flex flex-1 flex-col min-h-0 overflow-hidden px-4 pt-3">
-        {/* Tab nav row — Files on the left, Customize group on the right.
-            The "|" divider visually separates the two concerns. */}
+        {/* Top-level tab nav (Files / Agents / Customize) */}
         <div className="flex items-center justify-between shrink-0">
-          <nav className="flex items-center gap-3 overflow-x-auto">
-            {TABS.map((tab, i) => {
-              const prev = TABS[i - 1];
-              const needsDivider = prev && prev.group !== tab.group;
+          <nav className="flex items-center gap-4 overflow-x-auto">
+            {TABS.map((tab) => {
               const isActive = activeTabKey === tab.key;
               return (
-                <div key={tab.key} className="flex items-center gap-3">
-                  {needsDivider && (
-                    <span
-                      className="h-3.5 w-px bg-[#e8e6dc]"
-                      aria-hidden
-                      title="Customize"
-                    />
-                  )}
-                  <button
-                    onClick={() => setActiveTabKey(tab.key)}
-                    className={`font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium transition ${
-                      isActive
-                        ? "text-[#141413]"
-                        : "text-[#b0aea5] hover:text-[#141413]"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                </div>
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTabKey(tab.key)}
+                  className={`font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium transition ${
+                    isActive
+                      ? "text-[#141413]"
+                      : "text-[#b0aea5] hover:text-[#141413]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
               );
             })}
           </nav>
@@ -506,14 +497,6 @@ export default function Sidebar({
               + Upload
             </button>
           )}
-          {activeTabKey === "skills" && (
-            <button
-              onClick={() => setSkillDialog(true)}
-              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
-            >
-              + New
-            </button>
-          )}
           {activeTabKey === "agents" && (
             <button
               onClick={() => onOpenAgentEditor({ kind: "create" })}
@@ -522,7 +505,15 @@ export default function Sidebar({
               + New
             </button>
           )}
-          {activeTabKey === "dispatch" && (
+          {activeTabKey === "customize" && customizeSub === "skills" && (
+            <button
+              onClick={() => setSkillDialog(true)}
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+            >
+              + New
+            </button>
+          )}
+          {activeTabKey === "customize" && customizeSub === "dispatch" && (
             <button
               onClick={onOpenDispatch}
               className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
@@ -531,6 +522,28 @@ export default function Sidebar({
             </button>
           )}
         </div>
+
+        {/* Customize sub-nav (only when Customize tab is active) */}
+        {activeTabKey === "customize" && (
+          <nav className="mt-3 flex items-center gap-1 rounded-lg bg-[#f3f1ea] p-1 shrink-0">
+            {CUSTOMIZE_SUBS.map((sub) => {
+              const isActive = customizeSub === sub.key;
+              return (
+                <button
+                  key={sub.key}
+                  onClick={() => setCustomizeSub(sub.key)}
+                  className={`flex-1 rounded-md px-2.5 py-1 text-[12px] font-medium transition ${
+                    isActive
+                      ? "bg-white text-[#141413] shadow-[0_1px_2px_rgba(20,20,19,0.06)]"
+                      : "text-[#6b6963] hover:text-[#141413]"
+                  }`}
+                >
+                  {sub.label}
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Tab content (scrollable, drag-drop target) */}
         <div
@@ -587,7 +600,7 @@ export default function Sidebar({
               )}
             </div>
           )}
-          {activeTabKey === "skills" && (
+          {activeTabKey === "customize" && customizeSub === "skills" && (
             <SkillsPanel skills={skillsList} onOpenFile={onOpenFile} />
           )}
           {activeTabKey === "agents" && (
@@ -623,13 +636,15 @@ export default function Sidebar({
               }}
             />
           )}
-          {activeTabKey === "dispatch" && (
+          {activeTabKey === "customize" && customizeSub === "dispatch" && (
             <DispatchPanel
               serverUrl={serverUrl}
               onOpenDispatch={onOpenDispatch}
             />
           )}
-          {activeTabKey === "connectors" && <ConnectorsPanel />}
+          {activeTabKey === "customize" && customizeSub === "connectors" && (
+            <ConnectorsPanel />
+          )}
         </div>
       </div>
 
