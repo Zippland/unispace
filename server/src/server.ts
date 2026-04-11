@@ -386,21 +386,19 @@ export function createServer(_initialConfig: Config) {
     }
 
     // Hoist .claude/{skills,agents}/ as top-level entries for the UI;
-    // paths inside stay as .claude/* so reads still resolve.
+    // paths inside stay as .claude/* so reads still resolve. The raw
+    // .claude folder itself is always stripped from the top-level tree —
+    // it's an internal config dir and has no user-facing meaning.
     const claudeDir = tree.find((e) => e.name === ".claude" && e.type === "directory");
-    if (claudeDir?.children) {
-      const skillsDir = claudeDir.children.find(
-        (c) => c.name === "skills" && c.type === "directory",
-      );
-      const agentsDir = claudeDir.children.find(
-        (c) => c.name === "agents" && c.type === "directory",
-      );
-      if (skillsDir || agentsDir) {
-        tree = tree.filter((e) => e.name !== ".claude");
-        if (agentsDir) tree.unshift(agentsDir);
-        if (skillsDir) tree.unshift(skillsDir);
-      }
-    }
+    const skillsDir = claudeDir?.children?.find(
+      (c) => c.name === "skills" && c.type === "directory",
+    );
+    const agentsDir = claudeDir?.children?.find(
+      (c) => c.name === "agents" && c.type === "directory",
+    );
+    tree = tree.filter((e) => e.name !== ".claude");
+    if (agentsDir) tree.unshift(agentsDir);
+    if (skillsDir) tree.unshift(skillsDir);
 
     return c.json(tree);
   });

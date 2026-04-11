@@ -55,6 +55,17 @@ function buColor(bu: string) {
   return BU_COLORS[bu] || "#b0aea5";
 }
 
+// Default project name suggestion for a template. Shared by openConfirm
+// (user clicks a card) and the initialTemplate useEffect (parent preselected
+// a template). Blank gets a dedicated prefix because its id has no "/" and
+// a naive `${bu}-${id.split("/")[1]}` produces "community-undefined-XXX".
+function defaultPendingName(tmpl: { id: string; bu: string }): string {
+  const suffix = Math.floor(Math.random() * 900 + 100);
+  if (tmpl.id === "__blank__") return `blank-${suffix}`;
+  const slug = tmpl.id.split("/")[1] || tmpl.id;
+  return `${tmpl.bu}-${slug}-${suffix}`;
+}
+
 export default function ProjectWelcome({
   onProjectCreated,
   onClose,
@@ -101,11 +112,7 @@ export default function ProjectWelcome({
   useEffect(() => {
     if (initialTemplate && !pending) {
       setPending(initialTemplate);
-      setPendingName(
-        `${initialTemplate.bu}-${initialTemplate.id.split("/")[1]}-${Math.floor(
-          Math.random() * 900 + 100,
-        )}`,
-      );
+      setPendingName(defaultPendingName(initialTemplate));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTemplate]);
@@ -124,12 +131,7 @@ export default function ProjectWelcome({
       return;
     }
     setPending(tmpl);
-    const suffix = Math.floor(Math.random() * 900 + 100);
-    if (tmpl.id === "__blank__") {
-      setPendingName(`blank-${suffix}`);
-    } else {
-      setPendingName(`${tmpl.bu}-${tmpl.id.split("/")[1]}-${suffix}`);
-    }
+    setPendingName(defaultPendingName(tmpl));
     setError("");
   }
 
@@ -179,7 +181,7 @@ export default function ProjectWelcome({
           </div>
           <p className={`mt-2 text-[13px] leading-relaxed text-[#6b6963] ${onClose ? "pl-9" : ""}`}>
             Pick a template published by your BU, or start from a blank canvas.
-            Each template ships a CLAUDE.md persona, any skills, and the recommended model.
+            Each template ships a Main Agent, curated skills, and the recommended model.
           </p>
         </div>
       </div>
@@ -233,7 +235,8 @@ export default function ProjectWelcome({
                   openConfirm({
                     id: "__blank__",
                     name: "Blank Project",
-                    description: "Empty CLAUDE.md, no preloaded skills.",
+                    description:
+                      "Empty workspace. Bring your own files, data, and customize agents as you go.",
                     author: "Mira",
                     bu: "community",
                   })
@@ -400,7 +403,7 @@ function BlankCard({ onClick }: { onClick: () => void }) {
           Blank project
         </div>
         <div className="mt-1 text-[12px] leading-relaxed text-[#6b6963]">
-          Start empty — add your own CLAUDE.md, skills, and agents.
+          Start empty. Add files, data, and customize agents as you go.
         </div>
         <div className="mt-3 text-[11px] text-[#b0aea5]">by Mira</div>
       </div>

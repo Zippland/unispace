@@ -256,9 +256,6 @@ export function createProjectFromTemplate(
   // Templates don't ship a sessions/ subdir — every project needs one
   const sessDir = paths.projectSessions(safeName);
   if (!existsSync(sessDir)) mkdirSync(sessDir, { recursive: true });
-  // Same for a files/ scratch dir
-  const filesDir = join(dst, "files");
-  if (!existsSync(filesDir)) mkdirSync(filesDir, { recursive: true });
 }
 
 /** Create an empty project scaffold with a minimal CLAUDE.md and the
@@ -275,8 +272,6 @@ export function createBlankProject(name: string): void {
   }
   mkdirSync(dst, { recursive: true });
   mkdirSync(join(dst, "sessions"), { recursive: true });
-  mkdirSync(join(dst, "files"), { recursive: true });
-  mkdirSync(join(dst, ".claude"), { recursive: true });
   writeFileSync(
     join(dst, "CLAUDE.md"),
     `# ${safeName}\n\nYour project's main agent. Describe who this agent is, what it knows, and how it should behave.\n`,
