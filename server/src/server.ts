@@ -14,6 +14,7 @@ import {
   listProjects,
   projectExists,
   cloneProject,
+  createBlankProject,
   deleteProject,
   listTemplates,
   createProjectFromTemplate,
@@ -290,6 +291,17 @@ export function createServer(_initialConfig: Config) {
     }
     try {
       createProjectFromTemplate(templateId, projectName);
+      return c.json({ ok: true, name: projectName });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400);
+    }
+  });
+
+  app.post("/api/projects/blank", async (c) => {
+    const { projectName } = await c.req.json();
+    if (!projectName) return c.json({ error: "projectName required" }, 400);
+    try {
+      createBlankProject(projectName);
       return c.json({ ok: true, name: projectName });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);

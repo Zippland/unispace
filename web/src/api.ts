@@ -108,6 +108,19 @@ export async function createProjectFromTemplate(
   return res.json();
 }
 
+export async function createBlankProject(url: string, projectName: string) {
+  const res = await fetch(`${url}/api/projects/blank`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectName }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Create failed" }));
+    throw new Error(err.error || "Create failed");
+  }
+  return res.json();
+}
+
 // ── Project settings (currently just model) ───────────────────
 
 export interface ProjectSettings {

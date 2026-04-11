@@ -261,6 +261,28 @@ export function createProjectFromTemplate(
   if (!existsSync(filesDir)) mkdirSync(filesDir, { recursive: true });
 }
 
+/** Create an empty project scaffold with a minimal CLAUDE.md and the
+ *  standard subdirectories. Used by the "Blank project" card in the
+ *  welcome gallery. */
+export function createBlankProject(name: string): void {
+  const safeName = name.trim().replace(/[^a-zA-Z0-9-_]/g, "-");
+  if (!safeName) throw new Error("Invalid project name");
+  const dst = paths.project(safeName);
+  if (existsSync(dst)) throw new Error(`Project already exists: ${safeName}`);
+
+  if (!existsSync(paths.projectsRoot())) {
+    mkdirSync(paths.projectsRoot(), { recursive: true });
+  }
+  mkdirSync(dst, { recursive: true });
+  mkdirSync(join(dst, "sessions"), { recursive: true });
+  mkdirSync(join(dst, "files"), { recursive: true });
+  mkdirSync(join(dst, ".claude"), { recursive: true });
+  writeFileSync(
+    join(dst, "CLAUDE.md"),
+    `# ${safeName}\n\nYour project's main agent. Describe who this agent is, what it knows, and how it should behave.\n`,
+  );
+}
+
 /** Recursively delete a project folder. Throws if it doesn't exist.
  *  Caller is responsible for enforcing "can't delete current / only
  *  project" policy at the API layer. */

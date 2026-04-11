@@ -124,9 +124,12 @@ export default function ProjectWelcome({
       return;
     }
     setPending(tmpl);
-    setPendingName(
-      `${tmpl.bu}-${tmpl.id.split("/")[1]}-${Math.floor(Math.random() * 900 + 100)}`,
-    );
+    const suffix = Math.floor(Math.random() * 900 + 100);
+    if (tmpl.id === "__blank__") {
+      setPendingName(`blank-${suffix}`);
+    } else {
+      setPendingName(`${tmpl.bu}-${tmpl.id.split("/")[1]}-${suffix}`);
+    }
     setError("");
   }
 
@@ -135,7 +138,15 @@ export default function ProjectWelcome({
     setCreating(true);
     setError("");
     try {
-      await api.createProjectFromTemplate(serverUrl, pending.id, pendingName.trim());
+      if (pending.id === "__blank__") {
+        await api.createBlankProject(serverUrl, pendingName.trim());
+      } else {
+        await api.createProjectFromTemplate(
+          serverUrl,
+          pending.id,
+          pendingName.trim(),
+        );
+      }
       await onProjectCreated(pendingName.trim());
       setPending(null);
     } catch (e: any) {
