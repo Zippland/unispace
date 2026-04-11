@@ -119,41 +119,122 @@ export function createServer(_initialConfig: Config) {
     });
   });
 
-  // Debug — SDK now owns the agent loop, so these endpoints just surface
-  // the current project's CLAUDE.md and a placeholder tool list. Kept so the
-  // dev panel doesn't 404.
-  app.get("/api/debug/prompt", async (c) => {
+  // Debug / Inspector — project introspection for the dev panel.
+  // Reports only what the server can honestly see on disk + in memory.
+  // The SDK owns the real system prompt / tool registry, so we don't
+  // pretend to know those.
+  app.get("/api/debug/inspect", async (c) => {
     const cfg = loadConfig();
-    const claudePath = paths.projectClaude(cfg.currentProject);
-    try {
-      const content = await Bun.file(claudePath).text();
-      return c.text(content);
-    } catch {
-      return c.text(`# ${cfg.currentProject}\n\n(CLAUDE.md not found)`);
-    }
-  });
+    const projectName = cfg.currentProject;
+    const projectDir = paths.project(projectName);
 
-  app.get("/api/debug/tools", (c) => {
-    const builtins = [
-      ["Read", "Read a file from the local filesystem."],
-      ["Write", "Write a file to the local filesystem."],
-      ["Edit", "Perform exact string replacements in files."],
-      ["Bash", "Execute shell commands in a persistent session."],
-      ["Glob", "Fast file pattern matching."],
-      ["Grep", "Search file contents with ripgrep."],
-      ["WebFetch", "Fetch and process web content."],
-      ["WebSearch", "Search the web."],
-      ["TodoWrite", "Create and manage a structured task list."],
-      ["Skill", "Invoke a project or user skill."],
-      ["Task", "Launch a subagent for complex multi-step work."],
-    ];
-    return c.json(
-      builtins.map(([name, description]) => ({
-        name,
-        description,
-        parameters: { note: "Managed by claude-agent-sdk" },
-      })),
-    );
+    // CLAUDE.md (project-level system prompt input)
+    let claudeMd: string | null = null;
+    try {
+      claudeMd = await Bun.file(paths.projectClaude(projectName)).text();
+    } catch {}
+
+    // .claude/settings.json
+    let settings: unknown = null;
+    try {
+      settings = JSON.parse(
+        await Bun.file(paths.projectSettings(projectName)).text(),
+      );
+    } catch {}
+
+    // .claude/agents/*.md → parse frontmatter + body preview
+    const agentsDir = resolve(projectDir, ".claude", "agents");
+    const agents: Array<{
+      name: string;
+      description: string;
+      path: string;
+      bytes: number;
+      preview: string;
+    }> = [];
+    try {
+      const entries = await readdir(agentsDir, { withFileTypes: true });
+      for (const e of entries) {
+        if (!e.isFile() || !e.name.toLowerCase().endsWith(".md")) continue;
+        const full = resolve(agentsDir, e.name);
+        try {
+          const raw = await Bun.file(full).text();
+          const { meta, body } = parseFrontmatter(raw);
+          const trimmed = body.trim();
+          agents.push({
+            name: meta.name || e.name.replace(/\.md$/i, ""),
+            description: meta.description || "",
+            path: `.claude/agents/${e.name}`,
+            bytes: raw.length,
+            preview: trimmed.slice(0, 240),
+          });
+        } catch {}
+      }
+    } catch {}
+
+    // .claude/skills/<name>/SKILL.md → parse each
+    const skillsDir = paths.projectSkills(projectName);
+    const skills: Array<{
+      name: string;
+      description: string;
+      path: string;
+      preview: string;
+    }> = [];
+    try {
+      const entries = await readdir(skillsDir, { withFileTypes: true });
+      for (const e of entries) {
+        if (!e.isDirectory()) continue;
+        const skillFile = resolve(skillsDir, e.name, "SKILL.md");
+        try {
+          const raw = await Bun.file(skillFile).text();
+          const { meta, body } = parseFrontmatter(raw);
+          skills.push({
+            name: meta.name || e.name,
+            description: meta.description || "",
+            path: `.claude/skills/${e.name}/SKILL.md`,
+            preview: body.trim().slice(0, 240),
+          });
+        } catch {}
+      }
+    } catch {}
+
+    // SDK package version
+    let sdkVersion: string | null = null;
+    try {
+      const pkg = JSON.parse(
+        await Bun.file(
+          resolve(
+            import.meta.dir,
+            "..",
+            "node_modules",
+            "@anthropic-ai",
+            "claude-agent-sdk",
+            "package.json",
+          ),
+        ).text(),
+      );
+      sdkVersion = pkg.version ?? null;
+    } catch {}
+
+    // Runtime knobs — mirror what agent.ts actually sets on each query
+    const runtime = {
+      settingSources: ["project"],
+      permissionMode: "bypassPermissions",
+      allowDangerouslySkipPermissions: true,
+      sdkVersion,
+    };
+
+    return c.json({
+      project: {
+        name: projectName,
+        path: projectDir,
+        sessionCount: listSessions(projectName).length,
+      },
+      claudeMd,
+      settings,
+      agents,
+      skills,
+      runtime,
+    });
   });
 
   // ── Config ────────────────────────────────────────────────
