@@ -52,12 +52,13 @@ const HOISTED_NAMES = new Set([
 
 // ── Workspace resource tabs ───────────────────────────────────
 
-type TabKey = "files" | "agents" | "customize";
+type TabKey = "files" | "agents" | "customize" | "tasks";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "files", label: "Files" },
   { key: "agents", label: "Agents" },
   { key: "customize", label: "Customize" },
+  { key: "tasks", label: "Tasks" },
 ];
 
 // Sub-tabs inside the Customize panel (CustomizeSub type imported below)
@@ -101,6 +102,8 @@ interface SidebarProps {
   miraMode: MiraMode;
   onMiraModeChange: (mode: MiraMode) => void;
   onOpenProjectWelcome: () => void;
+  projectTasksOpen: boolean;
+  onProjectTasksChange: (open: boolean) => void;
 }
 
 export default function Sidebar({
@@ -113,6 +116,8 @@ export default function Sidebar({
   miraMode,
   onMiraModeChange,
   onOpenProjectWelcome,
+  projectTasksOpen,
+  onProjectTasksChange,
 }: SidebarProps) {
   const {
     projects,
@@ -139,16 +144,25 @@ export default function Sidebar({
   // restore it when the user backs out of Customize.
   const [baseTab, setBaseTab] = useState<"files" | "agents">("files");
 
-  // The effective active tab. Customize wins if a sub is selected.
-  const activeTabKey: TabKey = customizeSub ? "customize" : baseTab;
+  // The effective active tab. Customize and Tasks both drive their own
+  // main-area takeovers; files / agents are sidebar-only.
+  const activeTabKey: TabKey = customizeSub
+    ? "customize"
+    : projectTasksOpen
+      ? "tasks"
+      : baseTab;
 
   function handleTopTabClick(next: TabKey) {
     if (next === "customize") {
-      // Entering Customize — default to Skills if nothing was selected before.
       if (!customizeSub) onCustomizeSubChange("skills");
+      onProjectTasksChange(false);
+    } else if (next === "tasks") {
+      onProjectTasksChange(true);
+      onCustomizeSubChange(null);
     } else {
       setBaseTab(next);
       onCustomizeSubChange(null);
+      onProjectTasksChange(false);
     }
   }
 

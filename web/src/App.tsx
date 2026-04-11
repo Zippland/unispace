@@ -110,6 +110,7 @@ export default function App() {
   const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
   const [miraMode, setMiraMode] = useState<MiraMode>("project");
   const [projectWelcomeOpen, setProjectWelcomeOpen] = useState(false);
+  const [projectTasksOpen, setProjectTasksOpen] = useState(false);
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -241,6 +242,8 @@ export default function App() {
             setMiraMode("project");
             setProjectWelcomeOpen(true);
           }}
+          projectTasksOpen={projectTasksOpen}
+          onProjectTasksChange={setProjectTasksOpen}
         />
       </div>
 
@@ -260,6 +263,10 @@ export default function App() {
       ) : miraMode === "customize" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <GlobalCustomizePanel />
+        </div>
+      ) : projectTasksOpen ? (
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <TaskPanel scope="project" />
         </div>
       ) : projectWelcomeOpen ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
