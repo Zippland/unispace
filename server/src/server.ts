@@ -901,6 +901,59 @@ export function createServer(_initialConfig: Config) {
     return c.json({ code: "SUCC" });
   });
 
+  // ── Playground test endpoint (admin preview) ────────────────
+  // Lets the AgentDetailPage playground tab test an agent without
+  // deploying it. No session persistence — purely ephemeral.
+
+  app.post("/api/admin/agents/:id/test", async (c) => {
+    const agent = getBAgent(c.req.param("id"));
+    if (!agent) return c.json({ code: "NOT_FOUND" }, 404);
+
+    const { message } = await c.req.json();
+    if (!message) return c.json({ error: "message required" }, 400);
+
+    const tracer = createTraceCollector({
+      project: `agent:${agent.id}`,
+      agentName: agent.name,
+      prompt: message,
+    });
+
+    return streamSSE(c, async (stream) => {
+      const ac = new AbortController();
+      c.req.raw.signal.addEventListener("abort", () => ac.abort());
+
+      const tmpDir = join(paths.projectsRoot(), "..", "sandbox-tmp");
+      if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+
+      try {
+        for await (const event of runAgent({
+          prompt: message,
+          cwd: tmpDir,
+          signal: ac.signal,
+        })) {
+          tracer.processEvent(event);
+          try {
+            await stream.writeSSE({
+              event: event.type,
+              data: JSON.stringify(event),
+            });
+          } catch {
+            ac.abort();
+            break;
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        try {
+          await stream.writeSSE({
+            event: "error",
+            data: JSON.stringify({ type: "error", message: msg }),
+          });
+        } catch {}
+      }
+    });
+  });
+
   // ── Response API (consumed by BU systems) ──────────────────
   // Stateless chat endpoint: BU sends a message, gets an SSE stream.
   // Authentication via Bearer token (API key generated in admin).

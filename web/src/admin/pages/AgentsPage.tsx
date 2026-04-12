@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   fetchAgents,
@@ -6,18 +6,27 @@ import {
   deleteAgent,
   type AgentConfig,
 } from "../utils/adminApi";
+import { useAdminContext } from "../stores/adminContext";
+import StatusBadge from "../components/StatusBadge";
 
 export default function AgentsPage() {
   const navigate = useNavigate();
-  const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const activeBu = useAdminContext((s) => s.activeBu);
+  const [allAgents, setAllAgents] = useState<AgentConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<AgentConfig | null>(null);
+
+  // Filter agents by the active BU
+  const agents = useMemo(
+    () => allAgents.filter((a) => !a.bu || a.bu === activeBu),
+    [allAgents, activeBu],
+  );
 
   const refresh = useCallback(() => {
     setLoading(true);
     fetchAgents()
-      .then(setAgents)
-      .catch(() => setAgents([]))
+      .then(setAllAgents)
+      .catch(() => setAllAgents([]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -30,7 +39,7 @@ export default function AgentsPage() {
       system_prompt: "",
       model: "claude-sonnet-4-5",
       skills: [],
-      bu: "",
+      bu: activeBu,
       author: "",
     });
     navigate(`/admin/agents/${agent.id}`);
@@ -93,16 +102,12 @@ export default function AgentsPage() {
                       <h3 className="text-sm font-semibold text-[#141413]">
                         {agent.name}
                       </h3>
+                      <StatusBadge status={agent.status || "draft"} />
                       <span className="rounded-full bg-[#141413]/[0.06] px-2 py-0.5 text-[10px] text-[#6b6963]">
                         {agent.model}
                       </span>
-                      {agent.published && (
-                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
-                          Published
-                        </span>
-                      )}
                       {agent.api?.enabled && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                        <span className="rounded-full bg-[#6a9bcc]/10 px-2 py-0.5 text-[10px] font-medium text-[#6a9bcc]">
                           API
                         </span>
                       )}
@@ -151,7 +156,7 @@ export default function AgentsPage() {
         )}
       </div>
 
-      {/* Delete confirm */}
+      {/* Delete confirm modal */}
       {deleting && (
         <>
           <div
@@ -187,3 +192,4 @@ export default function AgentsPage() {
     </div>
   );
 }
+

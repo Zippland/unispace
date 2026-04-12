@@ -138,6 +138,8 @@ export interface AgentConfig {
   author: string;
   system_prompt: string;
   model: string;
+  /** Lifecycle status */
+  status: "draft" | "review" | "approved" | "live" | "deprecated";
   skills: SkillDef[];
   subagents: SubagentDef[];
   commands: CommandDef[];

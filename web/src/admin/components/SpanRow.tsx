@@ -19,11 +19,11 @@ function SpanIcon({ type }: { type: string }) {
 function spanColor(type: string) {
   switch (type) {
     case SPAN_TYPE_LLM:
-      return "bg-blue-500";
+      return "bg-[#6a9bcc]";
     case SPAN_TYPE_TOOL:
-      return "bg-orange-500";
+      return "bg-[#d97757]";
     default:
-      return "bg-purple-500";
+      return "bg-[#788c5d]";
   }
 }
 

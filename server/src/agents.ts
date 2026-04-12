@@ -163,6 +163,9 @@ export interface AgentConfig {
   /** Sandbox environment configuration */
   environment: EnvironmentConfig;
 
+  /** Lifecycle status */
+  status: "draft" | "review" | "approved" | "live" | "deprecated";
+
   // ── Publish channels ────────────────────────────────────
   /** Response API configuration */
   api: ApiConfig;
@@ -220,6 +223,7 @@ export function getAgent(id: string): AgentConfig | null {
     if (!raw.commands) raw.commands = [];
     if (!raw.default_files) raw.default_files = [];
     if (!raw.icon) raw.icon = "agent";
+    if (!raw.status) raw.status = "draft";
     return raw;
   } catch {
     return null;
@@ -243,6 +247,7 @@ export function listAgents(): AgentConfig[] {
           if (!raw.commands) raw.commands = [];
           if (!raw.default_files) raw.default_files = [];
           if (!raw.icon) raw.icon = "agent";
+          if (!raw.status) raw.status = "draft";
           return raw;
         } catch {
           return null;
@@ -275,6 +280,7 @@ export function createAgent(
     author: data.author || "",
     system_prompt: data.system_prompt || "",
     model: data.model || "claude-sonnet-4-5",
+    status: data.status || "draft",
     skills: data.skills || [],
     subagents: data.subagents || [],
     commands: data.commands || [],

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   fetchAgent,
@@ -13,8 +13,10 @@ import {
   type CommandDef,
   type DefaultFile,
 } from "../utils/adminApi";
+import StatusBadge from "../components/StatusBadge";
+import type { AgentStatus } from "../components/StatusBadge";
 
-type Tab = "persona" | "capabilities" | "workspace" | "publish";
+type Tab = "persona" | "capabilities" | "workspace" | "publish" | "playground" | "users";
 
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -88,6 +90,8 @@ export default function AgentDetailPage() {
       count: agent.default_files.length + agent.environment.mounts.length,
     },
     { key: "publish", label: "Publish" },
+    { key: "playground", label: "Playground" },
+    { key: "users", label: "Users" },
   ];
 
   return (
@@ -108,11 +112,22 @@ export default function AgentDetailPage() {
           </svg>
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold text-[#141413]">
-            {agent.name}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="truncate text-lg font-semibold text-[#141413]">
+              {agent.name}
+            </h1>
+            <StatusBadge status={agent.status || "draft"} />
+          </div>
           <p className="text-[10px] font-mono text-[#b0aea5]">{agent.id}</p>
         </div>
+        <StatusActions
+          status={agent.status || "draft"}
+          onChangeStatus={(status) => {
+            const updated = { ...agent, status };
+            setAgent(updated);
+            updateAgent(agent.id, { status });
+          }}
+        />
         <button
           onClick={handleSave}
           disabled={saving}
@@ -146,21 +161,26 @@ export default function AgentDetailPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="mx-auto max-w-2xl">
-          {activeTab === "persona" && <PersonaTab agent={agent} onChange={setAgent} />}
-          {activeTab === "capabilities" && <CapabilitiesTab agent={agent} onChange={setAgent} />}
-          {activeTab === "workspace" && <WorkspaceTab agent={agent} onChange={setAgent} />}
-          {activeTab === "publish" && (
-            <PublishTab
-              agent={agent} onChange={setAgent}
-              newKeyName={newKeyName} onNewKeyNameChange={setNewKeyName}
-              newKeyValue={newKeyValue} onCreateKey={handleCreateKey}
-              onDismissKey={() => setNewKeyValue(null)} onRevokeKey={handleRevokeKey}
-            />
-          )}
+      {activeTab === "playground" ? (
+        <PlaygroundTab agent={agent} />
+      ) : (
+        <div className="flex-1 overflow-auto p-6">
+          <div className="mx-auto max-w-2xl">
+            {activeTab === "persona" && <PersonaTab agent={agent} onChange={setAgent} />}
+            {activeTab === "capabilities" && <CapabilitiesTab agent={agent} onChange={setAgent} />}
+            {activeTab === "workspace" && <WorkspaceTab agent={agent} onChange={setAgent} />}
+            {activeTab === "publish" && (
+              <PublishTab
+                agent={agent} onChange={setAgent}
+                newKeyName={newKeyName} onNewKeyNameChange={setNewKeyName}
+                newKeyValue={newKeyValue} onCreateKey={handleCreateKey}
+                onDismissKey={() => setNewKeyValue(null)} onRevokeKey={handleRevokeKey}
+              />
+            )}
+            {activeTab === "users" && <UsersTab />}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -596,12 +616,42 @@ function PublishTab({ agent, onChange, newKeyName, onNewKeyNameChange, newKeyVal
   const activeKeys = api.keys.filter((k) => !k.revoked);
   const revokedKeys = api.keys.filter((k) => k.revoked);
 
+  const status: AgentStatus = agent.status || "draft";
+  const locked = status === "draft" || status === "review" || status === "deprecated";
+
   return (
     <div className="space-y-6">
+      {/* Status gate banner */}
+      {(status === "draft" || status === "review") && (
+        <div className="rounded-xl border border-[#d97757]/30 bg-[#d97757]/5 px-5 py-4">
+          <p className="text-sm font-medium text-[#d97757]">
+            This agent must be approved before publishing.
+          </p>
+          <p className="mt-1 text-xs text-[#6b6963]">
+            Current status: <span className="font-medium">{status}</span>
+          </p>
+        </div>
+      )}
+      {status === "approved" && (
+        <div className="rounded-xl border border-[#6a9bcc]/30 bg-[#6a9bcc]/5 px-5 py-4">
+          <p className="text-sm font-medium text-[#6a9bcc]">
+            Pre-configure distribution channels. They will activate when agent goes live.
+          </p>
+        </div>
+      )}
+      {status === "deprecated" && (
+        <div className="rounded-xl border border-[#b0aea5]/30 bg-[#b0aea5]/5 px-5 py-4">
+          <p className="text-sm font-medium text-[#b0aea5]">
+            This agent has been deprecated.
+          </p>
+        </div>
+      )}
+
       <p className="text-xs text-[#6b6963]">
         Three distribution channels. Enable any combination.
       </p>
 
+      <div className={locked ? "opacity-50 pointer-events-none" : ""}>
       {/* Gallery */}
       <div className="flex items-center justify-between rounded-xl border border-[#e8e6dc] bg-white p-5">
         <div className="flex items-center gap-3">
@@ -639,9 +689,6 @@ function PublishTab({ agent, onChange, newKeyName, onNewKeyNameChange, newKeyVal
           <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${api.enabled ? "translate-x-[22px]" : "translate-x-[2px]"}`} />
         </button>
       </div>
-
-      {/* Dispatch (Feishu) */}
-      <DispatchSection agent={agent} onChange={onChange} />
 
       {api.enabled && (
         <>
@@ -720,6 +767,10 @@ function PublishTab({ agent, onChange, newKeyName, onNewKeyNameChange, newKeyVal
           </div>
         </>
       )}
+
+      {/* Dispatch (Feishu) */}
+      <DispatchSection agent={agent} onChange={onChange} />
+      </div>
     </div>
   );
 }
@@ -787,6 +838,328 @@ function DispatchSection({ agent, onChange }: { agent: AgentConfig; onChange: (a
       )}
     </>
   );
+}
+
+// ── Playground tab ─────────────────────────────────────────
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  toolCalls?: string[];
+}
+
+function PlaygroundTab({ agent }: { agent: AgentConfig }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || streaming) return;
+    setInput("");
+    const userMsg: ChatMessage = { role: "user", content: text };
+    setMessages((prev) => [...prev, userMsg]);
+    setStreaming(true);
+
+    const assistantMsg: ChatMessage = { role: "assistant", content: "", toolCalls: [] };
+    setMessages((prev) => [...prev, assistantMsg]);
+    const msgIndex = messages.length + 1; // index of the assistant message
+
+    try {
+      const res = await fetch(`/api/admin/agents/${agent.id}/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!res.ok) {
+        setMessages((prev) => {
+          const arr = [...prev];
+          arr[msgIndex] = { ...arr[msgIndex], content: `Error: ${res.status} ${res.statusText}` };
+          return arr;
+        });
+        setStreaming(false);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        setStreaming(false);
+        return;
+      }
+
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") continue;
+          try {
+            const evt = JSON.parse(data);
+            if (evt.type === "text_delta") {
+              setMessages((prev) => {
+                const arr = [...prev];
+                const msg = arr[msgIndex];
+                arr[msgIndex] = { ...msg, content: msg.content + (evt.content || "") };
+                return arr;
+              });
+            } else if (evt.type === "tool_call") {
+              setMessages((prev) => {
+                const arr = [...prev];
+                const msg = arr[msgIndex];
+                arr[msgIndex] = { ...msg, toolCalls: [...(msg.toolCalls || []), evt.name || "tool"] };
+                return arr;
+              });
+            }
+          } catch {
+            // skip malformed JSON
+          }
+        }
+      }
+    } catch (err: any) {
+      setMessages((prev) => {
+        const arr = [...prev];
+        arr[msgIndex] = { ...arr[msgIndex], content: `Connection error: ${err.message}` };
+        return arr;
+      });
+    }
+    setStreaming(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Messages */}
+      <div ref={scrollRef} className="flex-1 overflow-auto p-6">
+        <div className="mx-auto max-w-2xl space-y-4">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center py-16 text-[#b0aea5]">
+              <svg className="mb-3 h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+              </svg>
+              <p className="text-sm">Test {agent.name}</p>
+              <p className="mt-1 text-xs">Send a message to start a conversation.</p>
+            </div>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
+                  msg.role === "user"
+                    ? "bg-[#e8e6dc] text-[#141413]"
+                    : "border border-[#e8e6dc] bg-white text-[#141413]"
+                }`}
+              >
+                {msg.toolCalls && msg.toolCalls.length > 0 && (
+                  <div className="mb-2 space-y-1">
+                    {msg.toolCalls.map((tc, j) => (
+                      <div key={j} className="flex items-center gap-1.5 rounded-md bg-[#6a9bcc]/10 px-2 py-1 text-[10px] text-[#6a9bcc]">
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l5.653-4.657m0 0a2.678 2.678 0 0 1 3.586 0l1.006-1.006m-4.592 1.006 4.592-1.006" />
+                        </svg>
+                        {tc}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+                {streaming && i === messages.length - 1 && msg.role === "assistant" && (
+                  <span className="ml-1 inline-block h-3 w-1.5 animate-pulse bg-[#d97757] rounded-sm" />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Input */}
+      <div className="border-t border-[#e8e6dc] bg-white px-6 py-4">
+        <div className="mx-auto flex max-w-2xl items-end gap-3">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message..."
+            rows={1}
+            className="flex-1 resize-none rounded-xl border border-[#e8e6dc] bg-[#faf9f5] px-4 py-2.5 text-sm text-[#141413] outline-none transition focus:border-[#141413]"
+          />
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || streaming}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#141413] text-white transition hover:bg-[#2a2a28] disabled:opacity-40"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Users tab ──────────────────────────────────────────────
+
+const MOCK_USERS = [
+  { name: "Zhang Wei", department: "Engineering", lastActive: "2 hours ago", sessions: 47, tokens: 128400 },
+  { name: "Li Na", department: "Finance", lastActive: "4 hours ago", sessions: 35, tokens: 96200 },
+  { name: "Wang Fang", department: "Marketing", lastActive: "1 hour ago", sessions: 29, tokens: 81500 },
+  { name: "Chen Ming", department: "Product", lastActive: "30 minutes ago", sessions: 52, tokens: 145800 },
+  { name: "Liu Yang", department: "Data Science", lastActive: "6 hours ago", sessions: 18, tokens: 54300 },
+  { name: "Zhao Jing", department: "HR", lastActive: "1 day ago", sessions: 12, tokens: 33100 },
+  { name: "Huang Lei", department: "Engineering", lastActive: "3 hours ago", sessions: 41, tokens: 112700 },
+  { name: "Zhou Ting", department: "Operations", lastActive: "5 hours ago", sessions: 23, tokens: 67900 },
+  { name: "Wu Hao", department: "Finance", lastActive: "8 hours ago", sessions: 16, tokens: 44200 },
+  { name: "Xu Lin", department: "Engineering", lastActive: "20 minutes ago", sessions: 63, tokens: 178500 },
+];
+
+function UsersTab() {
+  const [search, setSearch] = useState("");
+  const filtered = MOCK_USERS.filter(
+    (u) =>
+      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      u.department.toLowerCase().includes(search.toLowerCase()),
+  );
+  const activeCount = MOCK_USERS.filter((u) => !u.lastActive.includes("day")).length;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-[#6b6963]">
+          <span className="font-semibold text-[#141413]">{activeCount}</span> active users in the last 7 days
+        </p>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search users..."
+          className="w-56 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-1.5 text-xs text-[#141413] outline-none transition focus:border-[#141413]"
+        />
+      </div>
+
+      <div className="rounded-xl border border-[#e8e6dc] bg-white overflow-hidden">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-[#e8e6dc] bg-[#faf9f5]">
+              <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-[#b0aea5]">User</th>
+              <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-[#b0aea5]">Department</th>
+              <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-[#b0aea5]">Last Active</th>
+              <th className="px-4 py-3 text-right text-[10px] font-medium uppercase tracking-wider text-[#b0aea5]">Sessions</th>
+              <th className="px-4 py-3 text-right text-[10px] font-medium uppercase tracking-wider text-[#b0aea5]">Tokens Used</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((user, i) => (
+              <tr key={i} className="border-b border-[#e8e6dc]/50 transition hover:bg-[#faf9f5]">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e8e6dc] text-[10px] font-semibold text-[#6b6963]">
+                      {user.name.split(" ").map((n) => n[0]).join("")}
+                    </span>
+                    <span className="font-medium text-[#141413]">{user.name}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-[#6b6963]">{user.department}</td>
+                <td className="px-4 py-3 text-[#6b6963]">{user.lastActive}</td>
+                <td className="px-4 py-3 text-right text-[#141413]">{user.sessions}</td>
+                <td className="px-4 py-3 text-right text-[#141413]">{user.tokens.toLocaleString()}</td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-[#b0aea5]">
+                  No users match the filter.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Status actions ──────────────────────────────────────────
+
+function StatusActions({
+  status,
+  onChangeStatus,
+}: {
+  status: AgentStatus;
+  onChangeStatus: (s: AgentStatus) => void;
+}) {
+  if (status === "draft") {
+    return (
+      <button
+        onClick={() => onChangeStatus("review")}
+        className="rounded-lg border border-[#d97757] px-3 py-1.5 text-xs font-medium text-[#d97757] transition hover:bg-[#d97757]/10"
+      >
+        Submit for Review
+      </button>
+    );
+  }
+  if (status === "review") {
+    return (
+      <div className="flex gap-2">
+        <button
+          onClick={() => onChangeStatus("draft")}
+          className="rounded-lg border border-[#e8e6dc] px-3 py-1.5 text-xs font-medium text-[#6b6963] transition hover:bg-[#faf9f5]"
+        >
+          Reject
+        </button>
+        <button
+          onClick={() => onChangeStatus("approved")}
+          className="rounded-lg bg-[#6a9bcc] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#5b8abb]"
+        >
+          Approve
+        </button>
+      </div>
+    );
+  }
+  if (status === "approved") {
+    return (
+      <button
+        onClick={() => onChangeStatus("live")}
+        className="rounded-lg bg-[#788c5d] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#6b7d52]"
+      >
+        Go Live
+      </button>
+    );
+  }
+  if (status === "live") {
+    return (
+      <button
+        onClick={() => onChangeStatus("deprecated")}
+        className="rounded-lg border border-[#b0aea5] px-3 py-1.5 text-xs font-medium text-[#b0aea5] transition hover:bg-[#b0aea5]/10"
+      >
+        Deprecate
+      </button>
+    );
+  }
+  // deprecated — no actions
+  return null;
 }
 
 // ── Primitives ──────────────────────────────────────────────
