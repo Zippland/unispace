@@ -1121,21 +1121,10 @@ function StatusActions({
     );
   }
   if (status === "review") {
+    // Review actions live on the Reviews page, not here.
+    // The agent owner can only wait.
     return (
-      <div className="flex gap-2">
-        <button
-          onClick={() => onChangeStatus("draft")}
-          className="rounded-lg border border-[#e8e6dc] px-3 py-1.5 text-xs font-medium text-[#6b6963] transition hover:bg-[#faf9f5]"
-        >
-          Reject
-        </button>
-        <button
-          onClick={() => onChangeStatus("approved")}
-          className="rounded-lg bg-[#6a9bcc] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#5b8abb]"
-        >
-          Approve
-        </button>
-      </div>
+      <span className="text-xs text-[#b0aea5]">Pending review</span>
     );
   }
   if (status === "approved") {
