@@ -166,7 +166,21 @@ export default function DataSourcePanel({
               g.items.map((item) => (
                 <div
                   key={item.id}
-                  className="group flex cursor-pointer items-center gap-2 rounded-lg py-1.5 pl-8 pr-2 text-[13px] transition hover:bg-[#faf9f5]"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(
+                      "application/json",
+                      JSON.stringify({
+                        type: "datasource",
+                        id: `ds:${g.key}/${item.id}`,
+                        name: item.name,
+                        label: item.name,
+                      }),
+                    );
+                    e.dataTransfer.setData("x-unispace-drag", "datasource");
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                  className="group flex cursor-grab items-center gap-2 rounded-lg py-1.5 pl-8 pr-2 text-[13px] transition hover:bg-[#faf9f5]"
                 >
                   {item.region && (
                     <span

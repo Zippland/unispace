@@ -502,7 +502,12 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
               {msg.files?.map((f) => (
                 <span key={f.path}
                   className="inline-flex items-center gap-1.5 rounded-md bg-[#141413]/[0.04] px-2 py-0.5 text-[12px] font-medium text-[#141413]/70">
-                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${f.kind === "skill" ? "bg-[#d97757]" : "bg-[#6a9bcc]"}`} />
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    f.kind === "skill" || f.kind === "command" ? "bg-[#d97757]"
+                    : f.kind === "datasource" ? "bg-[#788c5d]"
+                    : f.kind === "task" ? "bg-[#a07cc5]"
+                    : "bg-[#6a9bcc]"
+                  }`} />
                   <span className="max-w-[200px] truncate">{f.name}</span>
                 </span>
               ))}
@@ -599,7 +604,8 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
   } = useStore();
 
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<{ path: string; name: string; kind: "file" | "skill" }[]>([]);
+  type AttachmentKind = "file" | "skill" | "command" | "task" | "datasource";
+  const [attachments, setAttachments] = useState<{ path: string; name: string; kind: AttachmentKind }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
   const dragCounterRef = useRef(0);
@@ -657,7 +663,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
 
   // ── File attachment helpers ─────────────────────────────
 
-  function addAttachment(path: string, name: string, kind: "file" | "skill" = "file") {
+  function addAttachment(path: string, name: string, kind: AttachmentKind = "file") {
     setAttachments((prev) =>
       prev.some((a) => a.path === path) ? prev : [...prev, { path, name, kind }],
     );
@@ -709,12 +715,13 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     setIsDragging(false);
     dragCounterRef.current = 0;
 
-    // Internal drag from sidebar (file or skill)
+    // Internal drag from sidebar (file, skill, command, task, datasource)
     if (e.dataTransfer.types.includes("x-unispace-drag")) {
       try {
         const data = JSON.parse(e.dataTransfer.getData("application/json"));
-        if (data.type === "file" || data.type === "skill") {
-          addAttachment(data.path, data.name, data.type);
+        const kind = data.type as AttachmentKind | undefined;
+        if (kind && ["file", "skill", "command", "task", "datasource"].includes(kind)) {
+          addAttachment(data.path || data.id || data.name, data.name || data.label, kind);
         }
       } catch {}
       return;
@@ -753,15 +760,25 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     // chat input has no `#name` shortcut.
     const promptText = rawText;
 
-    // Build message content with file references
+    // Build message content with resource references — each kind gets
+    // its own bracketed marker so the LLM (and server-side expansion)
+    // can handle them distinctly.
     let content = promptText;
     if (attachments.length > 0) {
-      const fileRefs = attachments.filter((a) => a.kind === "file").map((a) => a.path);
-      const skillRefs = attachments.filter((a) => a.kind === "skill").map((a) => a.name);
-      const parts: string[] = [];
-      if (fileRefs.length) parts.push(`[Attached files: ${fileRefs.join(", ")}]`);
-      if (skillRefs.length) parts.push(`[Referenced skills: ${skillRefs.join(", ")}]`);
-      content = parts.join("\n") + (promptText ? `\n\n${promptText}` : "");
+      const byKind = (k: AttachmentKind) =>
+        attachments.filter((a) => a.kind === k);
+      const markers: string[] = [];
+      const fRefs = byKind("file").map((a) => a.path);
+      const sRefs = byKind("skill").map((a) => a.name);
+      const cRefs = byKind("command").map((a) => a.name);
+      const dRefs = byKind("datasource").map((a) => a.name);
+      const tRefs = byKind("task").map((a) => a.name);
+      if (fRefs.length) markers.push(`[Attached files: ${fRefs.join(", ")}]`);
+      if (sRefs.length) markers.push(`[Referenced skills: ${sRefs.join(", ")}]`);
+      if (cRefs.length) markers.push(`[Referenced commands: ${cRefs.join(", ")}]`);
+      if (dRefs.length) markers.push(`[Referenced datasources: ${dRefs.join(", ")}]`);
+      if (tRefs.length) markers.push(`[Referenced tasks: ${tRefs.join(", ")}]`);
+      content = markers.join("\n") + (promptText ? `\n\n${promptText}` : "");
     }
 
     const msgFiles = attachments.length > 0 ? attachments.map(({ path, name, kind }) => ({ path, name, kind })) : undefined;
@@ -838,7 +855,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
   // Built from the file tree: / → CLAUDE.md + commands/,
   // @ → all user files (excluding hoisted resource folders).
 
-  type RefItem = { name: string; path: string; hint?: string };
+  type RefItem = { name: string; path: string; hint?: string; kind?: AttachmentKind };
   const HOISTED = new Set([
     "CLAUDE.md",
     "sessions",
@@ -846,6 +863,19 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     "agents",
     "commands",
   ]);
+
+  // Static datasource names for the @ popover (mirrors DataSourcePanel
+  // seed — real backend datasource listing comes in v0.2).
+  const DS_SEED: RefItem[] = [
+    { name: "revenue_daily_v2", path: "ds:aeolus/revenue_daily_v2", hint: "Aeolus SG", kind: "datasource" },
+    { name: "ads_spend_by_channel", path: "ds:aeolus/ads_spend_by_channel", hint: "Aeolus VA", kind: "datasource" },
+    { name: "user_retention_monthly", path: "ds:aeolus/user_retention_monthly", hint: "Aeolus CN", kind: "datasource" },
+    { name: "mira_feedback_survey", path: "ds:cis-core/mira_feedback_survey", hint: "CIS Core", kind: "datasource" },
+    { name: "dim_org_finance", path: "ds:hive/dim_org_finance", hint: "Hive", kind: "datasource" },
+    { name: "fact_txn_daily", path: "ds:hive/fact_txn_daily", hint: "Hive", kind: "datasource" },
+    { name: "Q1 预算追踪", path: "ds:lark_sheet/q1-budget", hint: "飞书表格", kind: "datasource" },
+    { name: "BU OKR 登记表", path: "ds:lark_sheet/bu-okr", hint: "飞书表格", kind: "datasource" },
+  ];
 
   const candidates: RefItem[] = useMemo(() => {
     if (!popover) return [];
@@ -866,21 +896,24 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
         }
       }
     } else if (popover.trigger === "@") {
+      // Files
       const walk = (list: FileEntry[]) => {
         for (const f of list) {
           if (HOISTED.has(f.name)) continue;
           if (f.type === "file") {
-            pool.push({ name: f.name, path: f.path });
+            pool.push({ name: f.name, path: f.path, kind: "file" });
           }
           if (f.children) walk(f.children);
         }
       };
       walk(files);
+      // Datasources (seed)
+      pool.push(...DS_SEED);
     }
 
     return pool
       .filter((p) => p.name.toLowerCase().includes(q))
-      .slice(0, 8);
+      .slice(0, 10);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popover, files]);
 
@@ -892,10 +925,10 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     const newInput = before + ref + " " + after;
     setInput(newInput);
     setPopover(null);
-    // For @-file refs, also stash them in the attachments chip strip so
-    // the LLM payload includes the path the same way drag-drop does.
+    // Stash in the attachment chip strip. The `kind` determines which
+    // `[Referenced ...]` marker it ends up in when the message is sent.
     if (popover.trigger === "@") {
-      addAttachment(item.path, item.name, "file");
+      addAttachment(item.path, item.name, item.kind ?? "file");
     }
     // Refocus textarea so the user can keep typing without re-clicking.
     requestAnimationFrame(() => textareaRef.current?.focus());
@@ -1025,7 +1058,9 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
                         className={`shrink-0 text-[11px] font-mono ${
                           popover.trigger === "/"
                             ? "text-[#d97757]"
-                            : "text-[#6a9bcc]"
+                            : c.kind === "datasource"
+                              ? "text-[#788c5d]"
+                              : "text-[#6a9bcc]"
                         }`}
                       >
                         {popover.trigger}
@@ -1076,7 +1111,13 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
                       key={a.path}
                       className="inline-flex items-center gap-1 rounded-md bg-[#141413]/[0.04] px-2 py-0.5 text-[12px] text-[#141413]/70"
                     >
-                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.kind === "skill" ? "bg-[#d97757]" : "bg-[#6a9bcc]"}`} />
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        a.kind === "skill" ? "bg-[#d97757]"
+                        : a.kind === "command" ? "bg-[#d97757]"
+                        : a.kind === "datasource" ? "bg-[#788c5d]"
+                        : a.kind === "task" ? "bg-[#a07cc5]"
+                        : "bg-[#6a9bcc]"
+                      }`} />
                       <span className="max-w-[140px] truncate">{a.name}</span>
                       <button
                         onClick={() => removeAttachment(a.path)}
