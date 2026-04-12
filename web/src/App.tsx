@@ -10,8 +10,9 @@ import AgentEditorPanel, {
   type AgentEditorMode,
 } from "./components/AgentEditorPanel";
 import CustomizePanel, {
-  type CustomizeSub,
+  CustomizeContent,
 } from "./components/CustomizePanel";
+import { usePromoted, type CustomizeSub } from "./lib/customize";
 import ProjectWelcome from "./components/ProjectWelcome";
 import { SkillDialog } from "./components/Sidebar";
 import { type MiraMode } from "./mira/MiraChrome";
@@ -117,6 +118,12 @@ export default function App() {
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
+  const [customizeW, setCustomizeW] = usePersistentWidth("us:customize", 200);
+
+  // Promoted set drives both the sidebar's top tab strip and the eye
+  // toggles in the customize sub-nav. Persisted in localStorage.
+  const { promoted, ordered: promotedOrdered, toggle: togglePromoted } =
+    usePromoted();
   const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -239,6 +246,7 @@ export default function App() {
           onOpenAgentEditor={setAgentEditor}
           customizeSub={customizeSub}
           onCustomizeSubChange={setCustomizeSub}
+          promotedTabs={promotedOrdered}
           miraMode={miraMode}
           onMiraModeChange={setMiraMode}
           onOpenProjectWelcome={() => {
@@ -252,6 +260,31 @@ export default function App() {
       <ResizeHandle
         onResize={(dx) => setSidebarW((w) => clamp(w + dx, 180, 400))}
       />
+
+      {/* Customize sub-nav column — slides in as a second sidebar when
+          the gear icon is clicked. Just the vertical sub-nav; the
+          selected sub's content takes over the main area below. */}
+      {customizeSub && (
+        <>
+          <div
+            style={{ width: customizeW }}
+            className="shrink-0 h-full border-r border-[#e8e6dc] bg-white"
+          >
+            <CustomizePanel
+              sub={customizeSub}
+              onSubChange={setCustomizeSub}
+              onClose={() => setCustomizeSub(null)}
+              promoted={promoted}
+              onTogglePromoted={togglePromoted}
+            />
+          </div>
+          <ResizeHandle
+            onResize={(dx) =>
+              setCustomizeW((w) => clamp(w + dx, 160, 320))
+            }
+          />
+        </>
+      )}
 
       {miraMode === "new_chat" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -310,12 +343,12 @@ export default function App() {
           />
         </div>
       ) : customizeSub ? (
-        /* Customize (agents / skills / dispatch / connectors / tasks) takes
-           over the main area */
+        /* Customize selected sub takes over the main area (chat is hidden
+           while customize is open) */
         <div className="flex-1 flex flex-col min-w-0 h-full">
-          <CustomizePanel
+          <CustomizeContent
             sub={customizeSub}
-            onClose={() => setCustomizeSub(null)}
+            onOpenFile={handleOpenFile}
             onOpenDispatch={() => setDispatchOpen(true)}
             onOpenAgentEditor={setAgentEditor}
             onCreateSkill={() => setSkillDialogOpen(true)}

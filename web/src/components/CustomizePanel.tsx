@@ -1,64 +1,148 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
 import ProjectTasksPanel from "./ProjectTasksPanel";
+import FilesPanel, { type FilesPanelHandle } from "./FilesPanel";
+import DataSourcePanel from "./DataSourcePanel";
 import type { AgentEditorMode } from "./AgentEditorPanel";
+import { SUB_NAV, subMeta, type CustomizeSub } from "../lib/customize";
 
 // ═══════════════════════════════════════════════════════════════
-//  CustomizePanel — single surface for everything that configures
-//  the current project: agents / skills / dispatch / connectors /
-//  tasks. Takes over the main area; the sidebar shows the vertical
-//  sub-nav.
+//  CustomizePanel — narrow sub-nav column with eye-toggle promotion.
+//  Lives in its own slide-in column. The selected sub's content
+//  takes over the main area via CustomizeContent (also exported here).
 // ═══════════════════════════════════════════════════════════════
 
-export type CustomizeSub =
-  | "command"
-  | "subagents"
-  | "skills"
-  | "dispatch"
-  | "connectors"
-  | "tasks";
+// Re-export for back-compat with App.tsx and Sidebar.tsx imports.
+export type { CustomizeSub };
 
-interface Props {
+// ── CustomizePanel (narrow nav column — just sub-nav) ────────
+
+export default function CustomizePanel({
+  sub,
+  onSubChange,
+  onClose,
+  promoted,
+  onTogglePromoted,
+}: {
   sub: CustomizeSub;
+  onSubChange: (next: CustomizeSub) => void;
   onClose: () => void;
+  /** Set of promotable subs currently pinned to the sidebar top tabs. */
+  promoted: Set<CustomizeSub>;
+  /** Flip the eye on/off for a promotable sub. */
+  onTogglePromoted: (key: CustomizeSub) => void;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
+      {/* Compact header — close button + "Customize" */}
+      <div className="flex items-center gap-2 border-b border-[#e8e6dc] px-3 py-3">
+        <button
+          onClick={onClose}
+          title="Close customize"
+          className="flex h-6 w-6 items-center justify-center rounded text-[#b0aea5] transition hover:bg-[#faf9f5] hover:text-[#141413]"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <h2 className="flex-1 font-['Poppins',_Arial,_sans-serif] text-[13px] font-semibold tracking-tight text-[#141413]">
+          Customize
+        </h2>
+      </div>
+
+      {/* Vertical sub-nav. Promotable items get an eye toggle on the
+          right that pins them to the top-level sidebar tab strip. */}
+      <nav className="px-2 py-2 overflow-y-auto">
+        {SUB_NAV.map((s) => {
+          const isActive = sub === s.key;
+          const isPinned = !!s.promotable && promoted.has(s.key);
+          return (
+            <div
+              key={s.key}
+              className={`group flex items-center rounded-md transition ${
+                isActive
+                  ? "bg-[#141413]/[0.04]"
+                  : "hover:bg-[#141413]/[0.03]"
+              }`}
+            >
+              <button
+                onClick={() => onSubChange(s.key)}
+                className={`flex flex-1 min-w-0 items-center gap-2 px-2 py-1.5 text-left text-[13px] transition ${
+                  isActive
+                    ? "text-[#141413] font-medium"
+                    : "text-[#6b6963] group-hover:text-[#141413]"
+                }`}
+              >
+                <span
+                  className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+                    isActive ? "bg-[#d97757]" : "bg-transparent"
+                  }`}
+                />
+                <span className="flex-1 truncate">{s.label}</span>
+              </button>
+              {s.promotable && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePromoted(s.key);
+                  }}
+                  title={
+                    isPinned
+                      ? "Unpin from top tabs"
+                      : "Pin to top tabs"
+                  }
+                  className={`mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded transition ${
+                    isPinned
+                      ? "text-[#d97757]"
+                      : "text-[#b0aea5] opacity-0 group-hover:opacity-100 hover:text-[#141413]"
+                  }`}
+                >
+                  {isPinned ? (
+                    /* eye — pinned */
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
+                  ) : (
+                    /* eye-slash — not pinned */
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                    </svg>
+                  )}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+// ── CustomizeContent (wide main-area content for the selected sub) ──
+
+interface ContentProps {
+  sub: CustomizeSub;
+  onOpenFile: (path: string, name: string) => void;
   onOpenDispatch: () => void;
   onOpenAgentEditor: (mode: AgentEditorMode) => void;
   onCreateSkill: () => void;
 }
 
-const SUB_TITLES: Record<CustomizeSub, string> = {
-  command: "Command",
-  subagents: "Subagents",
-  skills: "Skills",
-  dispatch: "Dispatch",
-  connectors: "Connectors",
-  tasks: "Tasks",
-};
-
-const SUB_SUBTITLES: Record<CustomizeSub, string> = {
-  command:
-    "The main CLAUDE.md — the prompt that defines who this project's agent is.",
-  subagents:
-    "Specialized workers the main agent can delegate to. Each has its own prompt and tool access.",
-  skills: "Reusable capabilities the agent can invoke inside a project.",
-  dispatch: "Inbound adapters — where the agent receives messages from.",
-  connectors: "Outbound integrations — services the agent can reach out to.",
-  tasks: "Recurring project operations — scheduled or on-demand.",
-};
-
-export default function CustomizePanel({
+export function CustomizeContent({
   sub,
-  onClose,
+  onOpenFile,
   onOpenDispatch,
   onOpenAgentEditor,
   onCreateSkill,
-}: Props) {
+}: ContentProps) {
+  const [dsPickerOpen, setDsPickerOpen] = useState(false);
+  const filesPanelRef = useRef<FilesPanelHandle>(null);
   const { files } = useStore();
 
-  // Pull skills out of the hoisted file tree the same way Sidebar does
   const skillsFolder = files.find(
     (f) => f.name === "skills" && f.type === "directory",
   );
@@ -66,7 +150,6 @@ export default function CustomizePanel({
     (f) => f.type === "directory",
   );
 
-  // Agents: global CLAUDE.md + .claude/agents/*.md
   const agentsFolder = files.find(
     (f) => f.name === "agents" && f.type === "directory",
   );
@@ -75,7 +158,6 @@ export default function CustomizePanel({
   );
   const globalPromptFile = files.find((f) => f.name === "CLAUDE.md");
 
-  // Commands: user-added .claude/commands/*.md (slash commands)
   const commandsFolder = files.find(
     (f) => f.name === "commands" && f.type === "directory",
   );
@@ -83,7 +165,7 @@ export default function CustomizePanel({
     (c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"),
   );
 
-  // Header action button depends on the current sub
+  // Per-sub header action button
   let headerAction: React.ReactNode = null;
   if (sub === "command") {
     headerAction = (
@@ -105,36 +187,52 @@ export default function CustomizePanel({
     headerAction = (
       <HeaderAction label="Configure" onClick={onOpenDispatch} plus={false} />
     );
+  } else if (sub === "datasource") {
+    headerAction = (
+      <HeaderAction label="Add datasource" onClick={() => setDsPickerOpen(true)} />
+    );
+  } else if (sub === "files") {
+    headerAction = (
+      <HeaderAction
+        label="Upload"
+        onClick={() => filesPanelRef.current?.openUpload()}
+      />
+    );
   }
+
+  const meta = subMeta(sub);
+  const title = meta.label;
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 border-b border-[#e8e6dc] bg-white px-6 py-5">
+      <div className="flex items-start justify-between gap-3 border-b border-[#e8e6dc] bg-white px-8 py-5">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-[#b0aea5] transition hover:bg-[#faf9f5] hover:text-[#141413]"
-              title="Back to chat"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-              </svg>
-            </button>
-            <h2 className="font-['Poppins',_Arial,_sans-serif] text-[16px] font-semibold text-[#141413]">
-              {SUB_TITLES[sub]}
-            </h2>
-          </div>
-          <p className="mt-2 pl-9 text-[12px] leading-relaxed text-[#b0aea5]">
-            {SUB_SUBTITLES[sub]}
+          <h2 className="font-['Poppins',_Arial,_sans-serif] text-[16px] font-semibold text-[#141413]">
+            {title}
+          </h2>
+          <p className="mt-1 text-[12px] leading-relaxed text-[#b0aea5]">
+            {meta.subtitle}
           </p>
         </div>
         {headerAction && <div className="shrink-0">{headerAction}</div>}
       </div>
 
-      {/* Body */}
+      {/* Body — wide split views */}
       <div className="min-h-0 flex-1 overflow-hidden">
+        {sub === "files" && (
+          <div className="h-full max-w-3xl mx-auto">
+            <FilesPanel ref={filesPanelRef} onOpenFile={onOpenFile} />
+          </div>
+        )}
+        {sub === "datasource" && (
+          <div className="h-full max-w-3xl mx-auto overflow-y-auto">
+            <DataSourcePanel
+              pickerOpen={dsPickerOpen}
+              onClosePicker={() => setDsPickerOpen(false)}
+            />
+          </div>
+        )}
         {sub === "command" && (
           <AgentsSplit
             globalPrompt={globalPromptFile}
@@ -165,6 +263,8 @@ export default function CustomizePanel({
     </div>
   );
 }
+
+// ── Compact single-column list (used inside the narrow customize column) ──
 
 // ── Header action pill (right side of CustomizePanel header) ──
 

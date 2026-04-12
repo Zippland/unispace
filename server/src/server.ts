@@ -457,15 +457,16 @@ export function createServer(_initialConfig: Config) {
   });
 
   // ── Files (scoped to current project) ────────────────────
-  // `?all=1` returns the raw project tree without dotfile/IGNORE
-  // filtering, without session enrichment, and without .claude
-  // hoisting — so users can inspect the full on-disk layout.
+  // `?all=1` reveals dotfiles and IGNORE-filtered entries and skips
+  // .claude hoisting — so users can inspect the full on-disk layout.
+  // Session enrichment is orthogonal and always runs, otherwise the
+  // sidebar Recents panel (which reads the sessions folder from this
+  // same tree) would lose titles/updatedAt whenever super-admin mode
+  // is on.
   app.get("/api/files", async (c) => {
     const dir = currentProjectDir();
     const showAll = c.req.query("all") === "1";
     let tree = await listDir(dir, "", 0, showAll);
-
-    if (showAll) return c.json(tree);
 
     // Enrich sessions directory: replace raw filenames with session titles
     const sessDir = tree.find((e) => e.name === "sessions" && e.type === "directory");
@@ -479,6 +480,8 @@ export function createServer(_initialConfig: Config) {
         updatedAt: s.updatedAt,
       }));
     }
+
+    if (showAll) return c.json(tree);
 
     // Hoist .claude/{skills,agents,commands}/ as top-level entries for
     // the UI; paths inside stay as .claude/* so reads still resolve.

@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
-import { SHOW_ALL_FILES_KEY } from "../api";
 import DataSourcePanel from "./DataSourcePanel";
+import FilesPanel, { type FilesPanelHandle } from "./FilesPanel";
 
 // ── Icons ─────────────────────────────────────────────────────
 
@@ -43,39 +43,12 @@ function ChannelBadge({ channel }: { channel: string }) {
   );
 }
 
-// ── Hoisted / reserved top-level entries (surfaced under their own tabs) ──
-
-const HOISTED_NAMES = new Set([
-  "CLAUDE.md",
-  "sessions",
-  "skills",
-  "agents",
-  "commands",
-]);
-
 // ── Workspace resource tabs ───────────────────────────────────
-
-type TabKey = "files" | "datasource" | "customize";
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "files", label: "Files" },
-  { key: "datasource", label: "Datasource" },
-  { key: "customize", label: "Customize" },
-];
-
-// Sub-tabs inside the Customize panel (CustomizeSub type imported below)
-// Order: persona first (most common config), tasks last (least frequent)
-const CUSTOMIZE_SUBS: {
-  key: "command" | "subagents" | "skills" | "dispatch" | "connectors" | "tasks";
-  label: string;
-}[] = [
-  { key: "command", label: "Command" },
-  { key: "subagents", label: "Subagents" },
-  { key: "skills", label: "Skills" },
-  { key: "dispatch", label: "Dispatch" },
-  { key: "connectors", label: "Connectors" },
-  { key: "tasks", label: "Tasks" },
-];
+// The top-level resource tab strip is dynamic now: the visible
+// tabs come from the `promotedTabs` prop (driven by the eye toggles
+// in the customize sub-nav). Tab labels are derived from the
+// shared customize registry, so adding a new promotable resource
+// is a one-line edit in src/lib/customize.ts.
 
 // ── Paths (mirror server hoisting) ────────────────────────────
 
@@ -88,103 +61,10 @@ const RECENTS_MIN_HEIGHT = 80;
 const RECENTS_MAX_HEIGHT = 500;
 const RECENTS_HEIGHT_KEY = "us:recents_height";
 
-// ── Files view mode (folder tree vs. time-sorted flat list) ───
-
-type FileViewMode = "folder" | "timeline";
-const FILE_VIEW_MODE_KEY = "us:file_view_mode";
-
-/** Walk a nested FileEntry tree and return every leaf (file, not dir),
- *  sorted by updatedAt descending. Used for the timeline view. */
-function flattenFiles(nodes: FileEntry[]): FileEntry[] {
-  const out: FileEntry[] = [];
-  const walk = (list: FileEntry[]) => {
-    for (const n of list) {
-      if (n.type === "file") out.push(n);
-      if (n.children) walk(n.children);
-    }
-  };
-  walk(nodes);
-  out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  return out;
-}
-
-/** Keyword-filter a file tree: keep matching files and any directories
- *  that have at least one matching descendant. Empty dirs are pruned. */
-function filterTree(nodes: FileEntry[], keyword: string): FileEntry[] {
-  const k = keyword.trim().toLowerCase();
-  if (!k) return nodes;
-  const walk = (list: FileEntry[]): FileEntry[] => {
-    const out: FileEntry[] = [];
-    for (const n of list) {
-      if (n.type === "file") {
-        if (n.name.toLowerCase().includes(k)) out.push(n);
-      } else {
-        const kids = walk(n.children || []);
-        if (kids.length > 0) out.push({ ...n, children: kids });
-      }
-    }
-    return out;
-  };
-  return walk(nodes);
-}
-
-/** Keyword-filter a flat file list. */
-function filterFlat(files: FileEntry[], keyword: string): FileEntry[] {
-  const k = keyword.trim().toLowerCase();
-  if (!k) return files;
-  return files.filter((f) => f.name.toLowerCase().includes(k));
-}
-
-/** Short relative time: "now" | "3h" | "2d" | "4m" (month) | "1y". */
-function relTime(ms?: number): string {
-  if (!ms) return "";
-  const diff = Date.now() - ms;
-  if (diff < 0) return "now";
-  const h = Math.floor(diff / 3_600_000);
-  if (h < 1) return "now";
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d`;
-  const mo = Math.floor(d / 30);
-  if (mo < 12) return `${mo}m`;
-  const y = Math.floor(d / 365);
-  return `${y}y`;
-}
-
-/** Bucket a time-sorted flat file list into Today / Yesterday / This week
- *  / This month / Older groups. Empty buckets are dropped. */
-function groupByTime(
-  files: FileEntry[],
-): { label: string; items: FileEntry[] }[] {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const todayMs = start.getTime();
-  const yesterdayMs = todayMs - 86_400_000;
-  const weekMs = todayMs - 7 * 86_400_000;
-  const monthMs = todayMs - 30 * 86_400_000;
-
-  const buckets: { label: string; items: FileEntry[] }[] = [
-    { label: "Today", items: [] },
-    { label: "Yesterday", items: [] },
-    { label: "This week", items: [] },
-    { label: "This month", items: [] },
-    { label: "Older", items: [] },
-  ];
-  for (const f of files) {
-    const t = f.updatedAt || 0;
-    if (t >= todayMs) buckets[0].items.push(f);
-    else if (t >= yesterdayMs) buckets[1].items.push(f);
-    else if (t >= weekMs) buckets[2].items.push(f);
-    else if (t >= monthMs) buckets[3].items.push(f);
-    else buckets[4].items.push(f);
-  }
-  return buckets.filter((b) => b.items.length > 0);
-}
-
 // ── Sidebar ───────────────────────────────────────────────────
 
 import type { AgentEditorMode } from "./AgentEditorPanel";
-import type { CustomizeSub } from "./CustomizePanel";
+import { subMeta, type CustomizeSub } from "../lib/customize";
 import {
   MiraBrand,
   MiraModeButton,
@@ -201,6 +81,9 @@ interface SidebarProps {
   onOpenAgentEditor: (mode: AgentEditorMode) => void;
   customizeSub: CustomizeSub | null;
   onCustomizeSubChange: (sub: CustomizeSub | null) => void;
+  /** Promotable subs currently pinned to the sidebar top tab strip,
+   *  in display order. Driven by the eye toggles in CustomizePanel. */
+  promotedTabs: CustomizeSub[];
   miraMode: MiraMode;
   onMiraModeChange: (mode: MiraMode) => void;
   onOpenProjectWelcome: () => void;
@@ -213,6 +96,7 @@ export default function Sidebar({
   onOpenAgentEditor,
   customizeSub,
   onCustomizeSubChange,
+  promotedTabs,
   miraMode,
   onMiraModeChange,
   onOpenProjectWelcome,
@@ -239,49 +123,41 @@ export default function Sidebar({
   const [projectDeleteTarget, setProjectDeleteTarget] = useState<string | null>(null);
   const [projectDeleteError, setProjectDeleteError] = useState("");
 
-  // Sidebar-only tab state (files vs. datasource). Customize is a
-  // separate dimension because it drives a main-area takeover via
-  // customizeSub; when customizeSub is set it wins as the active tab.
-  const [sidebarTab, setSidebarTab] = useState<"files" | "datasource">("files");
-  const activeTabKey: TabKey = customizeSub ? "customize" : sidebarTab;
+  // Sidebar resource tab. Customize is no longer a peer — it lives in
+  // its own slide-in column, opened via the gear icon next to the
+  // project switcher. The visible tab strip is dynamic, derived from
+  // the `promotedTabs` prop. The active tab tracks the user's last
+  // pick but auto-falls-back if it gets unpromoted.
+  const [sidebarTab, setSidebarTab] = useState<CustomizeSub | null>(
+    () => promotedTabs[0] ?? null,
+  );
+
+  // If the active tab is no longer in the promoted set (user just
+  // unpinned it via the eye toggle), fall back to the first promoted
+  // tab. If nothing is promoted, leave it null and show an empty hint.
+  useEffect(() => {
+    if (sidebarTab && promotedTabs.includes(sidebarTab)) return;
+    setSidebarTab(promotedTabs[0] ?? null);
+  }, [promotedTabs, sidebarTab]);
+
+  const activeTabKey = sidebarTab;
 
   // Datasource picker dialog open state (demo — handled inside the panel).
   const [dsPickerOpen, setDsPickerOpen] = useState(false);
 
-  // Files panel view mode — "folder" tree or "timeline" flat list by mtime.
-  // Persisted so the choice sticks across reloads.
-  const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
-    if (typeof window === "undefined") return "folder";
-    const saved = window.localStorage.getItem(FILE_VIEW_MODE_KEY);
-    return saved === "timeline" ? "timeline" : "folder";
-  });
-  useEffect(() => {
-    window.localStorage.setItem(FILE_VIEW_MODE_KEY, fileViewMode);
-  }, [fileViewMode]);
+  // Imperative handle to FilesPanel — lets the tab nav header host
+  // the + Upload button while FilesPanel keeps ownership of the
+  // hidden file input + drag/drop logic.
+  const filesPanelRef = useRef<FilesPanelHandle>(null);
 
-  // Client-side file search — filters both view modes.
-  const [fileSearch, setFileSearch] = useState("");
+  // Lightweight toast for sidebar-side demo actions ("+ New task")
+  const [sidebarToast, setSidebarToast] = useState<string | null>(null);
+  function flashSidebarToast(msg: string) {
+    setSidebarToast(msg);
+    window.setTimeout(() => setSidebarToast(null), 2400);
+  }
 
-  // "Show all" — bypass the hoisted/ignored filter and fetch the raw
-  // project tree. Persisted in localStorage under the same key that
-  // api.fetchFiles reads, so the server call auto-includes ?all=1.
-  const [showAllFiles, setShowAllFiles] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(SHOW_ALL_FILES_KEY) === "1";
-  });
-  useEffect(() => {
-    window.localStorage.setItem(SHOW_ALL_FILES_KEY, showAllFiles ? "1" : "0");
-    // Refetch so the server returns the right tree under the new flag.
-    api.fetchFiles(serverUrl).then(setFiles).catch(() => {});
-  }, [showAllFiles, serverUrl, setFiles]);
-
-  function handleTopTabClick(next: TabKey) {
-    if (next === "customize") {
-      if (!customizeSub) onCustomizeSubChange("command");
-      return;
-    }
-    // Files / Datasource — sidebar-only, close any customize takeover
-    onCustomizeSubChange(null);
+  function handleTopTabClick(next: CustomizeSub) {
     setSidebarTab(next);
   }
 
@@ -304,7 +180,7 @@ export default function Sidebar({
     const path = `${SKILLS_DIR}/${slug}/SKILL.md`;
     const stub = `---\nname: ${slug}\ndescription: describe what this skill does\n---\n\n# ${name.trim()}\n\nDescribe how to use this skill.\n`;
     await api.saveFile(serverUrl, path, stub);
-    await refreshFiles();
+    setFiles(await api.fetchFiles(serverUrl));
     setSkillDialog(false);
   }
 
@@ -396,89 +272,6 @@ export default function Sidebar({
     }
   }
 
-  // ── Upload state ────────────────────────────────────────
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-  const dragCounterRef = useRef(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  async function refreshFiles() {
-    setFiles(await api.fetchFiles(serverUrl));
-  }
-
-  // ── Upload logic ────────────────────────────────────────
-  const handleUpload = useCallback(async (file: File) => {
-    const MAX_SIZE = 50 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      setUploadError(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 50MB.`);
-      setTimeout(() => setUploadError(""), 3000);
-      return;
-    }
-    setUploading(true);
-    try {
-      await api.uploadFile(serverUrl, file);
-      await refreshFiles();
-    } catch {
-      setUploadError("Upload failed");
-      setTimeout(() => setUploadError(""), 3000);
-    }
-    setUploading(false);
-  }, [serverUrl]);
-
-  // ── Drag handlers (copied from finance_agent) ───────────
-  const isExternalFileDrag = useCallback((e: React.DragEvent): boolean => {
-    return e.dataTransfer.types.includes("Files");
-  }, []);
-
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isExternalFileDrag(e)) return;
-    dragCounterRef.current += 1;
-    if (dragCounterRef.current > 0) setIsDragging(true);
-  }, [isExternalFileDrag]);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current -= 1;
-    if (dragCounterRef.current <= 0) {
-      setIsDragging(false);
-      dragCounterRef.current = 0;
-    }
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isExternalFileDrag(e)) {
-      e.dataTransfer.dropEffect = "copy";
-    } else {
-      e.dataTransfer.dropEffect = "none";
-    }
-  }, [isExternalFileDrag]);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    dragCounterRef.current = 0;
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    for (const file of droppedFiles) {
-      await handleUpload(file);
-    }
-  }, [handleUpload]);
-
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList) return;
-    for (const file of Array.from(fileList)) {
-      handleUpload(file);
-    }
-    e.target.value = "";
-  }, [handleUpload]);
-
   // ── Session actions ─────────────────────────────────────
   function handleNewSession() {
     setActiveSession(null);
@@ -489,15 +282,9 @@ export default function Sidebar({
     const id = sessionPath.replace("sessions/", "").replace(".json", "");
     await api.deleteSession(serverUrl, id);
     removeSession(id);
-    refreshFiles();
+    setFiles(await api.fetchFiles(serverUrl));
   }
 
-  // In "show all" mode, surface the raw tree as-is. Otherwise strip
-  // entries surfaced under their own tabs (CLAUDE.md, sessions, etc.)
-  // so they don't appear twice.
-  const userFiles = showAllFiles
-    ? files
-    : files.filter((f) => !HOISTED_NAMES.has(f.name));
   const sessionsFolder = files.find(
     (f) => f.name === "sessions" && f.type === "directory",
   );
@@ -573,8 +360,9 @@ export default function Sidebar({
         <>
           {/* ── Project header (project switcher only) ───── */}
           <div className="px-3 pt-5 pb-3">
-            {/* ── Project switcher ──────────────────────── */}
-            <div className="relative">
+            {/* ── Project switcher row + customize gear ────── */}
+            <div className="flex items-center gap-1">
+            <div className="relative flex-1 min-w-0">
           <button
             onClick={() => setProjectMenuOpen(!projectMenuOpen)}
             className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-[#141413]/[0.04]"
@@ -672,7 +460,21 @@ export default function Sidebar({
             </>
           )}
         </div>
-
+            <button
+              onClick={() => onCustomizeSubChange(customizeSub ? null : "files")}
+              title={customizeSub ? "Close customize" : "Open customize"}
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition ${
+                customizeSub
+                  ? "bg-[#141413]/[0.06] text-[#141413]"
+                  : "text-[#b0aea5] hover:bg-[#141413]/[0.04] hover:text-[#141413]"
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.108 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.764-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            </button>
+            </div>
       </div>
 
       {/* ── Clone dialog ────────────────────────────────── */}
@@ -764,31 +566,38 @@ export default function Sidebar({
         </>
       )}
 
-      {/* ── Resource area: tab nav + action + content ─────── */}
+      {/* ── Resource area: dynamic tab nav + content ─────── */}
       <div className="flex flex-1 flex-col min-h-0 overflow-hidden px-4 pt-3">
-        {/* Top-level tab nav (Files / Agents / Customize) */}
+        {/* Top-level tab nav — built from `promotedTabs` (eye toggles
+            in customize sub-nav). Empty state if nothing promoted. */}
         <div className="flex items-center justify-between shrink-0">
           <nav className="flex items-center gap-4 overflow-x-auto">
-            {TABS.map((tab) => {
-              const isActive = activeTabKey === tab.key;
+            {promotedTabs.map((key) => {
+              const isActive = activeTabKey === key;
+              const meta = subMeta(key);
               return (
                 <button
-                  key={tab.key}
-                  onClick={() => handleTopTabClick(tab.key)}
+                  key={key}
+                  onClick={() => handleTopTabClick(key)}
                   className={`font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium transition ${
                     isActive
                       ? "text-[#141413]"
                       : "text-[#b0aea5] hover:text-[#141413]"
                   }`}
                 >
-                  {tab.label}
+                  {meta.label}
                 </button>
               );
             })}
+            {promotedTabs.length === 0 && (
+              <span className="text-[12px] text-[#b0aea5]">
+                Open Customize to pin resources here
+              </span>
+            )}
           </nav>
           {activeTabKey === "files" && (
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => filesPanelRef.current?.openUpload()}
               className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
             >
               + Upload
@@ -802,185 +611,32 @@ export default function Sidebar({
               + Add
             </button>
           )}
-          {/* Customize sub actions now live in CustomizePanel's main-area
-              header, not here — keeps the sidebar chrome minimal. */}
+          {activeTabKey === "command" && (
+            <button
+              onClick={() =>
+                onOpenAgentEditor({ kind: "create", target: "command" })
+              }
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+            >
+              + New
+            </button>
+          )}
+          {activeTabKey === "tasks" && (
+            <button
+              onClick={() =>
+                flashSidebarToast("Project task creation is coming soon")
+              }
+              className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+            >
+              + New
+            </button>
+          )}
         </div>
 
-        {/* Tab content (scrollable, drag-drop target) */}
-        <div
-          className="mt-3 flex-1 overflow-y-auto min-h-0 relative -mx-2"
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-        >
-          {/* Drop overlay */}
-          {isDragging && (
-            <div className="absolute inset-0 z-10 mx-2 flex items-center justify-center rounded-lg border-2 border-dashed border-[#d97757] bg-white/90">
-              <div className="flex flex-col items-center gap-1.5">
-                <svg className="h-6 w-6 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                </svg>
-                <span className="text-[13px] text-[#d97757] font-medium">Drop to upload</span>
-              </div>
-            </div>
-          )}
-
-          {/* Upload error */}
-          {uploadError && (
-            <div className="mx-2 mt-1 flex items-center gap-1.5 rounded-lg bg-[#d97757]/[0.06] px-3 py-2 text-[12px] text-[#d97757]">
-              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-              </svg>
-              {uploadError}
-            </div>
-          )}
-
-          {/* Upload progress */}
-          {uploading && (
-            <div className="mx-2 mt-1 flex items-center gap-2 rounded-lg bg-[#faf9f5] px-3 py-2">
-              <div className="h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-[#e8e6dc] border-t-[#d97757]" />
-              <span className="text-[12px] text-[#6b6963]">Uploading...</span>
-            </div>
-          )}
-
-          {/* Hidden file input */}
-          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileInput} />
-
-          {/* Active tab content */}
+        {/* Tab content (scrollable) */}
+        <div className="mt-3 flex-1 overflow-y-auto min-h-0 relative -mx-2">
           {activeTabKey === "files" && (
-            <div className="px-2 pb-2">
-              {/* Search input + view mode + show-all toggles — always
-                  visible so users can reach the show-all toggle even on
-                  empty projects where userFiles has been filtered out. */}
-              <div className="mb-2 flex items-center gap-1.5 px-1">
-                  <div className="relative flex-1">
-                    <svg
-                      className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[#b0aea5]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                    </svg>
-                    <input
-                      value={fileSearch}
-                      onChange={(e) => setFileSearch(e.target.value)}
-                      placeholder="Search files…"
-                      className="w-full rounded-md border border-[#e8e6dc] bg-white py-1 pl-6 pr-6 text-[12px] text-[#141413] outline-none transition placeholder:text-[#b0aea5] focus:border-[#b0aea5]"
-                    />
-                    {fileSearch && (
-                      <button
-                        onClick={() => setFileSearch("")}
-                        className="absolute right-1.5 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413]"
-                        title="Clear"
-                      >
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    onClick={() =>
-                      setFileViewMode(fileViewMode === "folder" ? "timeline" : "folder")
-                    }
-                    title={
-                      fileViewMode === "folder"
-                        ? "Switch to timeline view"
-                        : "Switch to folder view"
-                    }
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[#e8e6dc] bg-white text-[#b0aea5] transition hover:bg-[#faf9f5] hover:text-[#141413]"
-                  >
-                    {fileViewMode === "folder" ? (
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
-                      </svg>
-                    ) : (
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setShowAllFiles((v) => !v)}
-                    title={
-                      showAllFiles
-                        ? "Exit super admin mode"
-                        : "Super admin — reveal every file on disk"
-                    }
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition ${
-                      showAllFiles
-                        ? "border-[#d97757] bg-[#d97757] text-white hover:bg-[#c4613f]"
-                        : "border-[#e8e6dc] bg-white text-[#b0aea5] hover:bg-[#faf9f5] hover:text-[#141413]"
-                    }`}
-                  >
-                    {/* shield-check — conveys "elevated privilege" at both
-                        rest and active; active state is driven by bg color. */}
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-                    </svg>
-                  </button>
-                </div>
-
-              {(() => {
-                if (userFiles.length === 0) {
-                  return (
-                    <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
-                      Drop files here or click upload
-                    </p>
-                  );
-                }
-                const searching = fileSearch.trim().length > 0;
-
-                if (fileViewMode === "folder") {
-                  const filtered = filterTree(userFiles, fileSearch);
-                  if (filtered.length === 0) {
-                    return (
-                      <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
-                        No files match "{fileSearch.trim()}"
-                      </p>
-                    );
-                  }
-                  return filtered.map((f) => (
-                    <FileNode
-                      key={searching ? `s:${f.path}` : f.path}
-                      file={f}
-                      depth={0}
-                      onOpenFile={onOpenFile}
-                      defaultExpanded={searching ? true : undefined}
-                    />
-                  ));
-                }
-
-                // timeline mode — flat, search-filtered, grouped by recency
-                const flat = filterFlat(flattenFiles(userFiles), fileSearch);
-                if (flat.length === 0) {
-                  return (
-                    <p className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
-                      No files match "{fileSearch.trim()}"
-                    </p>
-                  );
-                }
-                return groupByTime(flat).map((g) => (
-                  <div key={g.label} className="mb-2">
-                    <div className="px-3 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-[#b0aea5]">
-                      {g.label}
-                    </div>
-                    {g.items.map((f) => (
-                      <FileNode
-                        key={f.path}
-                        file={f}
-                        depth={0}
-                        onOpenFile={onOpenFile}
-                        timeLabel={relTime(f.updatedAt)}
-                      />
-                    ))}
-                  </div>
-                ));
-              })()}
-            </div>
+            <FilesPanel ref={filesPanelRef} onOpenFile={onOpenFile} />
           )}
           {activeTabKey === "datasource" && (
             <DataSourcePanel
@@ -988,32 +644,18 @@ export default function Sidebar({
               onClosePicker={() => setDsPickerOpen(false)}
             />
           )}
-          {activeTabKey === "customize" && (
-            /* Vertical sub-nav. The actual content/config lives in the
-               CustomizePanel in the main area. */
-            <nav className="px-2 pb-2 pt-1 space-y-0.5">
-              {CUSTOMIZE_SUBS.map((sub) => {
-                const isActive = customizeSub === sub.key;
-                return (
-                  <button
-                    key={sub.key}
-                    onClick={() => onCustomizeSubChange(sub.key)}
-                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition ${
-                      isActive
-                        ? "bg-[#141413]/[0.04] text-[#141413] font-medium"
-                        : "text-[#6b6963] hover:bg-[#141413]/[0.03] hover:text-[#141413]"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
-                        isActive ? "bg-[#d97757]" : "bg-transparent"
-                      }`}
-                    />
-                    <span className="flex-1">{sub.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+          {activeTabKey === "command" && (
+            <SidebarCommandList
+              files={files}
+              onOpenAgentEditor={onOpenAgentEditor}
+            />
+          )}
+          {activeTabKey === "tasks" && <SidebarTaskList />}
+          {activeTabKey === null && (
+            <div className="px-3 py-4 text-[12px] text-[#b0aea5]">
+              No resources pinned. Click the gear icon and pin one with the
+              eye toggle.
+            </div>
           )}
         </div>
       </div>
@@ -1040,6 +682,139 @@ export default function Sidebar({
 
       {/* ── Mira user chip (always at bottom) ─────────────── */}
       <MiraUserChip />
+
+      {sidebarToast && (
+        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#141413] px-4 py-2 text-[12px] text-white shadow-lg">
+          {sidebarToast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sidebar command list — compact rows for CLAUDE.md + commands ──
+// Renders inside the sidebar's Command tab when promoted. Click a row
+// to open it in the main-area AgentEditor.
+
+function SidebarCommandList({
+  files,
+  onOpenAgentEditor,
+}: {
+  files: FileEntry[];
+  onOpenAgentEditor: (mode: AgentEditorMode) => void;
+}) {
+  const claudeMd = files.find((f) => f.name === "CLAUDE.md");
+  const commandsFolder = files.find(
+    (f) => f.name === "commands" && f.type === "directory",
+  );
+  const commandFiles = (commandsFolder?.children || []).filter(
+    (c) => c.type === "file" && c.name.toLowerCase().endsWith(".md"),
+  );
+
+  const rows: { key: string; label: string; path: string; lockName?: boolean }[] = [];
+  if (claudeMd) {
+    rows.push({
+      key: "__claude_md__",
+      label: "CLAUDE.md",
+      path: claudeMd.path || claudeMd.name,
+      lockName: true,
+    });
+  }
+  for (const c of commandFiles) {
+    rows.push({
+      key: c.path,
+      label: c.name.replace(/\.md$/i, ""),
+      path: c.path,
+    });
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="px-3 py-4 text-center text-[12px] text-[#b0aea5]">
+        No commands yet — click + New
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-2 py-1">
+      {rows.map((row) => (
+        <button
+          key={row.key}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData(
+              "application/json",
+              JSON.stringify({
+                type: "command",
+                path: row.path,
+                name: row.label,
+              }),
+            );
+            e.dataTransfer.setData("x-unispace-drag", "command");
+            e.dataTransfer.effectAllowed = "copy";
+          }}
+          onClick={() =>
+            onOpenAgentEditor({
+              kind: "edit",
+              path: row.path,
+              initialName: row.label,
+              lockName: row.lockName,
+            })
+          }
+          className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-[#6b6963] transition hover:bg-[#faf9f5] hover:text-[#141413]"
+        >
+          <svg
+            className="h-3.5 w-3.5 shrink-0 text-[#d97757]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z"
+            />
+          </svg>
+          <span className="flex-1 truncate">{row.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Sidebar task list — compact rows for the static task seed ──
+// Mirrors ProjectTasksPanel's PROJECT_TASKS shape but in a vertical
+// list format that fits the sidebar column.
+
+const SIDEBAR_TASKS = [
+  { id: "weekly-report", icon: "📝", title: "Weekly Report Auto-Draft" },
+  { id: "file-digest", icon: "🔍", title: "File Change Digest" },
+  { id: "todo-reminder", icon: "✅", title: "Daily TODO Reminder" },
+];
+
+function SidebarTaskList() {
+  return (
+    <div className="px-2 py-1">
+      {SIDEBAR_TASKS.map((t) => (
+        <div
+          key={t.id}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData(
+              "application/json",
+              JSON.stringify({ type: "task", id: t.id, name: t.title }),
+            );
+            e.dataTransfer.setData("x-unispace-drag", "task");
+            e.dataTransfer.effectAllowed = "copy";
+          }}
+          className="group flex cursor-grab items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[#6b6963] transition hover:bg-[#faf9f5] hover:text-[#141413]"
+        >
+          <span className="text-[14px] leading-none">{t.icon}</span>
+          <span className="min-w-0 flex-1 truncate">{t.title}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1575,100 +1350,6 @@ function RecentsPanel({
 }
 
 // ── File tree node (for user files) ───────────────────────────
-
-function FileNode({
-  file,
-  depth,
-  onOpenFile,
-  timeLabel,
-  defaultExpanded,
-}: {
-  file: FileEntry;
-  depth: number;
-  onOpenFile: (path: string, name: string) => void;
-  timeLabel?: string;
-  defaultExpanded?: boolean;
-}) {
-  const [expanded, setExpanded] = useState(defaultExpanded ?? depth < 1);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const { serverUrl, setFiles, closeFile } = useStore();
-
-  async function handleDelete() {
-    try {
-      await api.deleteFile(serverUrl, file.path);
-      closeFile(file.path);
-      const files = await api.fetchFiles(serverUrl);
-      setFiles(files);
-    } catch {}
-    setConfirmDelete(false);
-  }
-
-  return (
-    <div>
-      <div
-        className="group flex items-center gap-1.5 py-[3px] px-2 rounded-md hover:bg-[#141413]/[0.03] cursor-pointer text-[13px] transition"
-        style={{ paddingLeft: depth * 16 + 8 }}
-        draggable={file.type === "file"}
-        onDragStart={(e) => {
-          if (file.type !== "file") return;
-          e.dataTransfer.setData("application/json", JSON.stringify({ type: "file", path: file.path, name: file.name }));
-          e.dataTransfer.setData("x-unispace-drag", "file");
-          e.dataTransfer.effectAllowed = "copy";
-        }}
-        onClick={() =>
-          file.type === "directory"
-            ? setExpanded(!expanded)
-            : onOpenFile(file.path, file.name)
-        }
-      >
-        {file.type === "directory" ? (
-          <FolderIcon open={expanded} className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" />
-        ) : (
-          <FileIcon className="h-3.5 w-3.5 shrink-0 text-[#d5d3ca]" />
-        )}
-        <span className={`truncate flex-1 ${file.type === "directory" ? "text-[#141413] font-medium" : "text-[#6b6963]"}`}>
-          {file.name}
-        </span>
-        {timeLabel && (
-          <span className="shrink-0 text-[10px] tabular-nums text-[#b0aea5] group-hover:hidden">
-            {timeLabel}
-          </span>
-        )}
-        {file.type === "file" && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-            className="hidden group-hover:flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757]"
-            title="Delete"
-          >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        )}
-      </div>
-      {expanded &&
-        file.children?.map((c) => (
-          <FileNode
-            key={c.path}
-            file={c}
-            depth={depth + 1}
-            onOpenFile={onOpenFile}
-            defaultExpanded={defaultExpanded}
-          />
-        ))}
-
-      {/* Delete confirm */}
-      {confirmDelete && (
-        <ConfirmDialog
-          title="Delete file"
-          message={`Delete ${file.name} permanently?`}
-          onConfirm={handleDelete}
-          onCancel={() => setConfirmDelete(false)}
-        />
-      )}
-    </div>
-  );
-}
 
 // ── Skill dialog (create skill — minimal) ─────────────────────
 
