@@ -31,6 +31,21 @@ import {
   type ChatMessage,
 } from "./session";
 import { runAgent } from "./agent";
+import {
+  createTraceCollector,
+  listTraces,
+  loadTrace,
+} from "./trace";
+import {
+  listAgents as listBAgents,
+  getAgent as getBAgent,
+  createAgent as createBAgent,
+  saveAgent as saveBAgent,
+  deleteAgent as deleteBAgent,
+  generateApiKey,
+  revokeApiKey,
+  validateApiKey,
+} from "./agents";
 
 // ── File tree ─────────────────────────────────────────────────
 
@@ -704,6 +719,14 @@ export function createServer(_initialConfig: Config) {
       // typed; only the LLM payload sees the resolved bodies.
       const expandedPrompt = await expandSlashCommands(content, projectDir);
 
+      // Trace collection — every agent turn is automatically traced.
+      const tracer = createTraceCollector({
+        project: session.projectName,
+        sessionId: session.id,
+        agentName,
+        prompt: content,
+      });
+
       try {
         for await (const event of runAgent({
           prompt: expandedPrompt,
@@ -714,6 +737,7 @@ export function createServer(_initialConfig: Config) {
           agentDefinition,
         })) {
           applyAgentEvent(event, assistantMsg, session);
+          tracer.processEvent(event);
           try {
             await stream.writeSSE({
               event: event.type,
@@ -749,6 +773,195 @@ export function createServer(_initialConfig: Config) {
         } catch (e) {
           console.error("  [chat] saveSession failed:", e);
         }
+      }
+    });
+  });
+
+  // ── Admin API (traces, agents) ──────────────────────────────
+
+  app.get("/api/admin/traces", (c) => {
+    const limit = parseInt(c.req.query("limit") || "20");
+    const offset = parseInt(c.req.query("offset") || "0");
+    const search = c.req.query("search") || undefined;
+    const result = listTraces({ limit, offset, search });
+    return c.json({
+      code: "SUCC",
+      data: {
+        traces: result.traces.map((t) => ({
+          id: t.id,
+          trace_id: t.id,
+          project: t.project,
+          session_id: t.session_id,
+          agent_name: t.agent_name,
+          query_preview: t.query_preview,
+          status: t.status,
+          start_time: t.start_time,
+          created_at: t.start_time,
+          duration_ms: t.duration_ms,
+          span_count: t.spans.length,
+          error: t.error,
+          metadata: {
+            query_preview: t.query_preview,
+            agent_name: t.agent_name,
+          },
+        })),
+        total: result.total,
+      },
+    });
+  });
+
+  app.get("/api/admin/traces/:id", (c) => {
+    const trace = loadTrace(c.req.param("id"));
+    if (!trace) return c.json({ code: "NOT_FOUND", message: "Trace not found" }, 404);
+
+    const root = trace.spans.find((s) => s.parent_id === null);
+    const children = trace.spans.filter((s) => s.parent_id !== null);
+
+    return c.json({
+      code: "SUCC",
+      data: { root, children },
+    });
+  });
+
+  app.get("/api/admin/traces/:traceId/spans/:spanId", (c) => {
+    const trace = loadTrace(c.req.param("traceId"));
+    if (!trace) return c.json({ code: "NOT_FOUND", message: "Trace not found" }, 404);
+
+    const span = trace.spans.find((s) => s.id === c.req.param("spanId"));
+    if (!span) return c.json({ code: "NOT_FOUND", message: "Span not found" }, 404);
+
+    return c.json({ code: "SUCC", data: span });
+  });
+
+  app.get("/api/admin/traces/:traceId/spans/:spanId/children", (c) => {
+    const trace = loadTrace(c.req.param("traceId"));
+    if (!trace) return c.json({ code: "NOT_FOUND", message: "Trace not found" }, 404);
+
+    const children = trace.spans.filter(
+      (s) => s.parent_id === c.req.param("spanId"),
+    );
+    return c.json({ code: "SUCC", data: children });
+  });
+
+  // ── B-side Agent CRUD (separate from C-side projects) ────────
+  // B-side agents are standalone configurations managed by BU admins.
+  // Each agent can be deployed as a Response API serving many users,
+  // each in their own sandbox.
+
+  app.get("/api/admin/agents", (c) => {
+    return c.json({ code: "SUCC", data: listBAgents() });
+  });
+
+  app.get("/api/admin/agents/:id", (c) => {
+    const agent = getBAgent(c.req.param("id"));
+    if (!agent) return c.json({ code: "NOT_FOUND", message: "Agent not found" }, 404);
+    return c.json({ code: "SUCC", data: agent });
+  });
+
+  app.post("/api/admin/agents", async (c) => {
+    const body = await c.req.json();
+    try {
+      const agent = createBAgent(body);
+      return c.json({ code: "SUCC", data: agent });
+    } catch (e: any) {
+      return c.json({ code: "ERROR", message: e.message }, 400);
+    }
+  });
+
+  app.put("/api/admin/agents/:id", async (c) => {
+    const agent = getBAgent(c.req.param("id"));
+    if (!agent) return c.json({ code: "NOT_FOUND", message: "Agent not found" }, 404);
+    const body = await c.req.json();
+    Object.assign(agent, body, { id: agent.id, created_at: agent.created_at });
+    saveBAgent(agent);
+    return c.json({ code: "SUCC", data: agent });
+  });
+
+  app.delete("/api/admin/agents/:id", (c) => {
+    if (!deleteBAgent(c.req.param("id"))) {
+      return c.json({ code: "NOT_FOUND", message: "Agent not found" }, 404);
+    }
+    return c.json({ code: "SUCC" });
+  });
+
+  // ── API Key management ──────────────────────────────────────
+
+  app.post("/api/admin/agents/:id/keys", async (c) => {
+    const { name } = await c.req.json();
+    const result = await generateApiKey(c.req.param("id"), name || "Default");
+    if (!result) return c.json({ code: "NOT_FOUND", message: "Agent not found" }, 404);
+    // Return the full key only on creation — it's never stored or shown again
+    return c.json({ code: "SUCC", data: { key: result.key, apiKey: result.apiKey } });
+  });
+
+  app.delete("/api/admin/agents/:id/keys/:keyId", (c) => {
+    if (!revokeApiKey(c.req.param("id"), c.req.param("keyId"))) {
+      return c.json({ code: "NOT_FOUND", message: "Key not found" }, 404);
+    }
+    return c.json({ code: "SUCC" });
+  });
+
+  // ── Response API (consumed by BU systems) ──────────────────
+  // Stateless chat endpoint: BU sends a message, gets an SSE stream.
+  // Authentication via Bearer token (API key generated in admin).
+
+  app.post("/api/v1/chat", async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return c.json({ error: "Missing or invalid Authorization header" }, 401);
+    }
+    const rawKey = authHeader.slice(7);
+    const agent = await validateApiKey(rawKey);
+    if (!agent) {
+      return c.json({ error: "Invalid API key" }, 401);
+    }
+
+    const { message, session_id } = await c.req.json();
+    if (!message) return c.json({ error: "message required" }, 400);
+
+    // Trace collection for the Response API call
+    const tracer = createTraceCollector({
+      project: `agent:${agent.id}`,
+      agentName: agent.name,
+      prompt: message,
+    });
+
+    return streamSSE(c, async (stream) => {
+      const ac = new AbortController();
+      c.req.raw.signal.addEventListener("abort", () => ac.abort());
+
+      // The Response API uses a temporary working directory.
+      // In production this would be the user's sandbox mount.
+      // For the demo, use a temp dir under the agents folder.
+      const tmpDir = join(paths.projectsRoot(), "..", "sandbox-tmp");
+      if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+
+      try {
+        for await (const event of runAgent({
+          prompt: message,
+          cwd: tmpDir,
+          resumeSessionId: session_id,
+          signal: ac.signal,
+        })) {
+          tracer.processEvent(event);
+          try {
+            await stream.writeSSE({
+              event: event.type,
+              data: JSON.stringify(event),
+            });
+          } catch {
+            ac.abort();
+            break;
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        try {
+          await stream.writeSSE({
+            event: "error",
+            data: JSON.stringify({ type: "error", message: msg }),
+          });
+        } catch { /* client gone */ }
       }
     });
   });

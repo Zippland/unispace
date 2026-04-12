@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+/* ── Brand typography ────────────────────────────────────────
+   Headings: Poppins | Body: Lora | Mono: system mono
+   Per brand-guidelines SKILL.md                            */
+
+body {
+  font-family: "Lora", Georgia, serif;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  color: #141413;
+  background: #faf9f5;
+}
+
+h1, h2, h3, h4, h5, h6,
+[data-heading] {
+  font-family: "Poppins", Arial, sans-serif;
+}
+
+/* Override for elements using inline font-family Poppins */
+code, pre, .font-mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(176,174,165,0.5); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(176,174,165,0.8); }

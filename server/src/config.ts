@@ -29,6 +29,9 @@ export const paths = {
   projectsRoot: () => join(getDir(), "projects"),
   templatesRoot: () => join(getDir(), "project-templates"),
 
+  // Traces (global, cross-project)
+  tracesRoot: () => join(getDir(), "traces"),
+
   // Per-project
   project: (name: string) => join(getDir(), "projects", name),
   projectClaude: (name: string) => join(getDir(), "projects", name, "CLAUDE.md"),
