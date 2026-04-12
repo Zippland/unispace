@@ -930,6 +930,9 @@ export function createServer(_initialConfig: Config) {
           prompt: message,
           cwd: tmpDir,
           signal: ac.signal,
+          // Inject the agent's persona + model so playground matches real behavior
+          ...(agent.system_prompt ? { systemPromptAppend: agent.system_prompt } : {}),
+          ...(agent.model ? { modelOverride: agent.model } : {}),
         })) {
           tracer.processEvent(event);
           try {

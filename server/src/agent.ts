@@ -33,6 +33,11 @@ export interface RunAgentOptions {
     description: string;
     prompt: string;
   };
+  /** Override the CLAUDE.md persona (used by B-side playground/API
+   *  where the prompt comes from agent config, not a project file). */
+  systemPromptAppend?: string;
+  /** Override the model (used by B-side agents with explicit model). */
+  modelOverride?: string;
 }
 
 // ── Runner ───────────────────────────────────────────────────
@@ -40,7 +45,7 @@ export interface RunAgentOptions {
 export async function* runAgent(
   opts: RunAgentOptions,
 ): AsyncGenerator<AgentEvent> {
-  const { prompt, cwd, resumeSessionId, signal, agentName, agentDefinition } = opts;
+  const { prompt, cwd, resumeSessionId, signal, agentName, agentDefinition, systemPromptAppend, modelOverride } = opts;
 
   const abortController = new AbortController();
   if (signal) signal.addEventListener("abort", () => abortController.abort());
@@ -70,17 +75,22 @@ export async function* runAgent(
         abortController,
         // Isolation mode — nothing auto-loaded from .claude/.
         settingSources: [],
-        // Project persona appended to the Claude Code preset prompt.
-        ...(projectCtx.claudeMd
-          ? {
-              systemPrompt: {
-                type: "preset" as const,
-                preset: "claude_code" as const,
-                append: projectCtx.claudeMd,
-              },
-            }
+        // Persona: B-side override takes precedence over project CLAUDE.md.
+        ...(() => {
+          const persona = systemPromptAppend || projectCtx.claudeMd;
+          return persona
+            ? {
+                systemPrompt: {
+                  type: "preset" as const,
+                  preset: "claude_code" as const,
+                  append: persona,
+                },
+              }
+            : {};
+        })(),
+        ...(modelOverride || projectCtx.model
+          ? { model: modelOverride || projectCtx.model }
           : {}),
-        ...(projectCtx.model ? { model: projectCtx.model } : {}),
         // Demo: skip all permission prompts (sandbox handles isolation in prod)
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,

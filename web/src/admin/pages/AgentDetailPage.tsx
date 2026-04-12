@@ -129,6 +129,12 @@ export default function AgentDetailPage() {
           }}
         />
         <button
+          onClick={() => navigate(`/admin/traces?search=${encodeURIComponent(agent.name)}`)}
+          className="rounded-lg border border-[#e8e6dc] px-3 py-2 text-xs text-[#6b6963] transition hover:bg-white hover:text-[#141413]"
+        >
+          View Traces
+        </button>
+        <button
           onClick={handleSave}
           disabled={saving}
           className="rounded-lg bg-[#141413] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2a2a28] disabled:opacity-50"
@@ -200,10 +206,25 @@ function PersonaTab({ agent, onChange }: { agent: AgentConfig; onChange: (a: Age
       </Field>
       <div className="grid grid-cols-3 gap-4">
         <Field label="Model">
-          <input type="text" value={agent.model} onChange={(e) => set("model", e.target.value)} className={INPUT} />
+          <select value={agent.model} onChange={(e) => set("model", e.target.value)} className={INPUT}>
+            <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+            <option value="claude-opus-4-6">Claude Opus 4.6</option>
+            <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+            <option value="doubao-pro">Doubao Pro</option>
+            <option value="doubao-lite">Doubao Lite</option>
+          </select>
         </Field>
         <Field label="BU">
-          <input type="text" value={agent.bu} onChange={(e) => set("bu", e.target.value)} className={INPUT} />
+          <select value={agent.bu} onChange={(e) => set("bu", e.target.value)} className={INPUT}>
+            <option value="">Select BU</option>
+            <option value="finance">Finance</option>
+            <option value="hr">HR</option>
+            <option value="engineering">Engineering</option>
+            <option value="marketing">Marketing</option>
+            <option value="legal">Legal</option>
+            <option value="design">Design</option>
+          </select>
         </Field>
         <Field label="Author">
           <input type="text" value={agent.author} onChange={(e) => set("author", e.target.value)} className={INPUT} />
