@@ -682,7 +682,7 @@ function PublishTab({ agent, onChange, newKeyName, onNewKeyNameChange, newKeyVal
             </svg>
           </span>
           <div>
-            <h3 className="text-sm font-semibold text-[#141413]">Gallery</h3>
+            <h3 className="text-sm font-semibold text-[#141413]">Mira Gallery</h3>
             <p className="mt-0.5 text-xs text-[#6b6963]">Users browse and self-deploy from the template gallery.</p>
           </div>
         </div>
