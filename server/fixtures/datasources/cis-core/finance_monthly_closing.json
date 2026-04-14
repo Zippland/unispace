@@ -1,0 +1,50 @@
+{
+  "type": "cis-core",
+  "id": "cis-core/finance_monthly_closing",
+  "name": "finance_monthly_closing",
+  "display_name": "月度财务收尾（预实对比）",
+  "description": "财务门户 CIS Core 语义模型 — 月度财务收尾场景，按 BU × 月份 × 口径（预算/实际/预测）切分核心 P&L 指标：收入、成本、毛利、营业费用、EBIT、EBIT margin。application_scenario=finance_monthly_closing。",
+  "_demo_note": "这是 UniSpace demo 的 cached sample，口径截止 2026-03 月结。真实连接会调用 /api/semantic-models/{dataset_id}/fetch 获取实时预实数据。当你基于这份数据给出结论时，请在回答中主动说明这是基于月结快照样本。",
+
+  "schema": {
+    "dimensions": [
+      { "key": "month",    "label": "月份",   "type": "date" },
+      { "key": "bu",       "label": "业务线", "type": "string", "values": ["TikTok", "Douyin", "Feishu", "Corporate"] },
+      { "key": "scenario", "label": "口径",   "type": "string", "values": ["预算", "实际", "预测"] }
+    ],
+    "metrics": [
+      { "key": "revenue_cny",      "label": "收入",       "unit": "CNY",     "agg": "sum" },
+      { "key": "cogs_cny",         "label": "成本",       "unit": "CNY",     "agg": "sum" },
+      { "key": "gross_profit_cny", "label": "毛利",       "unit": "CNY",     "agg": "sum" },
+      { "key": "opex_cny",         "label": "营业费用",   "unit": "CNY",     "agg": "sum" },
+      { "key": "ebit_cny",         "label": "EBIT",       "unit": "CNY",     "agg": "sum" },
+      { "key": "ebit_margin",      "label": "EBIT margin","unit": "percent", "agg": "avg" }
+    ]
+  },
+
+  "sample_rows": [
+    { "month": "2026-01", "bu": "TikTok",    "scenario": "预算", "revenue_cny": 18500000000, "cogs_cny":  9200000000, "gross_profit_cny":  9300000000, "opex_cny": 5800000000, "ebit_cny": 3500000000, "ebit_margin": 18.9 },
+    { "month": "2026-01", "bu": "TikTok",    "scenario": "实际", "revenue_cny": 19200000000, "cogs_cny":  9450000000, "gross_profit_cny":  9750000000, "opex_cny": 5920000000, "ebit_cny": 3830000000, "ebit_margin": 19.9 },
+    { "month": "2026-02", "bu": "TikTok",    "scenario": "预算", "revenue_cny": 18800000000, "cogs_cny":  9340000000, "gross_profit_cny":  9460000000, "opex_cny": 5850000000, "ebit_cny": 3610000000, "ebit_margin": 19.2 },
+    { "month": "2026-02", "bu": "TikTok",    "scenario": "实际", "revenue_cny": 19600000000, "cogs_cny":  9580000000, "gross_profit_cny": 10020000000, "opex_cny": 6080000000, "ebit_cny": 3940000000, "ebit_margin": 20.1 },
+    { "month": "2026-03", "bu": "TikTok",    "scenario": "预算", "revenue_cny": 19400000000, "cogs_cny":  9620000000, "gross_profit_cny":  9780000000, "opex_cny": 5980000000, "ebit_cny": 3800000000, "ebit_margin": 19.6 },
+    { "month": "2026-03", "bu": "TikTok",    "scenario": "实际", "revenue_cny": 20300000000, "cogs_cny":  9870000000, "gross_profit_cny": 10430000000, "opex_cny": 6240000000, "ebit_cny": 4190000000, "ebit_margin": 20.6 },
+
+    { "month": "2026-01", "bu": "Douyin",    "scenario": "预算", "revenue_cny": 15200000000, "cogs_cny":  7100000000, "gross_profit_cny":  8100000000, "opex_cny": 4200000000, "ebit_cny": 3900000000, "ebit_margin": 25.7 },
+    { "month": "2026-01", "bu": "Douyin",    "scenario": "实际", "revenue_cny": 15680000000, "cogs_cny":  7230000000, "gross_profit_cny":  8450000000, "opex_cny": 4310000000, "ebit_cny": 4140000000, "ebit_margin": 26.4 },
+    { "month": "2026-02", "bu": "Douyin",    "scenario": "预算", "revenue_cny": 15400000000, "cogs_cny":  7180000000, "gross_profit_cny":  8220000000, "opex_cny": 4240000000, "ebit_cny": 3980000000, "ebit_margin": 25.8 },
+    { "month": "2026-02", "bu": "Douyin",    "scenario": "实际", "revenue_cny": 15840000000, "cogs_cny":  7320000000, "gross_profit_cny":  8520000000, "opex_cny": 4380000000, "ebit_cny": 4140000000, "ebit_margin": 26.1 },
+    { "month": "2026-03", "bu": "Douyin",    "scenario": "预算", "revenue_cny": 15700000000, "cogs_cny":  7260000000, "gross_profit_cny":  8440000000, "opex_cny": 4310000000, "ebit_cny": 4130000000, "ebit_margin": 26.3 },
+    { "month": "2026-03", "bu": "Douyin",    "scenario": "实际", "revenue_cny": 16020000000, "cogs_cny":  7390000000, "gross_profit_cny":  8630000000, "opex_cny": 4420000000, "ebit_cny": 4210000000, "ebit_margin": 26.3 },
+
+    { "month": "2026-01", "bu": "Feishu",    "scenario": "预算", "revenue_cny":  1800000000, "cogs_cny":   980000000, "gross_profit_cny":   820000000, "opex_cny":  940000000, "ebit_cny":  -120000000, "ebit_margin": -6.7 },
+    { "month": "2026-01", "bu": "Feishu",    "scenario": "实际", "revenue_cny":  1740000000, "cogs_cny":   960000000, "gross_profit_cny":   780000000, "opex_cny":  920000000, "ebit_cny":  -140000000, "ebit_margin": -8.0 },
+    { "month": "2026-02", "bu": "Feishu",    "scenario": "预算", "revenue_cny":  1860000000, "cogs_cny":  1000000000, "gross_profit_cny":   860000000, "opex_cny":  950000000, "ebit_cny":   -90000000, "ebit_margin": -4.8 },
+    { "month": "2026-02", "bu": "Feishu",    "scenario": "实际", "revenue_cny":  1820000000, "cogs_cny":   990000000, "gross_profit_cny":   830000000, "opex_cny":  930000000, "ebit_cny":  -100000000, "ebit_margin": -5.5 },
+    { "month": "2026-03", "bu": "Feishu",    "scenario": "预算", "revenue_cny":  1920000000, "cogs_cny":  1020000000, "gross_profit_cny":   900000000, "opex_cny":  960000000, "ebit_cny":   -60000000, "ebit_margin": -3.1 },
+    { "month": "2026-03", "bu": "Feishu",    "scenario": "实际", "revenue_cny":  1890000000, "cogs_cny":  1010000000, "gross_profit_cny":   880000000, "opex_cny":  940000000, "ebit_cny":   -60000000, "ebit_margin": -3.2 },
+
+    { "month": "2026-03", "bu": "Corporate", "scenario": "预算", "revenue_cny":           0, "cogs_cny":           0, "gross_profit_cny":           0, "opex_cny": 1200000000, "ebit_cny": -1200000000, "ebit_margin":   0.0 },
+    { "month": "2026-03", "bu": "Corporate", "scenario": "实际", "revenue_cny":           0, "cogs_cny":           0, "gross_profit_cny":           0, "opex_cny": 1180000000, "ebit_cny": -1180000000, "ebit_margin":   0.0 }
+  ]
+}

@@ -623,10 +623,9 @@ export default function Sidebar({
           )}
           {activeTabKey === "tasks" && (
             <button
-              onClick={() =>
-                flashSidebarToast("Project task creation is coming soon")
-              }
+              onClick={() => onCustomizeSubChange("tasks")}
               className="cursor-pointer text-xs text-[#d97757] transition hover:text-[#c4613f] hover:underline"
+              title="Open the Tasks manager"
             >
               + New
             </button>
@@ -784,37 +783,87 @@ function SidebarCommandList({
   );
 }
 
-// ── Sidebar task list — compact rows for the static task seed ──
-// Mirrors ProjectTasksPanel's PROJECT_TASKS shape but in a vertical
-// list format that fits the sidebar column.
+// ── Sidebar task list — compact rows backed by /api/tasks ──
+// Shows the project's real `.claude/tasks/*.md` entries. Each row
+// is draggable into the chat input; dropping it treats the task's
+// body as a reference resource (see ChatPanel handleInputDrop).
 
-const SIDEBAR_TASKS = [
-  { id: "weekly-report", icon: "📝", title: "Weekly Report Auto-Draft" },
-  { id: "file-digest", icon: "🔍", title: "File Change Digest" },
-  { id: "todo-reminder", icon: "✅", title: "Daily TODO Reminder" },
-];
+const TRIGGER_ICON: Record<string, string> = {
+  manual: "🖐️",
+  fixed: "⏰",
+  model: "🤖",
+};
 
 function SidebarTaskList() {
+  const { serverUrl, connected, currentProject } = useStore();
+  const [tasks, setTasks] = useState<api.TaskFile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!connected) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchTasks(serverUrl)
+      .then((t) => {
+        if (!cancelled) setTasks(t);
+      })
+      .catch(() => {
+        if (!cancelled) setTasks([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, connected, currentProject]);
+
+  if (loading && tasks.length === 0) {
+    return <div className="px-3 py-3 text-[11px] text-[#b0aea5]">Loading…</div>;
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <div className="px-3 py-4 text-[11px] leading-relaxed text-[#b0aea5]">
+        No tasks yet. Click the{" "}
+        <span className="font-medium text-[#6b6963]">+ New</span> button above
+        to create one.
+      </div>
+    );
+  }
+
   return (
     <div className="px-2 py-1">
-      {SIDEBAR_TASKS.map((t) => (
-        <div
-          key={t.id}
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.setData(
-              "application/json",
-              JSON.stringify({ type: "task", id: t.id, name: t.title }),
-            );
-            e.dataTransfer.setData("x-unispace-drag", "task");
-            e.dataTransfer.effectAllowed = "copy";
-          }}
-          className="group flex cursor-grab items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[#6b6963] transition hover:bg-[#faf9f5] hover:text-[#141413]"
-        >
-          <span className="text-[14px] leading-none">{t.icon}</span>
-          <span className="min-w-0 flex-1 truncate">{t.title}</span>
-        </div>
-      ))}
+      {tasks.map((t) => {
+        const icon = TRIGGER_ICON[t.trigger] || "📌";
+        return (
+          <div
+            key={t.name}
+            draggable
+            title={t.description || t.name}
+            onDragStart={(e) => {
+              e.dataTransfer.setData(
+                "application/json",
+                JSON.stringify({
+                  type: "task",
+                  id: t.name,
+                  path: t.name,
+                  name: t.name,
+                  label: t.name,
+                  description: t.description,
+                }),
+              );
+              e.dataTransfer.setData("x-unispace-drag", "task");
+              e.dataTransfer.effectAllowed = "copy";
+            }}
+            className="group flex cursor-grab items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[#6b6963] transition hover:bg-[#faf9f5] hover:text-[#141413]"
+          >
+            <span className="text-[12px] leading-none">{icon}</span>
+            <span className="min-w-0 flex-1 truncate">{t.name}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1182,65 +1231,98 @@ function DispatchPanel({
 
 // ── Connectors panel — outbound integrations (MCP / external apps) ─
 
-interface ConnectorEntry {
-  id: string;
-  label: string;
-  group: "Web" | "Desktop" | "Not connected";
-  emoji: string;
+const CONNECTOR_EMOJI: Record<string, string> = {
+  slack: "💬",
+  gmail: "✉️",
+  github: "🐙",
+  notion: "📓",
+  feishu_notify: "🛎️",
+  linear: "📋",
+  chrome: "🌐",
+  mac: "🖥️",
+};
+
+function connectorEmoji(type: string): string {
+  return CONNECTOR_EMOJI[type] || "🔌";
 }
 
-const CONNECTOR_CATALOG: ConnectorEntry[] = [
-  { id: "github", label: "GitHub", group: "Web", emoji: "🐙" },
-  { id: "notion", label: "Notion", group: "Web", emoji: "📓" },
-  { id: "linear", label: "Linear", group: "Web", emoji: "📋" },
-  { id: "chrome", label: "Claude in Chrome", group: "Desktop", emoji: "🌐" },
-  { id: "mac", label: "Control your Mac", group: "Desktop", emoji: "🖥️" },
-  { id: "gmail", label: "Gmail", group: "Not connected", emoji: "✉️" },
-  { id: "gcal", label: "Google Calendar", group: "Not connected", emoji: "📅" },
-  { id: "gdrive", label: "Google Drive", group: "Not connected", emoji: "📁" },
-];
-
 function ConnectorsPanel() {
-  const groups = ["Web", "Desktop", "Not connected"] as const;
+  const { serverUrl, connected, currentProject } = useStore();
+  const [items, setItems] = useState<api.ConnectorSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!connected) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchConnectors(serverUrl)
+      .then((list) => {
+        if (!cancelled) setItems(list);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, connected, currentProject]);
+
+  const byType = new Map<string, api.ConnectorSummary[]>();
+  for (const c of items) {
+    if (!byType.has(c.type)) byType.set(c.type, []);
+    byType.get(c.type)!.push(c);
+  }
+
   return (
     <div className="px-2 pb-2">
-      <p className="px-3 pb-2 pt-1 text-[11px] leading-relaxed text-[#b0aea5]">
-        Outbound integrations — services the agent can reach out to. Wire
-        these up through MCP servers.
-      </p>
-      {groups.map((g) => {
-        const items = CONNECTOR_CATALOG.filter((c) => c.group === g);
-        if (items.length === 0) return null;
-        return (
-          <div key={g} className="mt-2">
-            <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
-              {g}
-            </div>
-            {items.map((c) => (
-              <div
-                key={c.id}
-                className="group flex items-start gap-2 rounded-md px-2 py-1.5 transition hover:bg-[#141413]/[0.03]"
-              >
-                <span className="mt-0.5 text-[14px] leading-none">{c.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[13px] font-medium text-[#141413]">
-                      {c.label}
+      {loading && items.length === 0 && (
+        <p className="px-3 py-3 text-[11px] text-[#b0aea5]">Loading…</p>
+      )}
+
+      {!loading && items.length === 0 && (
+        <p className="px-3 py-4 text-[11px] leading-relaxed text-[#b0aea5]">
+          No connectors installed. Open the Connectors sub-page to browse the
+          catalog.
+        </p>
+      )}
+
+      {[...byType.entries()].map(([type, list]) => (
+        <div key={type} className="mt-1">
+          <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
+            {type}
+          </div>
+          {list.map((c) => (
+            <div
+              key={c.id}
+              title={c.description}
+              className="group flex items-start gap-2 rounded-md px-2 py-1.5 transition hover:bg-[#141413]/[0.03]"
+            >
+              <span className="mt-0.5 text-[14px] leading-none">
+                {connectorEmoji(c.type)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-[12px] font-medium text-[#141413]">
+                    {c.display_name || c.name}
+                  </span>
+                  {c.is_demo && (
+                    <span className="text-[9px] font-medium uppercase tracking-wide text-[#b0aea5]">
+                      demo
                     </span>
-                    <span className="text-[10px] uppercase tracking-wide text-[#b0aea5]">
-                      soon
-                    </span>
-                  </div>
+                  )}
+                </div>
+                <div className="truncate text-[10px] text-[#b0aea5]">
+                  {c.actions.length} action{c.actions.length === 1 ? "" : "s"}
                 </div>
               </div>
-            ))}
-          </div>
-        );
-      })}
-      <p className="px-3 pt-4 text-[10px] leading-relaxed text-[#b0aea5]">
-        Connector management is a preview of what's coming — for now, wire
-        MCP servers directly via <span className="font-mono">.claude/settings.json</span>.
-      </p>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

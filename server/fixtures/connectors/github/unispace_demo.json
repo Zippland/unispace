@@ -1,0 +1,22 @@
+{
+  "type": "github",
+  "id": "github/unispace_demo",
+  "name": "unispace_demo",
+  "display_name": "GitHub — Zippland/unispace",
+  "description": "读写 Zippland/unispace 仓库：打 issue、提 PR、发 comment、拉 run artifacts。身份是 unispace-bot 这个 GitHub App。",
+  "status": "connected",
+  "config": {
+    "owner": "Zippland",
+    "repo": "unispace",
+    "app_installation_id": "12345678",
+    "default_base_branch": "main",
+    "_private_key_pem": "-----BEGIN RSA PRIVATE KEY-----\n<demo-key-redacted>\n-----END RSA PRIVATE KEY-----"
+  },
+  "actions": [
+    { "name": "create_issue", "description": "Open a new issue with title, body, and optional labels" },
+    { "name": "create_pull_request", "description": "Open a PR from a branch with title + body" },
+    { "name": "post_issue_comment", "description": "Add a comment to an existing issue or PR" },
+    { "name": "list_issues", "description": "Query issues by state / label / assignee" }
+  ],
+  "_demo_note": "UniSpace demo does not actually hit the GitHub API. Any action received is logged and echoed back. In production this would use the GitHub App installation token minted from the stored private key."
+}

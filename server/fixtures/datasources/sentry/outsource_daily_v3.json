@@ -1,0 +1,51 @@
+{
+  "type": "sentry",
+  "id": "sentry/outsource_daily_v3",
+  "name": "outsource_daily_v3",
+  "display_name": "外包成本分摊明细",
+  "description": "Sentry 数据集 — 集团外包成本分摊明细，维度包括外包科目、成本中心、汇率口径、区域、序列。默认使用固定汇率，支持分摊前/后口径切换。数据来源 HR-ERP，月度冻结。",
+  "_demo_note": "这是 UniSpace demo 的 cached sample，快照月份 2026-03。真实连接会读取 Sentry 的语义模型和 dim_values 缓存返回实时切片。注意：外包科目只能放在 view_axis_arr 中指定，不能用于 filter。当你基于这份数据给出结论时，请在回答中主动说明这是基于月度冻结的样本数据。",
+
+  "schema": {
+    "dimensions": [
+      { "key": "month",              "label": "月份",       "type": "date" },
+      { "key": "outsource_subject",  "label": "外包科目",   "type": "string", "values": ["外包HC", "人员外包与TPA成本", "设备外包", "IDC 运维外包", "专项项目外包"] },
+      { "key": "cost_center",        "label": "成本中心",   "type": "string" },
+      { "key": "data_source",        "label": "数据来源",   "type": "string", "values": ["分摊前", "分摊后"] },
+      { "key": "exchange_rate_type", "label": "汇率口径",   "type": "string", "values": ["固定汇率", "实际汇率"] },
+      { "key": "region",             "label": "区域",       "type": "string", "values": ["中国大陆", "新加坡", "美国", "加拿大", "英国"] },
+      { "key": "job_family",         "label": "序列",       "type": "string", "values": ["技术", "运营", "市场", "安全", "法务", "财务"] }
+    ],
+    "metrics": [
+      { "key": "cost_cny", "label": "成本",       "unit": "CNY", "agg": "sum" },
+      { "key": "hc",       "label": "人头",       "unit": "count", "agg": "sum" },
+      { "key": "mandays",  "label": "人天",       "unit": "count", "agg": "sum" }
+    ]
+  },
+
+  "sample_rows": [
+    { "month": "2026-03", "outsource_subject": "外包HC",              "cost_center": "集团信息系统-业务规划与管理", "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "技术", "cost_cny": 2840000, "hc": 48, "mandays": 1056 },
+    { "month": "2026-03", "outsource_subject": "外包HC",              "cost_center": "集团信息系统-项目管理-People",  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "运营", "cost_cny": 1920000, "hc": 36, "mandays": 792 },
+    { "month": "2026-03", "outsource_subject": "人员外包与TPA成本",   "cost_center": "集团信息系统-设计",              "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "技术", "cost_cny": 1560000, "hc": 28, "mandays": 616 },
+    { "month": "2026-03", "outsource_subject": "设备外包",            "cost_center": "集团 IDC 运维",                  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "技术", "cost_cny": 3240000, "hc": 12, "mandays": 264 },
+    { "month": "2026-03", "outsource_subject": "IDC 运维外包",        "cost_center": "集团 IDC 运维",                  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "新加坡",   "job_family": "技术", "cost_cny": 1820000, "hc": 18, "mandays": 396 },
+    { "month": "2026-03", "outsource_subject": "专项项目外包",        "cost_center": "集团信息系统-业务规划与管理", "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "新加坡",   "job_family": "技术", "cost_cny": 2150000, "hc": 22, "mandays": 484 },
+    { "month": "2026-03", "outsource_subject": "外包HC",              "cost_center": "TikTok-广告平台",                 "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "新加坡",   "job_family": "运营", "cost_cny": 1680000, "hc": 24, "mandays": 528 },
+    { "month": "2026-03", "outsource_subject": "人员外包与TPA成本",   "cost_center": "TikTok-增长",                     "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "美国",     "job_family": "市场", "cost_cny": 2940000, "hc": 16, "mandays": 352 },
+    { "month": "2026-03", "outsource_subject": "设备外包",            "cost_center": "集团 IDC 运维",                  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "美国",     "job_family": "技术", "cost_cny": 1450000, "hc":  8, "mandays": 176 },
+    { "month": "2026-03", "outsource_subject": "外包HC",              "cost_center": "集团法务合规",                    "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "新加坡",   "job_family": "法务", "cost_cny":  720000, "hc": 10, "mandays": 220 },
+
+    { "month": "2026-02", "outsource_subject": "外包HC",              "cost_center": "集团信息系统-业务规划与管理", "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "技术", "cost_cny": 2780000, "hc": 47, "mandays": 1034 },
+    { "month": "2026-02", "outsource_subject": "外包HC",              "cost_center": "集团信息系统-项目管理-People",  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "运营", "cost_cny": 1880000, "hc": 35, "mandays": 770 },
+    { "month": "2026-02", "outsource_subject": "人员外包与TPA成本",   "cost_center": "集团信息系统-设计",              "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "技术", "cost_cny": 1520000, "hc": 27, "mandays": 594 },
+    { "month": "2026-02", "outsource_subject": "设备外包",            "cost_center": "集团 IDC 运维",                  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "技术", "cost_cny": 3180000, "hc": 12, "mandays": 264 },
+    { "month": "2026-02", "outsource_subject": "IDC 运维外包",        "cost_center": "集团 IDC 运维",                  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "新加坡",   "job_family": "技术", "cost_cny": 1780000, "hc": 18, "mandays": 396 },
+    { "month": "2026-02", "outsource_subject": "专项项目外包",        "cost_center": "集团信息系统-业务规划与管理", "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "新加坡",   "job_family": "技术", "cost_cny": 2080000, "hc": 22, "mandays": 484 },
+    { "month": "2026-02", "outsource_subject": "外包HC",              "cost_center": "TikTok-广告平台",                 "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "新加坡",   "job_family": "运营", "cost_cny": 1640000, "hc": 24, "mandays": 528 },
+    { "month": "2026-02", "outsource_subject": "人员外包与TPA成本",   "cost_center": "TikTok-增长",                     "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "美国",     "job_family": "市场", "cost_cny": 2870000, "hc": 16, "mandays": 352 },
+
+    { "month": "2026-01", "outsource_subject": "外包HC",              "cost_center": "集团信息系统-业务规划与管理", "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "技术", "cost_cny": 2690000, "hc": 46, "mandays": 1012 },
+    { "month": "2026-01", "outsource_subject": "外包HC",              "cost_center": "集团信息系统-项目管理-People",  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "运营", "cost_cny": 1820000, "hc": 34, "mandays": 748 },
+    { "month": "2026-01", "outsource_subject": "设备外包",            "cost_center": "集团 IDC 运维",                  "data_source": "分摊后", "exchange_rate_type": "固定汇率", "region": "中国大陆", "job_family": "技术", "cost_cny": 3090000, "hc": 12, "mandays": 264 }
+  ]
+}

@@ -48,7 +48,11 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   parts: MessagePart[];
-  files?: { path: string; name: string; kind?: "file" | "skill" }[];
+  files?: {
+    path: string;
+    name: string;
+    kind?: "file" | "skill" | "command" | "task" | "datasource";
+  }[];
 }
 
 export interface SessionInfo {

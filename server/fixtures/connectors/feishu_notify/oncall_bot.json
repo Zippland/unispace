@@ -1,0 +1,22 @@
+{
+  "type": "feishu_notify",
+  "id": "feishu_notify/oncall_bot",
+  "name": "oncall_bot",
+  "display_name": "飞书 oncall 通知机器人",
+  "description": "向字节内部飞书群发消息。用 unispace-oncall 自建应用身份，支持卡片消息、文本消息、@ 提及。",
+  "status": "connected",
+  "config": {
+    "app_id": "cli_a0123demo456",
+    "default_chat_id": "oc_demo_oncall_chat_id",
+    "default_group_name": "UniSpace Oncall",
+    "mention_on_error": ["zhangming@bytedance.com"],
+    "_app_secret": "demo-********************"
+  },
+  "actions": [
+    { "name": "send_text", "description": "Send a plain text message to a chat" },
+    { "name": "send_card", "description": "Send an interactive card (title + fields + buttons)" },
+    { "name": "send_rich_text", "description": "Send rich text with images, links, @mentions" },
+    { "name": "list_chats", "description": "List chats accessible to the bot" }
+  ],
+  "_demo_note": "UniSpace demo does not hit Lark's open API. Any send action is logged and echoed back. In production this would obtain a tenant access token and POST to /open-apis/im/v1/messages."
+}

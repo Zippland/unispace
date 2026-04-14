@@ -46,6 +46,30 @@ import {
   revokeApiKey,
   validateApiKey,
 } from "./agents";
+import {
+  listDatasources,
+  getDatasource,
+  listCatalogWithStatus,
+  installFromCatalog,
+  uninstallDatasource,
+} from "./datasources";
+import {
+  listTasks,
+  getTask,
+  saveTask,
+  deleteTask,
+  recordTaskRun,
+  composeTaskPrompt,
+  type SaveTaskInput,
+  type TaskFile,
+} from "./tasks";
+import {
+  listConnectors,
+  getConnector,
+  listConnectorCatalogWithStatus,
+  installConnectorFromCatalog,
+  uninstallConnector,
+} from "./connectors";
 
 // ── File tree ─────────────────────────────────────────────────
 
@@ -591,6 +615,288 @@ export function createServer(_initialConfig: Config) {
     const file = Bun.file(full);
     if (!(await file.exists())) return c.json({ error: "Not found" }, 404);
     return new Response(file);
+  });
+
+  // ── Datasources (scoped to current project) ──────────────
+  // The datasource model has two tiers:
+  //   • catalog  — bundled samples in `server/fixtures/datasources/`
+  //   • installed — user-curated subset living in the project's
+  //                 `.claude/datasources/` folder
+  // /api/datasources returns the installed list (what the agent
+  // actually sees via the `query_datasource` MCP tool). The Picker
+  // consumes /api/datasources/catalog to offer new installs.
+  app.get("/api/datasources", async (c) => {
+    const workDir = currentProjectDir();
+    const list = await listDatasources(workDir);
+    return c.json(
+      list.map((d) => ({
+        id: d.id,
+        type: d.type,
+        name: d.name,
+        display_name: d.display_name,
+        region: d.region,
+        description: d.description,
+        schema: d.schema,
+        is_demo_sample: !!d._demo_note,
+      })),
+    );
+  });
+
+  app.get("/api/datasources/catalog", async (c) => {
+    const workDir = currentProjectDir();
+    const list = await listCatalogWithStatus(workDir);
+    return c.json(
+      list.map((d) => ({
+        id: d.id,
+        type: d.type,
+        name: d.name,
+        display_name: d.display_name,
+        region: d.region,
+        description: d.description,
+        schema: d.schema,
+        is_demo_sample: !!d._demo_note,
+        installed: d.installed,
+      })),
+    );
+  });
+
+  app.post("/api/datasources/install", async (c) => {
+    const workDir = currentProjectDir();
+    const body = (await c.req.json().catch(() => ({}))) as { id?: string };
+    if (!body.id) return c.json({ error: "id required" }, 400);
+    try {
+      const ds = await installFromCatalog(workDir, body.id);
+      return c.json({ ok: true, id: ds.id });
+    } catch (e) {
+      return c.json(
+        { error: e instanceof Error ? e.message : String(e) },
+        400,
+      );
+    }
+  });
+
+  app.delete("/api/datasources/:id{.+}", async (c) => {
+    const workDir = currentProjectDir();
+    const id = decodeURIComponent(c.req.param("id"));
+    // Guard against the catalog suffix — `DELETE /api/datasources/catalog`
+    // would otherwise match this route.
+    if (id === "catalog") return c.json({ error: "Not found" }, 404);
+    await uninstallDatasource(workDir, id);
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/datasources/:id{.+}", async (c) => {
+    const workDir = currentProjectDir();
+    const id = decodeURIComponent(c.req.param("id"));
+    if (id === "catalog") return c.json({ error: "Not found" }, 404);
+    const ds = await getDatasource(workDir, id);
+    if (!ds) return c.json({ error: "Not found" }, 404);
+    return c.json(ds);
+  });
+
+  // ── Connectors (scoped to current project) ───────────────
+  // Outbound action channels — the agent's handle to "make X happen
+  // in the outside world". Same two-tier model as datasources:
+  //   • catalog under `server/fixtures/connectors/`
+  //   • installed under `<project>/.claude/connectors/`
+  // Installed entries are surfaced to the agent as one SDK MCP
+  // `<slug>_invoke` tool each (see `connectors.ts buildConnectorMcp`).
+  // Demo mode: every invoke returns an echoed envelope with a
+  // `_demo_note` rather than actually calling out.
+  app.get("/api/connectors", async (c) => {
+    const workDir = currentProjectDir();
+    const list = await listConnectors(workDir);
+    return c.json(
+      list.map((x) => ({
+        id: x.id,
+        type: x.type,
+        name: x.name,
+        display_name: x.display_name,
+        description: x.description,
+        status: x.status,
+        actions: x.actions || [],
+        is_demo: !!x._demo_note,
+      })),
+    );
+  });
+
+  app.get("/api/connectors/catalog", async (c) => {
+    const workDir = currentProjectDir();
+    const list = await listConnectorCatalogWithStatus(workDir);
+    return c.json(
+      list.map((x) => ({
+        id: x.id,
+        type: x.type,
+        name: x.name,
+        display_name: x.display_name,
+        description: x.description,
+        status: x.status,
+        actions: x.actions || [],
+        is_demo: !!x._demo_note,
+        installed: x.installed,
+      })),
+    );
+  });
+
+  app.post("/api/connectors/install", async (c) => {
+    const workDir = currentProjectDir();
+    const body = (await c.req.json().catch(() => ({}))) as { id?: string };
+    if (!body.id) return c.json({ error: "id required" }, 400);
+    try {
+      const conn = await installConnectorFromCatalog(workDir, body.id);
+      return c.json({ ok: true, id: conn.id });
+    } catch (e) {
+      return c.json(
+        { error: e instanceof Error ? e.message : String(e) },
+        400,
+      );
+    }
+  });
+
+  app.delete("/api/connectors/:id{.+}", async (c) => {
+    const workDir = currentProjectDir();
+    const id = decodeURIComponent(c.req.param("id"));
+    if (id === "catalog") return c.json({ error: "Not found" }, 404);
+    await uninstallConnector(workDir, id);
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/connectors/:id{.+}", async (c) => {
+    const workDir = currentProjectDir();
+    const id = decodeURIComponent(c.req.param("id"));
+    if (id === "catalog") return c.json({ error: "Not found" }, 404);
+    const conn = await getConnector(workDir, id);
+    if (!conn) return c.json({ error: "Not found" }, 404);
+    return c.json(conn);
+  });
+
+  // ── Tasks (scoped to current project) ────────────────────
+  // Tasks are preset prompts + trigger declarations stored as
+  // `<project>/.claude/tasks/<name>.md`. The demo has no scheduler —
+  // `POST /api/tasks/:name/run` is the only way a task actually
+  // fires. The trigger field is present in UI and storage to
+  // communicate the intended product shape.
+  app.get("/api/tasks", async (c) => {
+    const workDir = currentProjectDir();
+    const list = await listTasks(workDir);
+    return c.json(list);
+  });
+
+  app.get("/api/tasks/:name", async (c) => {
+    const workDir = currentProjectDir();
+    const task = await getTask(workDir, c.req.param("name"));
+    if (!task) return c.json({ error: "Not found" }, 404);
+    return c.json(task);
+  });
+
+  app.post("/api/tasks", async (c) => {
+    const workDir = currentProjectDir();
+    const body = (await c.req.json().catch(() => ({}))) as SaveTaskInput;
+    if (!body.name || !body.body)
+      return c.json({ error: "name and body required" }, 400);
+    try {
+      const task = await saveTask(workDir, body);
+      return c.json(task);
+    } catch (e) {
+      return c.json(
+        { error: e instanceof Error ? e.message : String(e) },
+        400,
+      );
+    }
+  });
+
+  app.put("/api/tasks/:name", async (c) => {
+    const workDir = currentProjectDir();
+    const name = c.req.param("name");
+    const body = (await c.req.json().catch(() => ({}))) as Partial<SaveTaskInput>;
+    try {
+      const task = await saveTask(workDir, {
+        name,
+        description: body.description,
+        trigger: body.trigger,
+        schedule: body.schedule,
+        continuation: body.continuation,
+        body: body.body ?? "",
+      });
+      return c.json(task);
+    } catch (e) {
+      return c.json(
+        { error: e instanceof Error ? e.message : String(e) },
+        400,
+      );
+    }
+  });
+
+  app.delete("/api/tasks/:name", async (c) => {
+    const workDir = currentProjectDir();
+    try {
+      await deleteTask(workDir, c.req.param("name"));
+      return c.json({ ok: true });
+    } catch (e) {
+      return c.json(
+        { error: e instanceof Error ? e.message : String(e) },
+        400,
+      );
+    }
+  });
+
+  // Manually trigger a task: creates a fresh session, pushes the
+  // task's prompt as a user message, and launches runAgent in the
+  // background so the client can open the session view immediately
+  // and watch the stream land via the existing session polling
+  // path. Fire-and-forget — the endpoint returns as soon as the
+  // session is created, not when the agent finishes.
+  app.post("/api/tasks/:name/run", async (c) => {
+    const cfg = loadConfig();
+    const projectName = cfg.currentProject;
+    const workDir = paths.project(projectName);
+    const task = await getTask(workDir, c.req.param("name"));
+    if (!task) return c.json({ error: "Task not found" }, 404);
+
+    const session = createSession(projectName);
+    session.title = `[Task] ${task.name}`;
+    const userContent = composeTaskPrompt(task);
+    session.messages.push({
+      id: crypto.randomUUID(),
+      role: "user",
+      parts: [{ type: "text", content: userContent }],
+    });
+    const assistantMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      parts: [],
+    };
+    session.messages.push(assistantMsg);
+    saveSession(session);
+
+    // Fire agent run in the background. We intentionally don't
+    // await — the endpoint response returns the new session id,
+    // and the chat UI picks up the streamed events as they land.
+    // The tracer auto-finalizes on the "done" event emitted by
+    // runAgent, so no explicit teardown is needed.
+    (async () => {
+      try {
+        const tracer = createTraceCollector({
+          project: session.projectName,
+          sessionId: session.id,
+          prompt: userContent,
+        });
+        for await (const event of runAgent({
+          prompt: userContent,
+          cwd: workDir,
+        })) {
+          applyAgentEvent(event, assistantMsg, session);
+          tracer.processEvent(event);
+        }
+      } catch (err) {
+        console.error("  [task run] agent failed:", err);
+      } finally {
+        saveSession(session);
+        await recordTaskRun(workDir, task.name, session.id).catch(() => {});
+      }
+    })();
+
+    return c.json({ session_id: session.id });
   });
 
   // ── Sessions (scoped to current project) ─────────────────

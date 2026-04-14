@@ -607,6 +607,57 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
   type AttachmentKind = "file" | "skill" | "command" | "task" | "datasource";
   const [attachments, setAttachments] = useState<{ path: string; name: string; kind: AttachmentKind }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Datasource list for this project. Fetched on project change; used by
+  // the @ popover and the send path to expand datasource attachments into
+  // structured handles the agent can act on via query_datasource.
+  const [datasources, setDatasources] = useState<api.DatasourceSummary[]>([]);
+  useEffect(() => {
+    if (!currentProject) return;
+    let cancelled = false;
+    api
+      .fetchDatasources(serverUrl)
+      .then((ds) => {
+        if (!cancelled) setDatasources(ds);
+      })
+      .catch(() => {
+        if (!cancelled) setDatasources([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, currentProject]);
+  const datasourcesById = useMemo(() => {
+    const m = new Map<string, api.DatasourceSummary>();
+    for (const d of datasources) m.set(d.id, d);
+    return m;
+  }, [datasources]);
+
+  // Task list for this project. Used both for the @ popover (so the
+  // user can reference tasks by name) and for the send path, which
+  // expands task attachments into a structured prompt header with
+  // the task body inlined.
+  const [tasks, setTasks] = useState<api.TaskFile[]>([]);
+  useEffect(() => {
+    if (!currentProject) return;
+    let cancelled = false;
+    api
+      .fetchTasks(serverUrl)
+      .then((t) => {
+        if (!cancelled) setTasks(t);
+      })
+      .catch(() => {
+        if (!cancelled) setTasks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, currentProject]);
+  const tasksByName = useMemo(() => {
+    const m = new Map<string, api.TaskFile>();
+    for (const t of tasks) m.set(t.name, t);
+    return m;
+  }, [tasks]);
   const [uploadingCount, setUploadingCount] = useState(0);
   const dragCounterRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -760,9 +811,11 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     // chat input has no `#name` shortcut.
     const promptText = rawText;
 
-    // Build message content with resource references — each kind gets
-    // its own bracketed marker so the LLM (and server-side expansion)
-    // can handle them distinctly.
+    // Build message content with resource references. File/skill/command/
+    // task refs stay as bracketed text markers. Datasource refs get a
+    // richer block that tells the agent exactly which ids to query via
+    // the `query_datasource` MCP tool — text markers alone aren't enough
+    // because a bare name gives the agent no handle to act on.
     let content = promptText;
     if (attachments.length > 0) {
       const byKind = (k: AttachmentKind) =>
@@ -771,13 +824,51 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
       const fRefs = byKind("file").map((a) => a.path);
       const sRefs = byKind("skill").map((a) => a.name);
       const cRefs = byKind("command").map((a) => a.name);
-      const dRefs = byKind("datasource").map((a) => a.name);
-      const tRefs = byKind("task").map((a) => a.name);
+      const dAttachments = byKind("datasource");
+      const tAttachments = byKind("task");
+
       if (fRefs.length) markers.push(`[Attached files: ${fRefs.join(", ")}]`);
       if (sRefs.length) markers.push(`[Referenced skills: ${sRefs.join(", ")}]`);
       if (cRefs.length) markers.push(`[Referenced commands: ${cRefs.join(", ")}]`);
-      if (dRefs.length) markers.push(`[Referenced datasources: ${dRefs.join(", ")}]`);
-      if (tRefs.length) markers.push(`[Referenced tasks: ${tRefs.join(", ")}]`);
+
+      if (tAttachments.length) {
+        const lines = tAttachments.map((a) => {
+          const t = tasksByName.get(a.path);
+          const trig = t?.trigger || "manual";
+          const body = t?.body
+            ? t.body
+                .split("\n")
+                .map((l) => `      ${l}`)
+                .join("\n")
+            : "      (task body not loaded)";
+          return `  - name="${a.path}" trigger=${trig}\n${body}`;
+        });
+        markers.push(
+          [
+            "[Project tasks referenced for this turn — each entry is a preset workflow stored under `.claude/tasks/`. Treat the indented body as what the user wants you to run, applied to the current project context. If the user also typed a message below, combine the task with it.]",
+            ...lines,
+          ].join("\n"),
+        );
+      }
+
+      if (dAttachments.length) {
+        const lines = dAttachments.map((a) => {
+          const ds = datasourcesById.get(a.path);
+          const name = ds?.display_name || ds?.name || a.name;
+          const type = ds?.type || "datasource";
+          const desc = ds?.description
+            ? ds.description.split("\n")[0].slice(0, 160)
+            : "";
+          return `  - id="${a.path}"  type=${type}  name="${name}"${desc ? `\n      ${desc}` : ""}`;
+        });
+        markers.push(
+          [
+            "[Datasources referenced for this turn — use the `query_datasource` tool with these exact ids. Call `get_datasource_schema` first if you need field details. If any tool response contains a `_demo_note` field, you MUST mention it in your final reply so the user knows the data is a cached sample.]",
+            ...lines,
+          ].join("\n"),
+        );
+      }
+
       content = markers.join("\n") + (promptText ? `\n\n${promptText}` : "");
     }
 
@@ -864,19 +955,6 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     "commands",
   ]);
 
-  // Static datasource names for the @ popover (mirrors DataSourcePanel
-  // seed — real backend datasource listing comes in v0.2).
-  const DS_SEED: RefItem[] = [
-    { name: "revenue_daily_v2", path: "ds:aeolus/revenue_daily_v2", hint: "Aeolus SG", kind: "datasource" },
-    { name: "ads_spend_by_channel", path: "ds:aeolus/ads_spend_by_channel", hint: "Aeolus VA", kind: "datasource" },
-    { name: "user_retention_monthly", path: "ds:aeolus/user_retention_monthly", hint: "Aeolus CN", kind: "datasource" },
-    { name: "mira_feedback_survey", path: "ds:cis-core/mira_feedback_survey", hint: "CIS Core", kind: "datasource" },
-    { name: "dim_org_finance", path: "ds:hive/dim_org_finance", hint: "Hive", kind: "datasource" },
-    { name: "fact_txn_daily", path: "ds:hive/fact_txn_daily", hint: "Hive", kind: "datasource" },
-    { name: "Q1 预算追踪", path: "ds:lark_sheet/q1-budget", hint: "飞书表格", kind: "datasource" },
-    { name: "BU OKR 登记表", path: "ds:lark_sheet/bu-okr", hint: "飞书表格", kind: "datasource" },
-  ];
-
   const candidates: RefItem[] = useMemo(() => {
     if (!popover) return [];
     const q = popover.query.toLowerCase();
@@ -907,15 +985,31 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
         }
       };
       walk(files);
-      // Datasources (seed)
-      pool.push(...DS_SEED);
+      // Datasources — real list from the backend.
+      for (const ds of datasources) {
+        pool.push({
+          name: ds.display_name || ds.name,
+          path: ds.id,
+          hint: ds.type,
+          kind: "datasource",
+        });
+      }
+      // Tasks — real list from the backend.
+      for (const t of tasks) {
+        pool.push({
+          name: t.name,
+          path: t.name,
+          hint: `task · ${t.trigger}`,
+          kind: "task",
+        });
+      }
     }
 
     return pool
       .filter((p) => p.name.toLowerCase().includes(q))
       .slice(0, 10);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [popover, files]);
+  }, [popover, files, datasources, tasks]);
 
   function handlePopoverSelect(item: RefItem) {
     if (!popover) return;

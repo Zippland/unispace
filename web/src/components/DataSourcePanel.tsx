@@ -1,10 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import {
+  fetchDatasources,
+  fetchDatasourceCatalog,
+  installDatasource,
+  uninstallDatasource,
+  type DatasourceSummary,
+  type DatasourceCatalogItem,
+} from "../api";
+import { useStore } from "../store";
 
 // ═══════════════════════════════════════════════════════════════
-//  DataSourcePanel — demo-only sidebar panel modeled after
-//  finance_agent's "数据源" list: type groups with collapsible
-//  headers, seeded rows, Aeolus region badges. No backend — the
-//  picker is UI-only and fires a toast on "Connect".
+//  DataSourcePanel — project-scoped external data handles.
+//
+//  Reads /api/datasources. Each datasource is a handle to an
+//  external system (Aeolus / Hive / lark_sheet / ...); the agent
+//  queries them via the in-process `unispace_datasources` MCP
+//  server exposed by server/src/datasources.ts.
+//
+//  Grouping: by `type` string from the backend. Types not in
+//  TYPE_META fall back to a generic visual.
 // ═══════════════════════════════════════════════════════════════
 
 // ── Icon paths (Heroicons 24 outline) ─────────────────────────
@@ -21,88 +35,71 @@ const ICON_TABLE =
 const ICON_CHART =
   "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z";
 
-// ── Seed data ─────────────────────────────────────────────────
+// ── Type metadata (UI-only; backend doesn't care) ────────────
 
-type Region = "sg" | "va" | "cn";
-
-interface DataSourceItem {
-  id: string;
-  name: string;
-  region?: Region;
-}
-
-interface DataSourceGroup {
-  key: string;
+interface TypeMeta {
   label: string;
   hint: string;
   color: string;
   icon: string;
-  items: DataSourceItem[];
 }
 
-const GROUPS: DataSourceGroup[] = [
-  {
-    key: "aeolus",
+const TYPE_META: Record<string, TypeMeta> = {
+  aeolus: {
     label: "Aeolus",
-    hint: "粘贴查询链接自动识别",
+    hint: "TikTok for Business 数据集",
     color: "#788c5d",
     icon: ICON_SIGNAL,
-    items: [
-      { id: "a1", name: "revenue_daily_v2", region: "sg" },
-      { id: "a2", name: "ads_spend_by_channel", region: "va" },
-      { id: "a3", name: "user_retention_monthly", region: "cn" },
-    ],
   },
-  {
-    key: "cis-core",
+  "cis-core": {
     label: "CIS Core",
-    hint: "按场景自动导入数据集",
+    hint: "财务门户语义模型",
     color: "#4f7f8f",
     icon: ICON_DB,
-    items: [
-      { id: "c1", name: "mira_feedback_survey" },
-      { id: "c2", name: "product_launch_metrics" },
-    ],
   },
-  {
-    key: "hive",
+  hive: {
     label: "Hive",
-    hint: "解析 Coral 表详情页",
+    hint: "Coral 库表",
     color: "#d97757",
     icon: ICON_DB,
-    items: [
-      { id: "h1", name: "dim_org_finance" },
-      { id: "h2", name: "fact_txn_daily" },
-    ],
   },
-  {
-    key: "lark_sheet",
+  lark_sheet: {
     label: "飞书表格",
     hint: "通过表格链接导入",
     color: "#4e7ab5",
     icon: ICON_TABLE,
-    items: [
-      { id: "l1", name: "Q1 预算追踪" },
-      { id: "l2", name: "BU OKR 登记表" },
-    ],
   },
-  {
-    key: "sentry",
+  sentry: {
     label: "Sentry",
-    hint: "选择已授权的数据集",
+    hint: "已授权的数据集",
     color: "#6a9bcc",
     icon: ICON_CHART,
-    items: [{ id: "s1", name: "mira-web errors" }],
   },
-];
+};
 
-const REGION_STYLES: Record<Region, { color: string; background: string }> = {
+const UNKNOWN_META: TypeMeta = {
+  label: "Other",
+  hint: "自定义数据源",
+  color: "#8d8a80",
+  icon: ICON_DB,
+};
+
+// Stable display order for type groups (matches the old seed).
+const TYPE_ORDER = ["aeolus", "cis-core", "hive", "lark_sheet", "sentry"];
+
+function typeMeta(type: string): TypeMeta {
+  return TYPE_META[type] || UNKNOWN_META;
+}
+
+// ── Region badge styles ───────────────────────────────────────
+
+const REGION_STYLES: Record<string, { color: string; background: string }> = {
   sg: { color: "#3b7f6a", background: "#3b7f6a14" },
   va: { color: "#b86b35", background: "#b86b3514" },
   cn: { color: "#788c5d", background: "#788c5d14" },
 };
 
-// ── Panel (controlled picker state lives in parent Sidebar) ──
+// ── Panel ─────────────────────────────────────────────────────
 
 export default function DataSourcePanel({
   pickerOpen,
@@ -111,42 +108,93 @@ export default function DataSourcePanel({
   pickerOpen: boolean;
   onClosePicker: () => void;
 }) {
+  const { serverUrl, connected, currentProject } = useStore();
+  const [items, setItems] = useState<DatasourceSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [toast, setToast] = useState<string | null>(null);
+
+  // Refetch whenever the current project changes — datasource list is
+  // scoped to `<project>/.claude/datasources/` on the server side.
+  const refresh = useCallback(() => {
+    if (!connected) return;
+    setLoading(true);
+    fetchDatasources(serverUrl)
+      .then(setItems)
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [serverUrl, connected]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh, currentProject]);
+
+  async function handleUninstall(id: string) {
+    try {
+      await uninstallDatasource(serverUrl, id);
+      refresh();
+    } catch {
+      // intentionally quiet — show case, not a production flow
+    }
+  }
+
+  // Group by type, ordered by TYPE_ORDER then alpha fallback.
+  const groups = useMemo(() => {
+    const byType = new Map<string, DatasourceSummary[]>();
+    for (const d of items) {
+      if (!byType.has(d.type)) byType.set(d.type, []);
+      byType.get(d.type)!.push(d);
+    }
+    const orderedTypes = [
+      ...TYPE_ORDER.filter((t) => byType.has(t)),
+      ...[...byType.keys()].filter((t) => !TYPE_ORDER.includes(t)).sort(),
+    ];
+    return orderedTypes.map((t) => ({
+      type: t,
+      meta: typeMeta(t),
+      items: byType.get(t)!,
+    }));
+  }, [items]);
 
   function toggle(key: string) {
     setCollapsed((c) => ({ ...c, [key]: !c[key] }));
   }
 
-  function flashToast(msg: string) {
-    setToast(msg);
-    window.setTimeout(() => setToast(null), 2400);
-  }
-
   return (
     <div className="px-2 pb-2">
-      {GROUPS.map((g) => {
-        const isCollapsed = !!collapsed[g.key];
+      {loading && items.length === 0 && (
+        <p className="px-3 py-4 text-[11px] text-[#b0aea5]">Loading…</p>
+      )}
+
+      {!loading && groups.length === 0 && (
+        <div className="px-3 py-4 text-[11px] leading-relaxed text-[#b0aea5]">
+          No datasources in this project yet. Click the{" "}
+          <span className="font-medium text-[#6b6963]">+</span> button in the
+          Datasource tab header to install one from the catalog.
+        </div>
+      )}
+
+      {groups.map((g) => {
+        const isCollapsed = !!collapsed[g.type];
         return (
-          <div key={g.key} className="mb-1">
+          <div key={g.type} className="mb-1">
             <button
-              onClick={() => toggle(g.key)}
+              onClick={() => toggle(g.type)}
               className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[13px] transition hover:bg-[#faf9f5]"
             >
               <svg
                 className="h-4 w-4 shrink-0"
-                style={{ color: g.color }}
+                style={{ color: g.meta.color }}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
                 strokeWidth={1.5}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d={g.icon} />
+                <path strokeLinecap="round" strokeLinejoin="round" d={g.meta.icon} />
               </svg>
-              <span className="font-medium text-[#141413]">{g.label}</span>
+              <span className="font-medium text-[#141413]">{g.meta.label}</span>
               <span
                 className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                style={{ color: g.color, backgroundColor: `${g.color}14` }}
+                style={{ color: g.meta.color, backgroundColor: `${g.meta.color}14` }}
               >
                 {g.items.length}
               </span>
@@ -159,102 +207,187 @@ export default function DataSourcePanel({
                 stroke="currentColor"
                 strokeWidth={2}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m19.5 8.25-7.5 7.5-7.5-7.5"
+                />
               </svg>
             </button>
             {!isCollapsed &&
-              g.items.map((item) => (
-                <div
-                  key={item.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(
-                      "application/json",
-                      JSON.stringify({
-                        type: "datasource",
-                        id: `ds:${g.key}/${item.id}`,
-                        name: item.name,
-                        label: item.name,
-                      }),
-                    );
-                    e.dataTransfer.setData("x-unispace-drag", "datasource");
-                    e.dataTransfer.effectAllowed = "copy";
-                  }}
-                  className="group flex cursor-grab items-center gap-2 rounded-lg py-1.5 pl-8 pr-2 text-[13px] transition hover:bg-[#faf9f5]"
-                >
-                  {item.region && (
-                    <span
-                      className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase"
-                      style={{
-                        color: REGION_STYLES[item.region].color,
-                        backgroundColor: REGION_STYLES[item.region].background,
-                      }}
-                    >
-                      {item.region}
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-[#141413]">
-                    {item.name}
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      flashToast(`${item.name} — demo, 不能删除`);
+              g.items.map((item) => {
+                const displayName = item.display_name || item.name;
+                const regionStyle = item.region
+                  ? REGION_STYLES[item.region]
+                  : undefined;
+                return (
+                  <div
+                    key={item.id}
+                    draggable
+                    title={item.description}
+                    onDragStart={(e) => {
+                      // Drag payload consumed by ChatPanel's handleInputDrop.
+                      // `path` carries the datasource id — ChatPanel uses it
+                      // to dedupe attachments and the agent's query_datasource
+                      // tool consumes the same id.
+                      e.dataTransfer.setData(
+                        "application/json",
+                        JSON.stringify({
+                          type: "datasource",
+                          path: item.id,
+                          id: item.id,
+                          name: displayName,
+                          label: displayName,
+                          description: item.description,
+                        }),
+                      );
+                      e.dataTransfer.setData("x-unispace-drag", "datasource");
+                      e.dataTransfer.effectAllowed = "copy";
                     }}
-                    className="hidden h-4 w-4 shrink-0 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757] group-hover:flex"
-                    title="Delete"
+                    className="group flex cursor-grab items-center gap-2 rounded-lg py-1.5 pl-8 pr-2 text-[13px] transition hover:bg-[#faf9f5]"
                   >
-                    <svg
-                      className="h-3 w-3"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
+                    {regionStyle && (
+                      <span
+                        className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase"
+                        style={{
+                          color: regionStyle.color,
+                          backgroundColor: regionStyle.background,
+                        }}
+                      >
+                        {item.region}
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-[#141413]">
+                      {displayName}
+                    </span>
+                    {item.is_demo_sample && (
+                      <span
+                        className="shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[#b0aea5]"
+                        title="Cached demo sample"
+                      >
+                        sample
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUninstall(item.id);
+                      }}
+                      className="hidden h-4 w-4 shrink-0 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#d97757] group-hover:flex"
+                      title="Remove from project"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M6 18 18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
           </div>
         );
       })}
 
       <p className="mt-3 px-3 text-[11px] leading-relaxed text-[#b0aea5]">
-        Project agent can query these as tool calls. Demo shows layout only —
-        wiring lands in v0.2.
+        Drag a datasource into the chat input — the agent will use the
+        `query_datasource` tool to read it.
       </p>
 
       {pickerOpen && (
         <DataSourcePicker
           onClose={onClosePicker}
-          onPick={(g) => {
-            onClosePicker();
-            flashToast(`${g.label} connector — coming soon`);
+          onInstalled={() => {
+            refresh();
           }}
         />
-      )}
-
-      {toast && (
-        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#141413] px-4 py-2 text-[12px] text-white shadow-lg">
-          {toast}
-        </div>
       )}
     </div>
   );
 }
 
-// ── Picker dialog ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  DataSourcePicker — browse the bundled catalog and install into
+//  the current project. Each catalog entry is a complete fixture
+//  (schema + sample rows + demo note); clicking "Use this" copies
+//  the file into `<project>/.claude/datasources/<type>/<name>.json`
+//  and refreshes the panel list.
+//
+//  Entries already present in the project show an "Installed" badge
+//  and a disabled button. The dialog pulls fresh catalog state on
+//  every open and after each install.
+// ═══════════════════════════════════════════════════════════════
 
 function DataSourcePicker({
   onClose,
-  onPick,
+  onInstalled,
 }: {
   onClose: () => void;
-  onPick: (g: DataSourceGroup) => void;
+  onInstalled: () => void;
 }) {
-  const [selected, setSelected] = useState<string>(GROUPS[0].key);
-  const active = GROUPS.find((g) => g.key === selected) || GROUPS[0];
+  const { serverUrl } = useStore();
+  const [catalog, setCatalog] = useState<DatasourceCatalogItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<string>(TYPE_ORDER[0]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    fetchDatasourceCatalog(serverUrl)
+      .then(setCatalog)
+      .catch(() => setCatalog([]))
+      .finally(() => setLoading(false));
+  }, [serverUrl]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const byType = useMemo(() => {
+    const m = new Map<string, DatasourceCatalogItem[]>();
+    for (const d of catalog) {
+      if (!m.has(d.type)) m.set(d.type, []);
+      m.get(d.type)!.push(d);
+    }
+    return m;
+  }, [catalog]);
+
+  const activeMeta = typeMeta(selected);
+  const activeItems = byType.get(selected) || [];
+
+  async function handleInstall(id: string) {
+    setBusy(id);
+    try {
+      await installDatasource(serverUrl, id);
+      await Promise.all([
+        fetchDatasourceCatalog(serverUrl).then(setCatalog),
+      ]);
+      onInstalled();
+    } catch {
+      // intentionally quiet
+    }
+    setBusy(null);
+  }
+
+  async function handleUninstall(id: string) {
+    setBusy(id);
+    try {
+      await uninstallDatasource(serverUrl, id);
+      await fetchDatasourceCatalog(serverUrl).then(setCatalog);
+      onInstalled();
+    } catch {
+      // quiet
+    }
+    setBusy(null);
+  }
 
   return (
     <>
@@ -262,77 +395,192 @@ function DataSourcePicker({
         className="fixed inset-0 z-50 bg-[#141413]/25 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="fixed left-1/2 top-1/2 z-50 w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
-        <h3 className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">
-          Connect a data source
-        </h3>
+      <div className="fixed left-1/2 top-1/2 z-50 flex h-[560px] w-[720px] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl bg-white shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
+        <div className="border-b border-[#e8e6dc] px-6 pt-5 pb-4">
+          <h3 className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">
+            Connect a data source
+          </h3>
+          <p className="mt-1 text-[11px] text-[#b0aea5]">
+            Install a datasource into this project — the agent can query it
+            via the <code className="rounded bg-[#faf9f5] px-1">query_datasource</code> tool.
+          </p>
 
-        {/* Type pill bar */}
-        <div className="mt-4 flex gap-0.5 rounded-[12px] bg-[#eeebe3] p-1">
-          {GROUPS.map((g) => {
-            const isSel = g.key === selected;
-            return (
-              <button
-                key={g.key}
-                onClick={() => setSelected(g.key)}
-                className="flex-1 truncate rounded-[8px] py-1.5 text-[11px] font-medium transition"
-                style={
-                  isSel
-                    ? {
-                        backgroundColor: "white",
-                        color: g.color,
-                        boxShadow: "0 1px 4px rgba(20,20,19,0.08)",
-                      }
-                    : { color: "#8d8a80" }
-                }
-              >
-                {g.label}
-              </button>
-            );
-          })}
+          {/* Type pill bar */}
+          <div className="mt-4 flex gap-0.5 rounded-[12px] bg-[#eeebe3] p-1">
+            {TYPE_ORDER.map((type) => {
+              const meta = typeMeta(type);
+              const isSel = type === selected;
+              const count = (byType.get(type) || []).length;
+              return (
+                <button
+                  key={type}
+                  onClick={() => setSelected(type)}
+                  className="flex flex-1 items-center justify-center gap-1.5 truncate rounded-[8px] py-1.5 text-[11px] font-medium transition"
+                  style={
+                    isSel
+                      ? {
+                          backgroundColor: "white",
+                          color: meta.color,
+                          boxShadow: "0 1px 4px rgba(20,20,19,0.08)",
+                        }
+                      : { color: "#8d8a80" }
+                  }
+                >
+                  <span>{meta.label}</span>
+                  {count > 0 && (
+                    <span
+                      className="rounded-full px-1 text-[9px] font-bold"
+                      style={{
+                        color: isSel ? meta.color : "#b0aea5",
+                        backgroundColor: isSel
+                          ? `${meta.color}14`
+                          : "#d8d5cc33",
+                      }}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Active card */}
-        <div className="mt-5 rounded-xl border border-[#e8e6dc] bg-[#fffdf8] p-5">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{ backgroundColor: `${active.color}14`, color: active.color }}
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loading && (
+            <p className="py-8 text-center text-[12px] text-[#b0aea5]">
+              Loading catalog…
+            </p>
+          )}
+
+          {!loading && activeItems.length === 0 && (
+            <div className="rounded-xl border border-dashed border-[#e8e6dc] bg-[#fffdf8] p-8 text-center">
+              <div
+                className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl"
+                style={{
+                  backgroundColor: `${activeMeta.color}14`,
+                  color: activeMeta.color,
+                }}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d={active.icon} />
-              </svg>
-            </div>
-            <div>
-              <div className="text-[14px] font-semibold text-[#141413]">
-                {active.label}
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d={activeMeta.icon}
+                  />
+                </svg>
               </div>
-              <div className="text-[12px] text-[#6b6963]">{active.hint}</div>
+              <div className="text-[13px] font-semibold text-[#141413]">
+                No {activeMeta.label} samples yet
+              </div>
+              <div className="mt-1 text-[11px] text-[#b0aea5]">
+                {activeMeta.hint}
+              </div>
             </div>
-          </div>
-          <div className="mt-4 rounded-lg border border-dashed border-[#e8e6dc] bg-white px-3 py-6 text-center text-[11px] text-[#b0aea5]">
-            Connector form preview — demo only
-          </div>
+          )}
+
+          {!loading &&
+            activeItems.map((item) => (
+              <div
+                key={item.id}
+                className="mb-3 flex items-start gap-3 rounded-xl border border-[#e8e6dc] bg-white p-4 transition hover:border-[#b0aea5]"
+              >
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                  style={{
+                    backgroundColor: `${activeMeta.color}14`,
+                    color: activeMeta.color,
+                  }}
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d={activeMeta.icon}
+                    />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-[13px] font-semibold text-[#141413]">
+                      {item.display_name || item.name}
+                    </span>
+                    {item.region && REGION_STYLES[item.region] && (
+                      <span
+                        className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase"
+                        style={{
+                          color: REGION_STYLES[item.region].color,
+                          backgroundColor:
+                            REGION_STYLES[item.region].background,
+                        }}
+                      >
+                        {item.region}
+                      </span>
+                    )}
+                    {item.is_demo_sample && (
+                      <span
+                        className="shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[#b0aea5]"
+                        title="Cached demo sample — reads from local fixture, does not hit a live backend"
+                      >
+                        sample
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[#6b6963]">
+                    {item.description}
+                  </p>
+                  <div className="mt-2 flex items-center gap-1 text-[10px] text-[#b0aea5]">
+                    <span>{item.schema.dimensions.length} dims</span>
+                    <span>·</span>
+                    <span>{item.schema.metrics.length} metrics</span>
+                  </div>
+                </div>
+                {item.installed ? (
+                  <button
+                    onClick={() => handleUninstall(item.id)}
+                    disabled={busy === item.id}
+                    className="shrink-0 rounded-lg border border-[#e8e6dc] px-3 py-1.5 text-[11px] font-medium text-[#6b6963] transition hover:border-red-200 hover:text-red-500 disabled:opacity-50"
+                  >
+                    Installed · Remove
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleInstall(item.id)}
+                    disabled={busy === item.id}
+                    className="shrink-0 rounded-lg bg-[#141413] px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-[#2a2a28] disabled:opacity-50"
+                  >
+                    {busy === item.id ? "…" : "Use this"}
+                  </button>
+                )}
+              </div>
+            ))}
+
+          {!loading && (
+            <div className="mt-4 rounded-lg border border-dashed border-[#e8e6dc] bg-[#faf9f5] p-3 text-center text-[10px] leading-relaxed text-[#b0aea5]">
+              Custom connector form (填 token / spreadsheet link / etc.) —{" "}
+              <span className="font-medium">preview only</span>
+            </div>
+          )}
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="flex justify-end gap-2 border-t border-[#e8e6dc] px-6 py-4">
           <button
             onClick={onClose}
-            className="rounded-lg border border-[#e8e6dc] px-4 py-2 text-[13px] text-[#6b6963] transition hover:bg-[#faf9f5]"
+            className="rounded-lg border border-[#e8e6dc] px-4 py-2 text-[12px] text-[#6b6963] transition hover:bg-[#faf9f5]"
           >
-            Cancel
-          </button>
-          <button
-            onClick={() => onPick(active)}
-            className="rounded-lg bg-[#141413] px-4 py-2 text-[13px] font-medium text-white transition hover:bg-[#2a2a28]"
-          >
-            Connect
+            Close
           </button>
         </div>
       </div>

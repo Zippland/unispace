@@ -1,0 +1,23 @@
+{
+  "type": "notion",
+  "id": "notion/finance_wiki",
+  "name": "finance_wiki",
+  "display_name": "Notion 财务 Wiki",
+  "description": "读写 Finance Ops 团队的 Notion workspace：'Finance Wiki' 和 '月度复盘' 两个顶级 database。用 finance-bot 这个 internal integration 的身份。",
+  "status": "connected",
+  "config": {
+    "workspace": "Finance Ops",
+    "databases": [
+      { "id": "db-finance-wiki", "name": "Finance Wiki" },
+      { "id": "db-monthly-retro", "name": "月度复盘" }
+    ],
+    "_integration_secret": "secret_demo_********************"
+  },
+  "actions": [
+    { "name": "create_page", "description": "Create a new Notion page inside a database with properties + blocks" },
+    { "name": "append_blocks", "description": "Append markdown content to an existing page" },
+    { "name": "query_database", "description": "Query a database with filters and sorts" },
+    { "name": "update_page_properties", "description": "Patch properties of an existing page" }
+  ],
+  "_demo_note": "UniSpace demo does not actually write to Notion. Any create/append/update is logged and echoed back. In production this would use the Notion API with the integration secret."
+}

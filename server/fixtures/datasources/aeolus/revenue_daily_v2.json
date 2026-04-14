@@ -1,0 +1,68 @@
+{
+  "type": "aeolus",
+  "id": "aeolus/revenue_daily_v2",
+  "name": "revenue_daily_v2",
+  "display_name": "日级广告收入明细",
+  "region": "sg",
+  "description": "Aeolus 新加坡集群 — TikTok for Business 日级广告收入明细，按渠道、国家、业务线维度拆分。数据延迟 T+1，固定汇率口径。",
+  "_demo_note": "这是 UniSpace demo 的 cached sample，数据截止 2026-04-10，共 7 天 × 多维度组合。真实连接会返回实时 Aeolus 查询结果。当你基于这份数据给出结论时，请在回答中主动说明这是基于缓存样本而非实时查询。",
+
+  "schema": {
+    "dimensions": [
+      { "key": "date",     "label": "日期",   "type": "date" },
+      { "key": "channel",  "label": "渠道",   "type": "string", "values": ["self_serve", "managed", "reseller"] },
+      { "key": "country",  "label": "国家",   "type": "string", "values": ["SG", "ID", "TH", "VN", "PH", "MY"] },
+      { "key": "biz_line", "label": "业务线", "type": "string", "values": ["ecommerce", "gaming", "fintech", "edu"] }
+    ],
+    "metrics": [
+      { "key": "revenue_usd",  "label": "收入",   "unit": "USD",     "agg": "sum" },
+      { "key": "impressions",  "label": "曝光量", "unit": "count",   "agg": "sum" },
+      { "key": "ctr",          "label": "点击率", "unit": "percent", "agg": "avg" }
+    ]
+  },
+
+  "sample_rows": [
+    { "date": "2026-04-10", "channel": "self_serve", "country": "SG", "biz_line": "ecommerce", "revenue_usd": 182340, "impressions": 12400000, "ctr": 1.82 },
+    { "date": "2026-04-10", "channel": "managed",    "country": "ID", "biz_line": "gaming",    "revenue_usd": 267890, "impressions": 18900000, "ctr": 2.14 },
+    { "date": "2026-04-10", "channel": "self_serve", "country": "TH", "biz_line": "ecommerce", "revenue_usd":  94120, "impressions":  6200000, "ctr": 1.65 },
+    { "date": "2026-04-10", "channel": "reseller",   "country": "VN", "biz_line": "fintech",   "revenue_usd":  45670, "impressions":  3100000, "ctr": 1.47 },
+    { "date": "2026-04-10", "channel": "managed",    "country": "PH", "biz_line": "edu",       "revenue_usd":  38910, "impressions":  2400000, "ctr": 1.62 },
+    { "date": "2026-04-10", "channel": "self_serve", "country": "MY", "biz_line": "ecommerce", "revenue_usd":  71230, "impressions":  4900000, "ctr": 1.45 },
+
+    { "date": "2026-04-09", "channel": "self_serve", "country": "SG", "biz_line": "ecommerce", "revenue_usd": 176220, "impressions": 11900000, "ctr": 1.85 },
+    { "date": "2026-04-09", "channel": "managed",    "country": "ID", "biz_line": "gaming",    "revenue_usd": 259100, "impressions": 18200000, "ctr": 2.18 },
+    { "date": "2026-04-09", "channel": "self_serve", "country": "TH", "biz_line": "ecommerce", "revenue_usd":  91840, "impressions":  6050000, "ctr": 1.67 },
+    { "date": "2026-04-09", "channel": "reseller",   "country": "VN", "biz_line": "fintech",   "revenue_usd":  44210, "impressions":  3020000, "ctr": 1.46 },
+    { "date": "2026-04-09", "channel": "managed",    "country": "PH", "biz_line": "edu",       "revenue_usd":  37560, "impressions":  2350000, "ctr": 1.60 },
+    { "date": "2026-04-09", "channel": "self_serve", "country": "MY", "biz_line": "ecommerce", "revenue_usd":  69780, "impressions":  4820000, "ctr": 1.45 },
+
+    { "date": "2026-04-08", "channel": "self_serve", "country": "SG", "biz_line": "ecommerce", "revenue_usd": 171450, "impressions": 11600000, "ctr": 1.84 },
+    { "date": "2026-04-08", "channel": "managed",    "country": "ID", "biz_line": "gaming",    "revenue_usd": 251230, "impressions": 17800000, "ctr": 2.12 },
+    { "date": "2026-04-08", "channel": "self_serve", "country": "TH", "biz_line": "ecommerce", "revenue_usd":  89670, "impressions":  5940000, "ctr": 1.63 },
+    { "date": "2026-04-08", "channel": "reseller",   "country": "VN", "biz_line": "fintech",   "revenue_usd":  43120, "impressions":  2960000, "ctr": 1.44 },
+    { "date": "2026-04-08", "channel": "managed",    "country": "PH", "biz_line": "edu",       "revenue_usd":  36220, "impressions":  2280000, "ctr": 1.58 },
+    { "date": "2026-04-08", "channel": "self_serve", "country": "MY", "biz_line": "ecommerce", "revenue_usd":  68340, "impressions":  4740000, "ctr": 1.43 },
+
+    { "date": "2026-04-07", "channel": "self_serve", "country": "SG", "biz_line": "ecommerce", "revenue_usd": 168920, "impressions": 11450000, "ctr": 1.83 },
+    { "date": "2026-04-07", "channel": "managed",    "country": "ID", "biz_line": "gaming",    "revenue_usd": 247680, "impressions": 17500000, "ctr": 2.10 },
+    { "date": "2026-04-07", "channel": "self_serve", "country": "TH", "biz_line": "ecommerce", "revenue_usd":  88240, "impressions":  5860000, "ctr": 1.61 },
+    { "date": "2026-04-07", "channel": "reseller",   "country": "VN", "biz_line": "fintech",   "revenue_usd":  42340, "impressions":  2910000, "ctr": 1.43 },
+    { "date": "2026-04-07", "channel": "managed",    "country": "PH", "biz_line": "edu",       "revenue_usd":  35890, "impressions":  2260000, "ctr": 1.57 },
+    { "date": "2026-04-07", "channel": "self_serve", "country": "MY", "biz_line": "ecommerce", "revenue_usd":  67210, "impressions":  4680000, "ctr": 1.42 },
+
+    { "date": "2026-04-06", "channel": "self_serve", "country": "SG", "biz_line": "ecommerce", "revenue_usd": 165340, "impressions": 11200000, "ctr": 1.81 },
+    { "date": "2026-04-06", "channel": "managed",    "country": "ID", "biz_line": "gaming",    "revenue_usd": 243120, "impressions": 17200000, "ctr": 2.08 },
+    { "date": "2026-04-06", "channel": "self_serve", "country": "TH", "biz_line": "ecommerce", "revenue_usd":  86450, "impressions":  5760000, "ctr": 1.59 },
+    { "date": "2026-04-06", "channel": "reseller",   "country": "VN", "biz_line": "fintech",   "revenue_usd":  41680, "impressions":  2870000, "ctr": 1.41 },
+
+    { "date": "2026-04-05", "channel": "self_serve", "country": "SG", "biz_line": "ecommerce", "revenue_usd": 158720, "impressions": 10800000, "ctr": 1.79 },
+    { "date": "2026-04-05", "channel": "managed",    "country": "ID", "biz_line": "gaming",    "revenue_usd": 234560, "impressions": 16700000, "ctr": 2.05 },
+    { "date": "2026-04-05", "channel": "self_serve", "country": "TH", "biz_line": "ecommerce", "revenue_usd":  83910, "impressions":  5620000, "ctr": 1.57 },
+    { "date": "2026-04-05", "channel": "reseller",   "country": "VN", "biz_line": "fintech",   "revenue_usd":  40230, "impressions":  2800000, "ctr": 1.40 },
+
+    { "date": "2026-04-04", "channel": "self_serve", "country": "SG", "biz_line": "ecommerce", "revenue_usd": 161340, "impressions": 10950000, "ctr": 1.80 },
+    { "date": "2026-04-04", "channel": "managed",    "country": "ID", "biz_line": "gaming",    "revenue_usd": 238420, "impressions": 16900000, "ctr": 2.06 },
+    { "date": "2026-04-04", "channel": "self_serve", "country": "TH", "biz_line": "ecommerce", "revenue_usd":  85120, "impressions":  5680000, "ctr": 1.58 },
+    { "date": "2026-04-04", "channel": "reseller",   "country": "VN", "biz_line": "fintech",   "revenue_usd":  40890, "impressions":  2820000, "ctr": 1.41 }
+  ]
+}

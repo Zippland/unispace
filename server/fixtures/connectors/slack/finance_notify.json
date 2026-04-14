@@ -1,0 +1,20 @@
+{
+  "type": "slack",
+  "id": "slack/finance_notify",
+  "name": "finance_notify",
+  "display_name": "财务通知 Slack 频道",
+  "description": "向 bytedance.slack.com 的 #finance-daily 频道推送消息。身份是财务 BP 团队的 finance-notify-bot。",
+  "status": "connected",
+  "config": {
+    "workspace_url": "https://bytedance.slack.com",
+    "bot_name": "finance-notify-bot",
+    "default_channel": "#finance-daily",
+    "_bot_token": "xoxb-demo-********************"
+  },
+  "actions": [
+    { "name": "post_message", "description": "Post a message to a Slack channel" },
+    { "name": "post_thread_reply", "description": "Reply inside an existing thread" },
+    { "name": "upload_file", "description": "Upload a file with an optional comment" }
+  ],
+  "_demo_note": "UniSpace demo does not actually send Slack messages. Any action this connector receives will be logged and echoed back instead of posted. In production this would POST to the Slack Web API using the bot token."
+}

@@ -1,0 +1,55 @@
+{
+  "type": "lark_sheet",
+  "id": "lark_sheet/q1_budget_tracking",
+  "name": "q1_budget_tracking",
+  "display_name": "2026 Q1 各 BU 预算追踪",
+  "description": "飞书电子表格 — 2026 Q1 各业务单元预算执行追踪，按 BU × 预算类别 × 月份切分，包括预算额度、已用金额、剩余额度、执行率。每周由财务 BP 手动更新。spreadsheet_token=shtcnAbc123XyzDemoToken。",
+  "_demo_note": "这是 UniSpace demo 的 cached sample，快照时间 2026-04-08 的那一版周更。真实连接会调用飞书 Sheet API 读取最新单元格数据。当你基于这份数据给出结论时，请在回答中主动说明这是基于周度快照，不是当日最新数据。",
+
+  "schema": {
+    "dimensions": [
+      { "key": "bu",        "label": "业务单元",   "type": "string", "values": ["TikTok", "Douyin", "Feishu", "Corporate"] },
+      { "key": "category",  "label": "预算类别",   "type": "string", "values": ["人力成本", "差旅", "市场营销", "研发投入", "办公行政"] },
+      { "key": "month",     "label": "月份",       "type": "string", "values": ["2026-01", "2026-02", "2026-03"] }
+    ],
+    "metrics": [
+      { "key": "budget_cny",   "label": "预算",   "unit": "CNY",     "agg": "sum" },
+      { "key": "used_cny",     "label": "已用",   "unit": "CNY",     "agg": "sum" },
+      { "key": "remaining_cny","label": "剩余",   "unit": "CNY",     "agg": "sum" },
+      { "key": "exec_rate",    "label": "执行率", "unit": "percent", "agg": "avg" }
+    ]
+  },
+
+  "sample_rows": [
+    { "bu": "TikTok",    "category": "人力成本",   "month": "2026-01", "budget_cny": 120000000, "used_cny": 118400000, "remaining_cny":  1600000, "exec_rate": 98.7 },
+    { "bu": "TikTok",    "category": "人力成本",   "month": "2026-02", "budget_cny": 120000000, "used_cny": 119100000, "remaining_cny":   900000, "exec_rate": 99.3 },
+    { "bu": "TikTok",    "category": "人力成本",   "month": "2026-03", "budget_cny": 122000000, "used_cny": 121500000, "remaining_cny":   500000, "exec_rate": 99.6 },
+    { "bu": "TikTok",    "category": "差旅",       "month": "2026-01", "budget_cny":   8000000, "used_cny":   6340000, "remaining_cny":  1660000, "exec_rate": 79.3 },
+    { "bu": "TikTok",    "category": "差旅",       "month": "2026-02", "budget_cny":   8000000, "used_cny":   7120000, "remaining_cny":   880000, "exec_rate": 89.0 },
+    { "bu": "TikTok",    "category": "差旅",       "month": "2026-03", "budget_cny":   8000000, "used_cny":   9450000, "remaining_cny": -1450000, "exec_rate":118.1 },
+    { "bu": "TikTok",    "category": "市场营销",   "month": "2026-01", "budget_cny":  45000000, "used_cny":  42800000, "remaining_cny":  2200000, "exec_rate": 95.1 },
+    { "bu": "TikTok",    "category": "市场营销",   "month": "2026-02", "budget_cny":  45000000, "used_cny":  44600000, "remaining_cny":   400000, "exec_rate": 99.1 },
+    { "bu": "TikTok",    "category": "市场营销",   "month": "2026-03", "budget_cny":  48000000, "used_cny":  51200000, "remaining_cny": -3200000, "exec_rate":106.7 },
+
+    { "bu": "Douyin",    "category": "人力成本",   "month": "2026-01", "budget_cny":  95000000, "used_cny":  93800000, "remaining_cny":  1200000, "exec_rate": 98.7 },
+    { "bu": "Douyin",    "category": "人力成本",   "month": "2026-02", "budget_cny":  95000000, "used_cny":  94500000, "remaining_cny":   500000, "exec_rate": 99.5 },
+    { "bu": "Douyin",    "category": "人力成本",   "month": "2026-03", "budget_cny":  97000000, "used_cny":  96700000, "remaining_cny":   300000, "exec_rate": 99.7 },
+    { "bu": "Douyin",    "category": "研发投入",   "month": "2026-01", "budget_cny":  32000000, "used_cny":  28900000, "remaining_cny":  3100000, "exec_rate": 90.3 },
+    { "bu": "Douyin",    "category": "研发投入",   "month": "2026-02", "budget_cny":  32000000, "used_cny":  31200000, "remaining_cny":   800000, "exec_rate": 97.5 },
+    { "bu": "Douyin",    "category": "研发投入",   "month": "2026-03", "budget_cny":  33000000, "used_cny":  32400000, "remaining_cny":   600000, "exec_rate": 98.2 },
+
+    { "bu": "Feishu",    "category": "人力成本",   "month": "2026-01", "budget_cny":  78000000, "used_cny":  76200000, "remaining_cny":  1800000, "exec_rate": 97.7 },
+    { "bu": "Feishu",    "category": "人力成本",   "month": "2026-02", "budget_cny":  78000000, "used_cny":  77100000, "remaining_cny":   900000, "exec_rate": 98.8 },
+    { "bu": "Feishu",    "category": "人力成本",   "month": "2026-03", "budget_cny":  79500000, "used_cny":  78900000, "remaining_cny":   600000, "exec_rate": 99.2 },
+    { "bu": "Feishu",    "category": "办公行政",   "month": "2026-01", "budget_cny":   4500000, "used_cny":   3820000, "remaining_cny":   680000, "exec_rate": 84.9 },
+    { "bu": "Feishu",    "category": "办公行政",   "month": "2026-02", "budget_cny":   4500000, "used_cny":   4100000, "remaining_cny":   400000, "exec_rate": 91.1 },
+    { "bu": "Feishu",    "category": "办公行政",   "month": "2026-03", "budget_cny":   4500000, "used_cny":   4350000, "remaining_cny":   150000, "exec_rate": 96.7 },
+
+    { "bu": "Corporate", "category": "人力成本",   "month": "2026-01", "budget_cny":  35000000, "used_cny":  34200000, "remaining_cny":   800000, "exec_rate": 97.7 },
+    { "bu": "Corporate", "category": "人力成本",   "month": "2026-02", "budget_cny":  35000000, "used_cny":  34800000, "remaining_cny":   200000, "exec_rate": 99.4 },
+    { "bu": "Corporate", "category": "人力成本",   "month": "2026-03", "budget_cny":  35500000, "used_cny":  35100000, "remaining_cny":   400000, "exec_rate": 98.9 },
+    { "bu": "Corporate", "category": "差旅",       "month": "2026-01", "budget_cny":   2000000, "used_cny":   1340000, "remaining_cny":   660000, "exec_rate": 67.0 },
+    { "bu": "Corporate", "category": "差旅",       "month": "2026-02", "budget_cny":   2000000, "used_cny":   1780000, "remaining_cny":   220000, "exec_rate": 89.0 },
+    { "bu": "Corporate", "category": "差旅",       "month": "2026-03", "budget_cny":   2000000, "used_cny":   2120000, "remaining_cny":  -120000, "exec_rate":106.0 }
+  ]
+}

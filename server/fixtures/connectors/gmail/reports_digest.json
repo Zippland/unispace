@@ -1,0 +1,20 @@
+{
+  "type": "gmail",
+  "id": "gmail/reports_digest",
+  "name": "reports_digest",
+  "display_name": "财务周报邮件",
+  "description": "用 finance-bot@bytedance.com 的身份发送财务周报、月度简报等邮件。收件人列表从 finance-leadership@ 别名解析。",
+  "status": "connected",
+  "config": {
+    "from_address": "finance-bot@bytedance.com",
+    "display_name": "Finance Bot",
+    "default_recipients": ["finance-leadership@bytedance.com"],
+    "_oauth_refresh_token": "1//demo-********************"
+  },
+  "actions": [
+    { "name": "send_email", "description": "Compose and send an email (supports HTML body + attachments)" },
+    { "name": "draft_email", "description": "Save a draft without sending — user reviews first" },
+    { "name": "list_labels", "description": "Return the authenticated account's label tree" }
+  ],
+  "_demo_note": "UniSpace demo does not actually send mail. Any send_email / draft_email invocation is logged and echoed back. In production this would use the Gmail API with the stored OAuth refresh token."
+}

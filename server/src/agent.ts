@@ -1,5 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { loadProjectContext } from "./config";
+import { buildDatasourceMcp } from "./datasources";
+import { buildConnectorMcp } from "./connectors";
 
 // ── Wire events (kept compatible with the previous agent) ────
 
@@ -67,6 +69,17 @@ export async function* runAgent(
   // skills via dedicated UI; the model only needs the project persona.
   const projectCtx = loadProjectContext(cwd);
 
+  // In-process MCP server exposing the project's datasources as
+  // list_datasources / get_datasource_schema / query_datasource tools.
+  // Rescanned on every tool call so edits land without a restart.
+  const datasourceMcp = buildDatasourceMcp(cwd);
+
+  // In-process MCP server exposing the project's installed connectors
+  // as one `<slug>_invoke` tool each, plus a discovery `list_connectors`
+  // tool. Connector list is resolved at construction time (once per
+  // turn); a connector added mid-turn requires a new chat turn.
+  const connectorMcp = await buildConnectorMcp(cwd);
+
   try {
     const q = query({
       prompt,
@@ -94,6 +107,10 @@ export async function* runAgent(
         // Demo: skip all permission prompts (sandbox handles isolation in prod)
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
+        mcpServers: {
+          unispace_datasources: datasourceMcp,
+          unispace_connectors: connectorMcp,
+        },
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
         ...(agentsRegistry && agentName
           ? { agent: agentName, agents: agentsRegistry }

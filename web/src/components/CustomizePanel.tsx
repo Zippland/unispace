@@ -697,63 +697,191 @@ function DispatchTable({ onOpenDispatch }: { onOpenDispatch: () => void }) {
 
 // ── Connectors sub ───────────────────────────────────────────
 
-interface ConnectorEntry {
-  id: string;
-  label: string;
-  description: string;
-  group: "Web" | "Desktop" | "Not connected";
-  emoji: string;
+const CONNECTOR_EMOJI: Record<string, string> = {
+  slack: "💬",
+  gmail: "✉️",
+  github: "🐙",
+  notion: "📓",
+  feishu_notify: "🛎️",
+  linear: "📋",
+  chrome: "🌐",
+  mac: "🖥️",
+};
+
+function connectorEmoji(type: string): string {
+  return CONNECTOR_EMOJI[type] || "🔌";
 }
 
-const CONNECTOR_CATALOG: ConnectorEntry[] = [
-  { id: "github", label: "GitHub", description: "Repos, PRs, issues, code review.", group: "Web", emoji: "🐙" },
-  { id: "notion", label: "Notion", description: "Pages, databases, comments.", group: "Web", emoji: "📓" },
-  { id: "linear", label: "Linear", description: "Issues, cycles, triage.", group: "Web", emoji: "📋" },
-  { id: "chrome", label: "Claude in Chrome", description: "Drive a real browser.", group: "Desktop", emoji: "🌐" },
-  { id: "mac", label: "Control your Mac", description: "Click, type, screenshot.", group: "Desktop", emoji: "🖥️" },
-  { id: "gmail", label: "Gmail", description: "Read and send email.", group: "Not connected", emoji: "✉️" },
-  { id: "gcal", label: "Google Calendar", description: "Events, scheduling.", group: "Not connected", emoji: "📅" },
-  { id: "gdrive", label: "Google Drive", description: "Files and folders.", group: "Not connected", emoji: "📁" },
-];
-
 function ConnectorsTable() {
-  const groups = ["Web", "Desktop", "Not connected"] as const;
+  const { serverUrl, connected, currentProject } = useStore();
+  const [catalog, setCatalog] = useState<api.ConnectorCatalogItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const refresh = () => {
+    if (!connected) return;
+    setLoading(true);
+    api
+      .fetchConnectorCatalog(serverUrl)
+      .then(setCatalog)
+      .catch(() => setCatalog([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverUrl, connected, currentProject]);
+
+  async function handleInstall(id: string) {
+    setBusy(id);
+    try {
+      await api.installConnector(serverUrl, id);
+      refresh();
+    } catch {}
+    setBusy(null);
+  }
+
+  async function handleUninstall(id: string) {
+    setBusy(id);
+    try {
+      await api.uninstallConnector(serverUrl, id);
+      refresh();
+    } catch {}
+    setBusy(null);
+  }
+
+  const installed = catalog.filter((c) => c.installed);
+  const available = catalog.filter((c) => !c.installed);
+
   return (
     <div className="space-y-6">
       <p className="text-[12px] leading-relaxed text-[#b0aea5]">
-        Preview of what's coming. For now, wire MCP servers directly via{" "}
-        <span className="font-mono text-[#6b6963]">.claude/settings.json</span>.
+        Outbound action channels — "what external systems can the agent
+        reach out to". Every installed connector exposes its actions to
+        the agent as an MCP tool. Demo mode: calls are logged and echoed
+        back instead of actually hitting the live backend.
       </p>
-      {groups.map((g) => {
-        const items = CONNECTOR_CATALOG.filter((c) => c.group === g);
-        if (items.length === 0) return null;
-        return (
-          <div key={g}>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#b0aea5]">
-              {g}
-            </div>
-            <div className="divide-y divide-[#f0efe9] rounded-xl border border-[#e8e6dc] bg-white">
-              {items.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex items-start gap-3 px-5 py-3.5"
-                >
-                  <span className="mt-0.5 text-[18px] leading-none">{c.emoji}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-medium text-[#141413]">{c.label}</span>
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[#b0aea5]">
-                        soon
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-[#b0aea5]">{c.description}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+
+      {loading && catalog.length === 0 && (
+        <p className="py-8 text-center text-[12px] text-[#b0aea5]">
+          Loading catalog…
+        </p>
+      )}
+
+      {installed.length > 0 && (
+        <div>
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#b0aea5]">
+            Installed in this project
           </div>
-        );
-      })}
+          <div className="space-y-2">
+            {installed.map((c) => (
+              <ConnectorCard
+                key={c.id}
+                connector={c}
+                busy={busy === c.id}
+                onAction={() => handleUninstall(c.id)}
+                actionLabel="Remove"
+                actionTone="neutral"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {available.length > 0 && (
+        <div>
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#b0aea5]">
+            Catalog
+          </div>
+          <div className="space-y-2">
+            {available.map((c) => (
+              <ConnectorCard
+                key={c.id}
+                connector={c}
+                busy={busy === c.id}
+                onAction={() => handleInstall(c.id)}
+                actionLabel="Use this"
+                actionTone="primary"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="rounded-lg border border-dashed border-[#e8e6dc] bg-[#faf9f5] p-3 text-[10px] leading-relaxed text-[#b0aea5]">
+        Custom connector — add any MCP server by dropping a JSON manifest
+        into <span className="font-mono">.claude/connectors/</span>. A
+        connector form builder (token / OAuth / webhook) is planned but
+        not wired in this slice.
+      </p>
+    </div>
+  );
+}
+
+function ConnectorCard({
+  connector,
+  busy,
+  onAction,
+  actionLabel,
+  actionTone,
+}: {
+  connector: api.ConnectorCatalogItem;
+  busy: boolean;
+  onAction: () => void;
+  actionLabel: string;
+  actionTone: "primary" | "neutral";
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-[#e8e6dc] bg-white px-5 py-4">
+      <span className="mt-0.5 text-[22px] leading-none">
+        {connectorEmoji(connector.type)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[13px] font-semibold text-[#141413]">
+            {connector.display_name || connector.name}
+          </span>
+          <span className="shrink-0 rounded-full bg-[#141413]/[0.06] px-2 py-0.5 text-[10px] text-[#6b6963]">
+            {connector.type}
+          </span>
+          {connector.is_demo && (
+            <span
+              className="shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[#b0aea5]"
+              title="This connector is a demo stub — actions are logged, not executed."
+            >
+              demo
+            </span>
+          )}
+        </div>
+        <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[#6b6963]">
+          {connector.description}
+        </div>
+        {connector.actions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {connector.actions.map((a) => (
+              <span
+                key={a.name}
+                title={a.description}
+                className="rounded-md bg-[#faf9f5] px-1.5 py-0.5 font-mono text-[10px] text-[#6b6963]"
+              >
+                {a.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <button
+        onClick={onAction}
+        disabled={busy}
+        className={
+          actionTone === "primary"
+            ? "shrink-0 rounded-lg bg-[#141413] px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-[#2a2a28] disabled:opacity-50"
+            : "shrink-0 rounded-lg border border-[#e8e6dc] px-3 py-1.5 text-[11px] text-[#6b6963] transition hover:border-red-200 hover:text-red-500 disabled:opacity-50"
+        }
+      >
+        {busy ? "…" : actionLabel}
+      </button>
     </div>
   );
 }
