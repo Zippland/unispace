@@ -110,11 +110,34 @@ export default function App() {
   const [devOpen, setDevOpen] = useState(false);
   const [agentEditor, setAgentEditor] = useState<AgentEditorMode | null>(null);
   const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
-  const [miraMode, setMiraMode] = useState<MiraMode>("project");
-  const [projectWelcomeOpen, setProjectWelcomeOpen] = useState(false);
-  const [welcomeInitialTemplate, setWelcomeInitialTemplate] =
-    useState<api.ProjectTemplate | null>(null);
+  const [miraMode, setMiraMode] = useState<MiraMode>("cattery");
   const [skillDialogOpen, setSkillDialogOpen] = useState(false);
+
+  // Shared "open a project by name" — used both when the user picks
+  // an existing project from the Cattery "Your projects" layer and
+  // after a new project is created from a template. Switches the
+  // current project on the server, refreshes client state, then
+  // enters project mode.
+  const openProject = useCallback(
+    async (name: string) => {
+      try {
+        await api.switchProject(serverUrl, name);
+        const [projectsResp, sessions, files] = await Promise.all([
+          api.fetchProjects(serverUrl),
+          api.fetchSessions(serverUrl),
+          api.fetchFiles(serverUrl),
+        ]);
+        useStore.getState().setProjects(
+          projectsResp.projects,
+          projectsResp.current,
+        );
+        useStore.getState().setSessions(sessions);
+        useStore.getState().setFiles(files);
+      } catch {}
+      setMiraMode("project");
+    },
+    [serverUrl],
+  );
 
   const [sidebarW, setSidebarW] = usePersistentWidth("us:sidebar", 240);
   const [chatW, setChatW] = usePersistentWidth("us:chat", 360);
@@ -249,10 +272,6 @@ export default function App() {
           promotedTabs={promotedOrdered}
           miraMode={miraMode}
           onMiraModeChange={setMiraMode}
-          onOpenProjectWelcome={() => {
-            setMiraMode("project");
-            setProjectWelcomeOpen(true);
-          }}
         />
       </div>
 
@@ -298,33 +317,11 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <GlobalCustomizePanel />
         </div>
-      ) : projectWelcomeOpen ? (
+      ) : miraMode === "cattery" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <ProjectWelcome
-            onClose={() => {
-              setProjectWelcomeOpen(false);
-              setWelcomeInitialTemplate(null);
-            }}
-            initialTemplate={welcomeInitialTemplate ?? undefined}
-            onProjectCreated={async (name) => {
-              // Switch current project on the server, refresh client state
-              try {
-                await api.switchProject(serverUrl, name);
-                const [projectsResp, sessions, files] = await Promise.all([
-                  api.fetchProjects(serverUrl),
-                  api.fetchSessions(serverUrl),
-                  api.fetchFiles(serverUrl),
-                ]);
-                useStore.getState().setProjects(
-                  projectsResp.projects,
-                  projectsResp.current,
-                );
-                useStore.getState().setSessions(sessions);
-                useStore.getState().setFiles(files);
-              } catch {}
-              setProjectWelcomeOpen(false);
-              setWelcomeInitialTemplate(null);
-            }}
+            onProjectCreated={openProject}
+            onSelectExisting={openProject}
           />
         </div>
       ) : agentEditor ? (
@@ -361,12 +358,7 @@ export default function App() {
             style={{ width: chatW }}
             className="shrink-0 flex flex-col h-full"
           >
-            <ChatPanel
-              onStartFromTemplate={(t) => {
-                setWelcomeInitialTemplate(t);
-                setProjectWelcomeOpen(true);
-              }}
-            />
+            <ChatPanel />
           </div>
 
           {/* Handle: chat ↔ preview */}
@@ -429,12 +421,7 @@ export default function App() {
       ) : (
         /* No preview: chat fills all remaining space */
         <div className="flex-1 flex flex-col min-w-0 h-full">
-          <ChatPanel
-            onStartFromTemplate={(t) => {
-              setWelcomeInitialTemplate(t);
-              setProjectWelcomeOpen(true);
-            }}
-          />
+          <ChatPanel />
         </div>
       )}
 

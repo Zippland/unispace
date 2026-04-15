@@ -7,15 +7,23 @@ import {
 } from "../mira/templateSeed";
 
 // ═══════════════════════════════════════════════════════════════
-//  ProjectWelcome — the BU-federated project template gallery.
-//  Shows when the user is in Project mode without a current
-//  project OR explicitly asks for "+ New Project".
+//  ProjectWelcome — Cattery's two-layer landing surface.
+//
+//    1. Your projects  — existing workspaces from the store
+//    2. Explore        — BU-federated template gallery
+//
+//  Styled to Anthropic brand guidelines (see .claude/skills/
+//  brand-guidelines) — #141413 / #faf9f5 / #b0aea5 / #e8e6dc base,
+//  #d97757 orange as the single accent, Poppins for headings.
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
   /** Called after a new project is created (by name) so the parent
    *  can switch the current project and refresh state. */
   onProjectCreated: (name: string) => Promise<void> | void;
+  /** Called when the user picks an existing project. Parent wires this
+   *  to `switchProject` + store refresh + enter project mode. */
+  onSelectExisting?: (name: string) => Promise<void> | void;
   /** Optional close handler — when rendered as takeover with a project
    *  already active, the user can back out. */
   onClose?: () => void;
@@ -23,6 +31,23 @@ interface Props {
    *  template as soon as the gallery mounts. Used by ChatPanel's empty
    *  state "start from template" strip to jump straight to the confirm. */
   initialTemplate?: api.ProjectTemplate;
+}
+
+// ── Relative time formatter (used by MyProjectCard) ───────────
+function formatUpdated(ts: number): string {
+  if (!ts) return "—";
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 // Demo BU list — order matters (Explore is pinned first)
@@ -68,10 +93,15 @@ function defaultPendingName(tmpl: { id: string; bu: string }): string {
 
 export default function ProjectWelcome({
   onProjectCreated,
+  onSelectExisting,
   onClose,
   initialTemplate,
 }: Props) {
-  const { serverUrl } = useStore();
+  const { serverUrl, projects } = useStore();
+  const sortedProjects = useMemo(
+    () => [...projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)),
+    [projects],
+  );
   const [real, setReal] = useState<api.ProjectTemplate[]>([]);
   const [activeBU, setActiveBU] = useState<string>("explore");
   const [loading, setLoading] = useState(true);
@@ -175,22 +205,71 @@ export default function ProjectWelcome({
         </div>
       )}
 
-      <div className="mx-auto w-full max-w-4xl px-10 pb-16 pt-20">
+      <div className="mx-auto w-full max-w-5xl px-10 pb-20 pt-20">
         {/* Hero — mirrors MiraWelcomeMain's scale */}
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#141413] text-[28px]">
-            📁
+        <div className="mb-14 flex flex-col items-center text-center">
+          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#141413] text-[28px]">
+            🐱
           </div>
           <h1 className="font-['Poppins',_Arial,_sans-serif] text-[34px] font-semibold tracking-tight text-[#141413]">
-            Start a new project
+            Welcome to Cattery
           </h1>
-          <p className="mt-2 text-[14px] text-[#6b6963]">
-            Pick a template published by your BU, or start from a blank canvas
+          <p className="mt-3 max-w-md font-['Lora',_Georgia,_serif] text-[15px] leading-relaxed text-[#6b6963]">
+            Pick up a project you've been working on, or start something new
+            from the gallery.
           </p>
         </div>
 
-        {/* BU tabs */}
-        <div className="mt-12">
+        {/* ── Layer 1: Your projects ─────────────────────────── */}
+        <section className="mb-16">
+          <div className="mb-5 flex items-end justify-between border-b border-[#e8e6dc] pb-3">
+            <div className="flex items-baseline gap-3">
+              <h2 className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold uppercase tracking-[0.16em] text-[#141413]">
+                Your projects
+              </h2>
+              <span className="font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
+                {sortedProjects.length} total
+              </span>
+            </div>
+            <span className="font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
+              Sorted by last updated
+            </span>
+          </div>
+
+          {sortedProjects.length === 0 ? (
+            <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-[#e8e6dc] bg-[#faf9f5] text-[13px] text-[#b0aea5]">
+              No projects yet — pick a template below to get started.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+              {sortedProjects.map((p) => (
+                <MyProjectCard
+                  key={p.name}
+                  name={p.name}
+                  updatedAt={p.updatedAt}
+                  onClick={() => onSelectExisting?.(p.name)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── Layer 2: Explore gallery ───────────────────────── */}
+        <section>
+          <div className="mb-5 flex items-end justify-between border-b border-[#e8e6dc] pb-3">
+            <div className="flex items-baseline gap-3">
+              <h2 className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold uppercase tracking-[0.16em] text-[#141413]">
+                Explore gallery
+              </h2>
+              <span className="font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
+                {templates.length} templates
+              </span>
+            </div>
+            <span className="font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
+              Published by ByteDance BUs
+            </span>
+          </div>
+
           <div className="mb-5 flex items-center gap-5 overflow-x-auto border-b border-[#e8e6dc] pb-0">
             {BU_TABS.map((tab) => {
               const isActive = activeBU === tab.key;
@@ -215,7 +294,7 @@ export default function ProjectWelcome({
                     </span>
                   )}
                   {isActive && (
-                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#141413]" />
+                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#d97757]" />
                   )}
                 </button>
               );
@@ -258,7 +337,7 @@ export default function ProjectWelcome({
               )}
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       {/* Confirm dialog */}
@@ -286,7 +365,7 @@ export default function ProjectWelcome({
                 </span>
               )}
             </div>
-            <p className="mt-3 text-[13px] leading-relaxed text-[#6b6963]">
+            <p className="mt-3 font-['Lora',_Georgia,_serif] text-[14px] leading-relaxed text-[#6b6963]">
               {pending.description}
             </p>
 
@@ -317,7 +396,7 @@ export default function ProjectWelcome({
               <button
                 onClick={handleCreate}
                 disabled={creating || !pendingName.trim()}
-                className="rounded-lg bg-[#141413] px-5 py-2.5 text-[14px] font-medium text-white transition hover:bg-[#2a2a28] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-[#d97757] px-5 py-2.5 text-[14px] font-medium text-white transition hover:bg-[#c4613f] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {creating ? "Creating…" : "Create project"}
               </button>
@@ -367,16 +446,49 @@ function TemplateCard({
         )}
       </div>
       <div className="flex-1 px-4 py-3">
-        <div className="truncate text-[13px] font-medium text-[#141413]">
+        <div className="truncate font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium text-[#141413]">
           {template.name}
         </div>
-        <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[#6b6963]">
+        <div className="mt-1 line-clamp-2 font-['Lora',_Georgia,_serif] text-[12px] leading-relaxed text-[#6b6963]">
           {template.description}
         </div>
-        <div className="mt-2 text-[11px] text-[#b0aea5]">
+        <div className="mt-2 font-['Lora',_Georgia,_serif] text-[11px] italic text-[#b0aea5]">
           by {template.author}
         </div>
       </div>
+    </button>
+  );
+}
+
+// ── Existing project card (Your projects layer) ────────────
+//
+//  Minimal card for workspaces the user already owns. No gradient
+//  thumb — these aren't templates. Clean uniform cards that pick up
+//  a subtle orange (#d97757) accent on hover.
+
+function MyProjectCard({
+  name,
+  updatedAt,
+  onClick,
+}: {
+  name: string;
+  updatedAt: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-[#e8e6dc] bg-white px-4 py-4 text-left transition hover:border-[#d97757]/50 hover:shadow-[0_6px_20px_rgba(20,20,19,0.05)]"
+    >
+      <span
+        className="truncate font-['Poppins',_Arial,_sans-serif] text-[14px] font-medium text-[#141413]"
+        title={name}
+      >
+        {name}
+      </span>
+      <span className="mt-1 font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
+        Updated {formatUpdated(updatedAt)}
+      </span>
     </button>
   );
 }
@@ -397,13 +509,13 @@ function BlankCard({ onClick }: { onClick: () => void }) {
         </div>
       </div>
       <div className="flex-1 px-4 py-3">
-        <div className="truncate text-[13px] font-medium text-[#141413]">
+        <div className="truncate font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium text-[#141413]">
           Blank project
         </div>
-        <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[#6b6963]">
+        <div className="mt-1 line-clamp-2 font-['Lora',_Georgia,_serif] text-[12px] leading-relaxed text-[#6b6963]">
           Start empty. Add files, data, and customize agents as you go.
         </div>
-        <div className="mt-2 text-[11px] text-[#b0aea5]">by Mira</div>
+        <div className="mt-2 font-['Lora',_Georgia,_serif] text-[11px] italic text-[#b0aea5]">by Mira</div>
       </div>
     </button>
   );

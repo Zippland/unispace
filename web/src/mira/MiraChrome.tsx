@@ -7,7 +7,7 @@
 //  Main-area mode content lives in MiraModes.tsx.
 // ═══════════════════════════════════════════════════════════════
 
-export type MiraMode = "new_chat" | "task" | "project" | "customize";
+export type MiraMode = "new_chat" | "task" | "cattery" | "project" | "customize";
 
 // ── Brand ─────────────────────────────────────────────────────
 //

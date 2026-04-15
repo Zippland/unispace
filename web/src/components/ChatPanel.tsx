@@ -3,7 +3,6 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore, type MessagePart, type ChatMessage, type FileEntry } from "../store";
 import * as api from "../api";
-import { mergeTemplates, type SeedTemplate } from "../mira/templateSeed";
 
 // ═══════════════════════════════════════════════════════════════
 //  SVG Icons (ported from finance_agent)
@@ -263,75 +262,16 @@ function CollapsibleProcess({
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Empty State — project welcome + full BU template gallery
+//  Empty State — project welcome hero (no gallery; gallery lives
+//  in Cattery mode only).
 // ═══════════════════════════════════════════════════════════════
 
-const EMPTY_BU_TABS = [
-  { key: "explore", label: "Explore" },
-  { key: "finance", label: "Finance" },
-  { key: "hr", label: "HR" },
-  { key: "da", label: "DA" },
-  { key: "pmo", label: "PMO" },
-  { key: "legal", label: "Legal" },
-  { key: "community", label: "Community" },
-];
-
-const EMPTY_BU_COLORS: Record<string, string> = {
-  finance: "#d97757",
-  hr: "#7c9a5e",
-  da: "#a07cc5",
-  pmo: "#6a9bcc",
-  legal: "#9b8757",
-  rd: "#507a96",
-  design: "#c4688a",
-  community: "#5a8d7a",
-};
-
-function emptyBUColor(bu: string) {
-  return EMPTY_BU_COLORS[bu] || "#b0aea5";
-}
-
 function EmptyState({
-  onStartFromTemplate,
   inputBarSlot,
 }: {
-  onStartFromTemplate?: (template: api.ProjectTemplate) => void;
   inputBarSlot?: ReactNode;
 }) {
-  const { serverUrl, currentProject } = useStore();
-  const [real, setReal] = useState<api.ProjectTemplate[]>([]);
-  const [activeBU, setActiveBU] = useState<string>("explore");
-  const [toast, setToast] = useState<string | null>(null);
-
-  // Fetch real templates; merge into the static seed so the gallery
-  // always looks populated even before BUs have published anything.
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .fetchTemplates(serverUrl)
-      .then((list) => {
-        if (!cancelled) setReal(list);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [serverUrl]);
-
-  const templates = mergeTemplates(real);
-  const visible =
-    activeBU === "explore"
-      ? templates
-      : templates.filter((t) => t.bu === activeBU);
-
-  function handleTemplateClick(t: SeedTemplate) {
-    if (t.placeholder) {
-      setToast(`${t.name} — BU 正在审核中，稍后上线`);
-      window.setTimeout(() => setToast(null), 2500);
-      return;
-    }
-    onStartFromTemplate?.(t);
-  }
+  const { currentProject } = useStore();
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -362,100 +302,9 @@ function EmptyState({
 
         {/* Shared input bar — same component as the bottom bar.
             Rendered here via slot prop so empty state keeps the bar
-            above the gallery without duplicating JSX. */}
+            on-screen without duplicating JSX. */}
         {inputBarSlot && <div className="mb-8">{inputBarSlot}</div>}
-
-        {/* Template gallery — always populated via seed + real merge */}
-        <>
-          {/* BU tab bar */}
-          <div className="mb-5 flex items-center gap-5 overflow-x-auto border-b border-[#e8e6dc]">
-            {EMPTY_BU_TABS.map((tab) => {
-              const isActive = activeBU === tab.key;
-              const count =
-                tab.key === "explore"
-                  ? templates.length
-                  : templates.filter((t) => t.bu === tab.key).length;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveBU(tab.key)}
-                  className={`relative flex items-center gap-1.5 pb-3 pt-1 text-[12px] font-medium transition ${
-                    isActive
-                      ? "text-[#141413]"
-                      : "text-[#b0aea5] hover:text-[#6b6963]"
-                  }`}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <span className="rounded-full bg-[#141413]/[0.06] px-1.5 py-0.5 text-[10px] text-[#6b6963]">
-                      {count}
-                    </span>
-                  )}
-                  {isActive && (
-                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#141413]" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Grid */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {visible.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => handleTemplateClick(t)}
-                className={`group relative flex flex-col overflow-hidden rounded-2xl border border-[#e8e6dc] bg-white text-left transition hover:border-[#b0aea5] ${
-                  t.placeholder
-                    ? "hover:shadow-[0_4px_20px_rgba(20,20,19,0.04)]"
-                    : "hover:shadow-[0_4px_20px_rgba(20,20,19,0.06)]"
-                }`}
-              >
-                <div
-                  className={`aspect-[5/3] w-full bg-gradient-to-br ${t.gradient || "from-[#e8e6dc] to-[#d6c5b3]"} relative`}
-                >
-                  <div className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg bg-white/70 text-[16px] backdrop-blur-sm">
-                    {t.icon || "📁"}
-                  </div>
-                  <div
-                    className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm"
-                    style={{ background: emptyBUColor(t.bu) }}
-                  >
-                    {t.bu}
-                  </div>
-                  {t.placeholder && (
-                    <div className="absolute bottom-3 left-3 rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-medium text-[#6b6963] backdrop-blur-sm">
-                      Preview
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 px-4 py-3">
-                  <div className="truncate text-[13px] font-semibold text-[#141413]">
-                    {t.name}
-                  </div>
-                  <div className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-[#b0aea5]">
-                    {t.description}
-                  </div>
-                  <div className="mt-2 text-[10px] text-[#b0aea5]">
-                    by {t.author}
-                  </div>
-                </div>
-              </button>
-            ))}
-            {visible.length === 0 && (
-              <div className="col-span-full flex h-24 items-center justify-center text-[12px] text-[#b0aea5]">
-                No templates from this BU yet.
-              </div>
-            )}
-          </div>
-        </>
       </div>
-
-      {toast && (
-        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#141413] px-4 py-2 text-[12px] text-white shadow-lg">
-          {toast}
-        </div>
-      )}
     </div>
   );
 }
@@ -588,14 +437,7 @@ function modelLabel(id?: string): string {
   return match?.label ?? id ?? "Sonnet 4.5";
 }
 
-interface ChatPanelProps {
-  /** Called when user clicks a template card in the empty state's
-   *  "Start from template" strip. Parent typically opens the Project
-   *  Welcome gallery preselected to this template. */
-  onStartFromTemplate?: (template: api.ProjectTemplate) => void;
-}
-
-export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) {
+export default function ChatPanel() {
   const {
     serverUrl, activeSessionId, messages, streaming, currentProject,
     setActiveSession, addSession, appendMessage, updateMessage,
@@ -1311,10 +1153,7 @@ export default function ChatPanel({ onStartFromTemplate }: ChatPanelProps = {}) 
     <div className="flex-1 flex flex-col h-full min-w-0">
       {isEmpty ? (
         <main className="flex-1 flex">
-          <EmptyState
-            onStartFromTemplate={onStartFromTemplate}
-            inputBarSlot={inputBar}
-          />
+          <EmptyState inputBarSlot={inputBar} />
         </main>
       ) : (
         <>

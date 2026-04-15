@@ -86,7 +86,6 @@ interface SidebarProps {
   promotedTabs: CustomizeSub[];
   miraMode: MiraMode;
   onMiraModeChange: (mode: MiraMode) => void;
-  onOpenProjectWelcome: () => void;
 }
 
 export default function Sidebar({
@@ -99,7 +98,6 @@ export default function Sidebar({
   promotedTabs,
   miraMode,
   onMiraModeChange,
-  onOpenProjectWelcome,
 }: SidebarProps) {
   const {
     projects,
@@ -314,8 +312,8 @@ export default function Sidebar({
       {/*   Project mode: brand gets a "/ Project" chip and acts as a
            back button to the mode hub. Other modes: plain brand. */}
       <MiraBrand
-        modeLabel={inProject ? "Project" : undefined}
-        onBrandClick={inProject ? () => onMiraModeChange("new_chat") : undefined}
+        modeLabel={inProject ? "Cattery" : undefined}
+        onBrandClick={inProject ? () => onMiraModeChange("cattery") : undefined}
       />
 
       {/* ── Mira mode buttons (hidden in Project mode) ────── */}
@@ -334,9 +332,9 @@ export default function Sidebar({
             icon={MODE_ICONS.task}
           />
           <MiraModeButton
-            active={false /* we're inside !inProject */}
-            onClick={() => onMiraModeChange("project")}
-            label="Project"
+            active={miraMode === "cattery"}
+            onClick={() => onMiraModeChange("cattery")}
+            label="Cattery"
             icon={MODE_ICONS.project}
           />
           <MiraModeButton
@@ -430,18 +428,6 @@ export default function Sidebar({
                   })}
                 </div>
                 <div className="border-t border-[#e8e6dc] py-1">
-                  <button
-                    onClick={() => {
-                      setProjectMenuOpen(false);
-                      onOpenProjectWelcome();
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-[#d97757] transition hover:bg-[#faf9f5]"
-                  >
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    New from template…
-                  </button>
                   <button
                     onClick={() => {
                       setProjectMenuOpen(false);
