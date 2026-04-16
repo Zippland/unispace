@@ -98,14 +98,9 @@ export interface ApiConfig {
 export interface SkillDef {
   name: string;
   description: string;
-  content: string;
+  /** URL or path to the uploaded skill archive (.zip) */
+  archive_url: string;
   enabled: boolean;
-}
-
-export interface SubagentDef {
-  name: string;
-  description: string;
-  prompt: string;
 }
 
 export interface CommandDef {
@@ -116,7 +111,8 @@ export interface CommandDef {
 
 export interface DefaultFile {
   path: string;
-  content: string;
+  /** URL or path to the uploaded file */
+  file_url: string;
 }
 
 export interface DispatchConfig {
@@ -138,10 +134,7 @@ export interface AgentConfig {
   author: string;
   system_prompt: string;
   model: string;
-  /** Lifecycle status */
-  status: "draft" | "review" | "approved" | "live" | "deprecated";
   skills: SkillDef[];
-  subagents: SubagentDef[];
   commands: CommandDef[];
   default_files: DefaultFile[];
   environment: EnvironmentConfig;

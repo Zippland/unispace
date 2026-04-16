@@ -7,7 +7,7 @@ import {
   type AgentConfig,
 } from "../utils/adminApi";
 import { useAdminContext } from "../stores/adminContext";
-import StatusBadge from "../components/StatusBadge";
+
 
 export default function AgentsPage() {
   const navigate = useNavigate();
@@ -102,7 +102,6 @@ export default function AgentsPage() {
                       <h3 className="text-sm font-semibold text-[#141413]">
                         {agent.name}
                       </h3>
-                      <StatusBadge status={agent.status || "draft"} />
                       <span className="rounded-full bg-[#141413]/[0.06] px-2 py-0.5 text-[10px] text-[#6b6963]">
                         {agent.model}
                       </span>

@@ -3,6 +3,7 @@ import { useStore } from "../store";
 import * as api from "../api";
 import ChatPanel from "./ChatPanel";
 import ProjectSettingPanel from "./ProjectSettingPanel";
+import ArtifactsPanel from "./ArtifactsPanel";
 import type { MiraMode } from "../mira/MiraChrome";
 
 // ═══════════════════════════════════════════════════════════════
@@ -25,7 +26,7 @@ interface Props {
 }
 
 export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Props) {
-  const { currentProject, activeSessionId, sessions, serverUrl: storeUrl } = useStore();
+  const { currentProject, activeSessionId, sessions, serverUrl: storeUrl, activeTab } = useStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isConversation = !!activeSessionId;
 
@@ -223,9 +224,13 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
         )}
       </div>
 
-      {/* ═══ Right panel — project homepage only ═══ */}
+      {/* ═══ Right panel: Artifacts (file open) or Settings cards ═══ */}
       {miraMode === "project" && (
-        <ProjectSettingPanel onOpenFile={onOpenFile} />
+        activeTab ? (
+          <ArtifactsPanel />
+        ) : (
+          <ProjectSettingPanel onOpenFile={onOpenFile} />
+        )
       )}
     </div>
   );

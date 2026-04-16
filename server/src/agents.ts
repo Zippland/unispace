@@ -104,17 +104,9 @@ export interface SkillDef {
   /** Skill slug (used as directory name) */
   name: string;
   description: string;
-  /** Full SKILL.md content */
-  content: string;
+  /** URL or path to the uploaded skill archive (.zip) */
+  archive_url: string;
   enabled: boolean;
-}
-
-export interface SubagentDef {
-  /** Agent file name (without .md) */
-  name: string;
-  description: string;
-  /** System prompt body for this subagent */
-  prompt: string;
 }
 
 export interface CommandDef {
@@ -128,8 +120,8 @@ export interface CommandDef {
 export interface DefaultFile {
   /** Path relative to workspace root */
   path: string;
-  /** File content (text files only) */
-  content: string;
+  /** URL or path to the uploaded file */
+  file_url: string;
 }
 
 // ── Agent — the complete deployment unit ────────────────────
@@ -153,8 +145,6 @@ export interface AgentConfig {
   // ── Capabilities ────────────────────────────────────────
   /** Skill definitions provisioned into each user sandbox */
   skills: SkillDef[];
-  /** Subagent definitions (users can switch in chat) */
-  subagents: SubagentDef[];
   /** Slash commands available to users */
   commands: CommandDef[];
   /** Files pre-loaded into workspace on sandbox creation */
@@ -162,9 +152,6 @@ export interface AgentConfig {
 
   /** Sandbox environment configuration */
   environment: EnvironmentConfig;
-
-  /** Lifecycle status */
-  status: "draft" | "review" | "approved" | "live" | "deprecated";
 
   // ── Publish channels ────────────────────────────────────
   /** Response API configuration */
@@ -219,11 +206,11 @@ export function getAgent(id: string): AgentConfig | null {
     if (!raw.environment) raw.environment = { ...DEFAULT_ENV };
     if (!raw.api) raw.api = { ...DEFAULT_API };
     if (!raw.skills || !Array.isArray(raw.skills) || (raw.skills.length > 0 && typeof raw.skills[0] === "string")) raw.skills = [];
-    if (!raw.subagents) raw.subagents = [];
+
     if (!raw.commands) raw.commands = [];
     if (!raw.default_files) raw.default_files = [];
     if (!raw.icon) raw.icon = "agent";
-    if (!raw.status) raw.status = "draft";
+
     return raw;
   } catch {
     return null;
@@ -243,11 +230,11 @@ export function listAgents(): AgentConfig[] {
           if (!raw.environment) raw.environment = { ...DEFAULT_ENV };
           if (!raw.api) raw.api = { ...DEFAULT_API };
           if (!raw.skills || !Array.isArray(raw.skills) || (raw.skills.length > 0 && typeof raw.skills[0] === "string")) raw.skills = [];
-          if (!raw.subagents) raw.subagents = [];
+      
           if (!raw.commands) raw.commands = [];
           if (!raw.default_files) raw.default_files = [];
           if (!raw.icon) raw.icon = "agent";
-          if (!raw.status) raw.status = "draft";
+      
           return raw;
         } catch {
           return null;
@@ -280,9 +267,7 @@ export function createAgent(
     author: data.author || "",
     system_prompt: data.system_prompt || "",
     model: data.model || "claude-sonnet-4-5",
-    status: data.status || "draft",
     skills: data.skills || [],
-    subagents: data.subagents || [],
     commands: data.commands || [],
     default_files: data.default_files || [],
     environment: data.environment || { ...DEFAULT_ENV },

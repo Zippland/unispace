@@ -9,12 +9,9 @@ import {
   type ApiKey,
   type SkillDef,
   type DispatchConfig,
-  type SubagentDef,
   type CommandDef,
   type DefaultFile,
 } from "../utils/adminApi";
-import StatusBadge from "../components/StatusBadge";
-import type { AgentStatus } from "../components/StatusBadge";
 
 type Tab = "persona" | "capabilities" | "workspace" | "publish" | "playground" | "users";
 
@@ -82,12 +79,12 @@ export default function AgentDetailPage() {
     {
       key: "capabilities",
       label: "Capabilities",
-      count: agent.skills.length + agent.subagents.length + agent.commands.length + agent.environment.mcp_servers.length,
+      count: agent.skills.length + agent.commands.length + agent.environment.mcp_servers.length,
     },
     {
       key: "workspace",
       label: "Workspace",
-      count: agent.default_files.length + agent.environment.mounts.length,
+      count: agent.default_files.length,
     },
     { key: "publish", label: "Publish" },
     { key: "playground", label: "Playground" },
@@ -116,18 +113,9 @@ export default function AgentDetailPage() {
             <h1 className="truncate text-lg font-semibold text-[#141413]">
               {agent.name}
             </h1>
-            <StatusBadge status={agent.status || "draft"} />
           </div>
           <p className="text-[10px] font-mono text-[#b0aea5]">{agent.id}</p>
         </div>
-        <StatusActions
-          status={agent.status || "draft"}
-          onChangeStatus={(status) => {
-            const updated = { ...agent, status };
-            setAgent(updated);
-            updateAgent(agent.id, { status });
-          }}
-        />
         <button
           onClick={() => navigate(`/admin/traces?search=${encodeURIComponent(agent.name)}`)}
           className="rounded-lg border border-[#e8e6dc] px-3 py-2 text-xs text-[#6b6963] transition hover:bg-white hover:text-[#141413]"
@@ -233,7 +221,7 @@ function PersonaTab({ agent, onChange }: { agent: AgentConfig; onChange: (a: Age
       <Field label="System Prompt (CLAUDE.md equivalent)">
         <textarea value={agent.system_prompt} onChange={(e) => set("system_prompt", e.target.value)}
           rows={14} className={INPUT + " font-mono resize-none"}
-          placeholder="# Agent Name\n\nDefine who this agent is, what it knows, and how it should behave.\n\nThis becomes the CLAUDE.md in every user's sandbox." />
+          placeholder="# Agent Name\n\nDefine who this agent is, what it knows, and how it should behave.\n\nThis becomes the CLAUDE.md in every user's workspace." />
       </Field>
     </div>
   );
@@ -250,12 +238,12 @@ function CapabilitiesTab({ agent, onChange }: { agent: AgentConfig; onChange: (a
           <div>
             <SectionTitle>Skills</SectionTitle>
             <p className="mt-0.5 text-xs text-[#6b6963]">
-              Installed into <code className="text-[10px]">.claude/skills/</code> in every user sandbox.
+              Installed into <code className="text-[10px]">.claude/skills/</code> in every user workspace.
             </p>
           </div>
           <button onClick={() => onChange({
             ...agent,
-            skills: [...agent.skills, { name: "", description: "", content: "", enabled: true }],
+            skills: [...agent.skills, { name: "", description: "", archive_url: "", enabled: true }],
           })} className="text-xs text-[#d97757] hover:underline">+ Add skill</button>
         </div>
         <div className="mt-3 space-y-3">
@@ -267,32 +255,6 @@ function CapabilitiesTab({ agent, onChange }: { agent: AgentConfig; onChange: (a
             />
           ))}
           {agent.skills.length === 0 && <Empty>No skills configured</Empty>}
-        </div>
-      </section>
-
-      {/* Subagents */}
-      <section>
-        <div className="flex items-center justify-between">
-          <div>
-            <SectionTitle>Subagents</SectionTitle>
-            <p className="mt-0.5 text-xs text-[#6b6963]">
-              Installed into <code className="text-[10px]">.claude/agents/</code>. Users can switch in chat.
-            </p>
-          </div>
-          <button onClick={() => onChange({
-            ...agent,
-            subagents: [...agent.subagents, { name: "", description: "", prompt: "" }],
-          })} className="text-xs text-[#d97757] hover:underline">+ Add subagent</button>
-        </div>
-        <div className="mt-3 space-y-3">
-          {agent.subagents.map((sa, i) => (
-            <SubagentEditor
-              key={i} subagent={sa}
-              onChange={(s) => { const arr = [...agent.subagents]; arr[i] = s; onChange({ ...agent, subagents: arr }); }}
-              onDelete={() => onChange({ ...agent, subagents: agent.subagents.filter((_, j) => j !== i) })}
-            />
-          ))}
-          {agent.subagents.length === 0 && <Empty>No subagents configured</Empty>}
         </div>
       </section>
 
@@ -433,38 +395,6 @@ function SkillEditor({ skill, onChange, onDelete }: { skill: SkillDef; onChange:
   );
 }
 
-function SubagentEditor({ subagent, onChange, onDelete }: { subagent: SubagentDef; onChange: (s: SubagentDef) => void; onDelete: () => void }) {
-  const [open, setOpen] = useState(!subagent.name);
-  return (
-    <div className="rounded-xl border border-[#e8e6dc] bg-white">
-      <div className="flex items-center gap-2 px-4 py-3 cursor-pointer" onClick={() => setOpen(!open)}>
-        <span className="text-[10px] text-[#b0aea5]">{open ? "▼" : "▶"}</span>
-        <span className="inline-block h-2 w-2 rounded-full bg-[#6a9bcc]" />
-        <span className="flex-1 truncate text-sm font-medium text-[#141413]">{subagent.name || "New subagent"}</span>
-        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-[#b0aea5] hover:text-red-500">
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-        </button>
-      </div>
-      {open && (
-        <div className="space-y-3 border-t border-[#e8e6dc] px-4 py-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Name">
-              <input type="text" value={subagent.name} onChange={(e) => onChange({ ...subagent, name: e.target.value })} className={INPUT_SM} placeholder="code-reviewer" />
-            </Field>
-            <Field label="Description">
-              <input type="text" value={subagent.description} onChange={(e) => onChange({ ...subagent, description: e.target.value })} className={INPUT_SM} placeholder="Reviews code for quality" />
-            </Field>
-          </div>
-          <Field label="System Prompt">
-            <textarea value={subagent.prompt} onChange={(e) => onChange({ ...subagent, prompt: e.target.value })}
-              rows={5} className={INPUT_SM + " font-mono resize-none"} placeholder="You are a code review specialist..." />
-          </Field>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function CommandEditor({ command, onChange, onDelete }: { command: CommandDef; onChange: (c: CommandDef) => void; onDelete: () => void }) {
   const [open, setOpen] = useState(!command.name);
   return (
@@ -497,13 +427,9 @@ function CommandEditor({ command, onChange, onDelete }: { command: CommandDef; o
   );
 }
 
-// ── Workspace tab (files + environment) ─────────────────────
+// ── Workspace tab (files only — no sandbox/environment settings per R9) ──
 
 function WorkspaceTab({ agent, onChange }: { agent: AgentConfig; onChange: (a: AgentConfig) => void }) {
-  const env = agent.environment;
-  const setEnv = (patch: Partial<typeof env>) => onChange({ ...agent, environment: { ...env, ...patch } });
-
-  const RUNTIME_OPTIONS = ["python3.13", "nodejs22", "go1.22", "rust1.78", "java21"];
 
   return (
     <div className="space-y-8">
@@ -512,7 +438,7 @@ function WorkspaceTab({ agent, onChange }: { agent: AgentConfig; onChange: (a: A
         <div className="flex items-center justify-between">
           <div>
             <SectionTitle>Default Files</SectionTitle>
-            <p className="mt-0.5 text-xs text-[#6b6963]">Pre-loaded into each user's workspace on sandbox creation.</p>
+            <p className="mt-0.5 text-xs text-[#6b6963]">Pre-loaded into each user's workspace.</p>
           </div>
           <button onClick={() => onChange({ ...agent, default_files: [...agent.default_files, { path: "", content: "" }] })}
             className="text-xs text-[#d97757] hover:underline">+ Add file</button>
@@ -542,85 +468,6 @@ function WorkspaceTab({ agent, onChange }: { agent: AgentConfig; onChange: (a: A
         </div>
       </section>
 
-      {/* Runtimes */}
-      <section>
-        <SectionTitle>Runtimes</SectionTitle>
-        <p className="mt-0.5 mb-3 text-xs text-[#6b6963]">Pre-installed in sandbox.</p>
-        <div className="flex flex-wrap gap-2">
-          {RUNTIME_OPTIONS.map((rt) => {
-            const active = env.runtimes.includes(rt);
-            return (
-              <button key={rt}
-                onClick={() => setEnv({ runtimes: active ? env.runtimes.filter((r) => r !== rt) : [...env.runtimes, rt] })}
-                className={`rounded-full border px-3 py-1.5 text-xs transition ${active ? "border-[#d97757] bg-[#d97757]/10 text-[#d97757] font-medium" : "border-[#e8e6dc] text-[#6b6963] hover:border-[#b0aea5]"}`}
-              >{rt}</button>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Network */}
-      <section>
-        <SectionTitle>Network</SectionTitle>
-        <div className="mt-2 flex gap-3">
-          {(["open", "restricted"] as const).map((mode) => (
-            <button key={mode} onClick={() => setEnv({ network: mode })}
-              className={`rounded-lg border px-4 py-2 text-xs transition ${env.network === mode ? "border-[#141413] bg-[#141413] text-white" : "border-[#e8e6dc] text-[#6b6963] hover:border-[#b0aea5]"}`}
-            >{mode === "open" ? "Open" : "Restricted"}</button>
-          ))}
-        </div>
-        {env.network === "restricted" && (
-          <textarea value={env.network_allowlist.join("\n")}
-            onChange={(e) => setEnv({ network_allowlist: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
-            rows={3} className={INPUT_SM + " mt-2 font-mono resize-none"} placeholder="Allowed domains, one per line" />
-        )}
-      </section>
-
-      {/* Mounts */}
-      <section>
-        <div className="flex items-center justify-between">
-          <SectionTitle>Mounts</SectionTitle>
-          <button onClick={() => setEnv({ mounts: [...env.mounts, { source: "", target: "", mode: "ro" }] })}
-            className="text-xs text-[#d97757] hover:underline">+ Add</button>
-        </div>
-        <div className="mt-2 space-y-2">
-          {env.mounts.map((m, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input value={m.source} onChange={(e) => { const a = [...env.mounts]; a[i] = { ...m, source: e.target.value }; setEnv({ mounts: a }); }}
-                placeholder="/mnt/nas/data" className={INPUT_SM + " flex-1 font-mono"} />
-              <span className="text-[10px] text-[#b0aea5]">→</span>
-              <input value={m.target} onChange={(e) => { const a = [...env.mounts]; a[i] = { ...m, target: e.target.value }; setEnv({ mounts: a }); }}
-                placeholder="/data" className={INPUT_SM + " flex-1 font-mono"} />
-              <select value={m.mode} onChange={(e) => { const a = [...env.mounts]; a[i] = { ...m, mode: e.target.value as any }; setEnv({ mounts: a }); }}
-                className="rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-2 py-1.5 text-xs outline-none">
-                <option value="ro">RO</option><option value="rw">RW</option>
-              </select>
-              <DelBtn onClick={() => setEnv({ mounts: env.mounts.filter((_, j) => j !== i) })} />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Env vars */}
-      <section>
-        <div className="flex items-center justify-between">
-          <SectionTitle>Environment Variables</SectionTitle>
-          <button onClick={() => setEnv({ env_vars: { ...env.env_vars, "": "" } })}
-            className="text-xs text-[#d97757] hover:underline">+ Add</button>
-        </div>
-        <div className="mt-2 space-y-2">
-          {Object.entries(env.env_vars).map(([key, val], i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input value={key} onChange={(e) => { const v = { ...env.env_vars }; delete v[key]; v[e.target.value] = val; setEnv({ env_vars: v }); }}
-                placeholder="KEY" className={INPUT_SM + " w-40 font-mono"} />
-              <span className="text-[10px] text-[#b0aea5]">=</span>
-              <input value={val} onChange={(e) => setEnv({ env_vars: { ...env.env_vars, [key]: e.target.value } })}
-                placeholder="value" className={INPUT_SM + " flex-1 font-mono"} />
-              <DelBtn onClick={() => { const v = { ...env.env_vars }; delete v[key]; setEnv({ env_vars: v }); }} />
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }
@@ -637,42 +484,14 @@ function PublishTab({ agent, onChange, newKeyName, onNewKeyNameChange, newKeyVal
   const activeKeys = api.keys.filter((k) => !k.revoked);
   const revokedKeys = api.keys.filter((k) => k.revoked);
 
-  const status: AgentStatus = agent.status || "draft";
-  const locked = status === "draft" || status === "review" || status === "deprecated";
-
   return (
     <div className="space-y-6">
-      {/* Status gate banner */}
-      {(status === "draft" || status === "review") && (
-        <div className="rounded-xl border border-[#d97757]/30 bg-[#d97757]/5 px-5 py-4">
-          <p className="text-sm font-medium text-[#d97757]">
-            This agent must be approved before publishing.
-          </p>
-          <p className="mt-1 text-xs text-[#6b6963]">
-            Current status: <span className="font-medium">{status}</span>
-          </p>
-        </div>
-      )}
-      {status === "approved" && (
-        <div className="rounded-xl border border-[#6a9bcc]/30 bg-[#6a9bcc]/5 px-5 py-4">
-          <p className="text-sm font-medium text-[#6a9bcc]">
-            Pre-configure distribution channels. They will activate when agent goes live.
-          </p>
-        </div>
-      )}
-      {status === "deprecated" && (
-        <div className="rounded-xl border border-[#b0aea5]/30 bg-[#b0aea5]/5 px-5 py-4">
-          <p className="text-sm font-medium text-[#b0aea5]">
-            This agent has been deprecated.
-          </p>
-        </div>
-      )}
 
       <p className="text-xs text-[#6b6963]">
         Three distribution channels. Enable any combination.
       </p>
 
-      <div className={locked ? "opacity-50 pointer-events-none" : ""}>
+      <div>
       {/* Gallery */}
       <div className="flex items-center justify-between rounded-xl border border-[#e8e6dc] bg-white p-5">
         <div className="flex items-center gap-3">
@@ -1123,54 +942,6 @@ function UsersTab() {
 }
 
 // ── Status actions ──────────────────────────────────────────
-
-function StatusActions({
-  status,
-  onChangeStatus,
-}: {
-  status: AgentStatus;
-  onChangeStatus: (s: AgentStatus) => void;
-}) {
-  if (status === "draft") {
-    return (
-      <button
-        onClick={() => onChangeStatus("review")}
-        className="rounded-lg border border-[#d97757] px-3 py-1.5 text-xs font-medium text-[#d97757] transition hover:bg-[#d97757]/10"
-      >
-        Submit for Review
-      </button>
-    );
-  }
-  if (status === "review") {
-    // Review actions live on the Reviews page, not here.
-    // The agent owner can only wait.
-    return (
-      <span className="text-xs text-[#b0aea5]">Pending review</span>
-    );
-  }
-  if (status === "approved") {
-    return (
-      <button
-        onClick={() => onChangeStatus("live")}
-        className="rounded-lg bg-[#788c5d] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#6b7d52]"
-      >
-        Go Live
-      </button>
-    );
-  }
-  if (status === "live") {
-    return (
-      <button
-        onClick={() => onChangeStatus("deprecated")}
-        className="rounded-lg border border-[#b0aea5] px-3 py-1.5 text-xs font-medium text-[#b0aea5] transition hover:bg-[#b0aea5]/10"
-      >
-        Deprecate
-      </button>
-    );
-  }
-  // deprecated — no actions
-  return null;
-}
 
 // ── Primitives ──────────────────────────────────────────────
 

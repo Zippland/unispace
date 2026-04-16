@@ -4,7 +4,6 @@ import DashboardPage from "./pages/DashboardPage";
 import TracesPage from "./pages/TracesPage";
 import AgentsPage from "./pages/AgentsPage";
 import AgentDetailPage from "./pages/AgentDetailPage";
-import ReviewsPage from "./pages/ReviewsPage";
 
 export default function AdminApp() {
   return (
@@ -16,7 +15,6 @@ export default function AdminApp() {
             <Route path="/admin/dashboard" element={<DashboardPage />} />
             <Route path="/admin/agents" element={<AgentsPage />} />
             <Route path="/admin/agents/:id" element={<AgentDetailPage />} />
-            <Route path="/admin/reviews" element={<ReviewsPage />} />
             <Route path="/admin/traces" element={<TracesPage />} />
             <Route path="/admin/traces/:logid" element={<TracesPage />} />
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
