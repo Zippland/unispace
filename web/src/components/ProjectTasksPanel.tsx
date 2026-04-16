@@ -90,28 +90,26 @@ export default function ProjectTasksPanel() {
 
   return (
     <>
-      {/* "+ New task" button */}
-      <div className="flex justify-end pb-3">
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white px-3 py-1.5 text-[11px] text-[#141413] transition hover:border-[#b0aea5]"
-        >
-          <svg className="h-3 w-3 text-[#6b6963]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          New task
-        </button>
-      </div>
-
       {loading && tasks.length === 0 && (
         <p className="py-6 text-center text-[12px] text-[#b0aea5]">Loading tasks\u2026</p>
       )}
 
-      {!loading && tasks.length === 0 && (
-        <p className="py-8 text-center text-[13px] font-light text-[#9f9c93]">No project tasks yet</p>
+      {!loading && tasks.length === 0 && !creating && (
+        <div className="flex flex-col items-center py-8">
+          <p className="text-[13px] font-light text-[#9f9c93]">No project tasks yet</p>
+          <button
+            onClick={() => setCreating(true)}
+            className="mt-3 flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white px-3 py-1.5 text-[11px] text-[#141413] transition hover:border-[#b0aea5]"
+          >
+            <svg className="h-3 w-3 text-[#6b6963]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            New task
+          </button>
+        </div>
       )}
 
-      {tasks.length > 0 && (
+      {(tasks.length > 0 || creating) && (
         <div className="grid grid-cols-3 gap-3">
           {COLUMNS.map((col) => (
             <div key={col.key} className="flex flex-col">
@@ -121,8 +119,24 @@ export default function ProjectTasksPanel() {
                   <span className="text-[11px]">{col.icon}</span>
                   {col.label}
                 </span>
-                <span className="text-[11px] text-[#b0aea5]">{grouped[col.key].length}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#b0aea5]">{grouped[col.key].length}</span>
+                  {col.key === "backlog" && !creating && !editing && (
+                    <button onClick={() => setCreating(true)} className="flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] hover:text-[#141413]" title="New task">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Inline create/edit card at top of backlog */}
+              {col.key === "backlog" && (creating || editing) && (
+                <InlineTaskEditor
+                  task={editing}
+                  onSave={handleSave}
+                  onCancel={() => { setCreating(false); setEditing(null); }}
+                />
+              )}
 
               {/* Cards */}
               <div className="space-y-2">
@@ -142,14 +156,6 @@ export default function ProjectTasksPanel() {
             </div>
           ))}
         </div>
-      )}
-
-      {(creating || editing) && (
-        <TaskDialog
-          task={editing}
-          onClose={() => { setCreating(false); setEditing(null); }}
-          onSave={handleSave}
-        />
       )}
     </>
   );
@@ -172,25 +178,25 @@ function TaskCard({ task, colColor, running, onRun, onEdit, onDelete, onStatusCh
   const bgColor = isMiraRecommend ? "bg-[#faf8f0]" : "bg-white";
 
   return (
-    <div
-      onClick={() => setMenuOpen(!menuOpen)}
-      className={`group relative flex cursor-pointer rounded-xl border border-[#e8e6dc] ${bgColor} transition hover:border-[#b0aea5] hover:shadow-sm`}
-    >
+    <div className={`group relative flex rounded-xl border border-[#e8e6dc] ${bgColor} transition hover:border-[#b0aea5]`}>
       {/* Left color bar */}
       <div className="w-[3px] shrink-0 rounded-l-xl" style={{ backgroundColor: colColor }} />
       <div className="flex-1 p-3">
       <div className="flex items-start justify-between gap-2">
         <h4 className="text-[13px] font-semibold text-[#141413]">{task.name}</h4>
         <div className="relative">
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[rgba(41,41,31,0.05)] text-[#9f9c93]">
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] opacity-0 transition group-hover:opacity-100 hover:text-[#141413]"
+          >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
             </svg>
-          </span>
+          </button>
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-6 z-20 w-[140px] rounded-lg border border-[#e8e6dc] bg-white py-1 shadow-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="absolute right-0 top-6 z-20 w-[140px] rounded-lg border border-[#e8e6dc] bg-white py-1 shadow-lg">
                 <button onClick={() => { onRun(); setMenuOpen(false); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-[12px] text-[#141413] hover:bg-[#faf9f5]">
                   <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   {running ? "Starting\u2026" : "Run"}
@@ -239,17 +245,17 @@ function TaskCard({ task, colColor, running, onRun, onEdit, onDelete, onStatusCh
   );
 }
 
-// ── TaskDialog ───────────────────────────────────────────────
+// ── InlineTaskEditor ─────────────────────────────────────────
 
-function TaskDialog({ task, onClose, onSave }: {
+function InlineTaskEditor({ task, onSave, onCancel }: {
   task: TaskFile | null;
-  onClose: () => void;
   onSave: (input: SaveTaskInput) => Promise<void>;
+  onCancel: () => void;
 }) {
   const [name, setName] = useState(task?.name || "");
   const [description, setDescription] = useState(task?.description || "");
   const [trigger, setTrigger] = useState<TaskTrigger>(task?.trigger || "manual");
-  const [schedule, setSchedule] = useState(task?.schedule || "0 9 * * MON");
+  const [schedule, setSchedule] = useState(task?.schedule || "");
   const [body, setBody] = useState(task?.body || "");
   const [saving, setSaving] = useState(false);
   const isEdit = !!task;
@@ -267,68 +273,55 @@ function TaskDialog({ task, onClose, onSave }: {
         body,
       });
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      console.error(e);
     }
     setSaving(false);
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-50 bg-[#141413]/25 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 flex h-[620px] w-[640px] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl bg-white shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
-        <div className="border-b border-[#e8e6dc] px-6 pt-5 pb-4">
-          <h3 className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">
-            {isEdit ? `Edit task \u00B7 ${task.name}` : "New project task"}
-          </h3>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
-          <div>
-            <label className="block text-[11px] font-medium text-[#141413]">Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={isEdit} placeholder="weekly_report"
-              className="mt-1 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-[13px] text-[#141413] outline-none focus:border-[#141413] disabled:opacity-60" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-[#141413]">Description</label>
-            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Generate a weekly business summary"
-              className="mt-1 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 text-[13px] text-[#141413] outline-none focus:border-[#141413]" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-[#141413]">Trigger</label>
-            <div className="mt-1 grid grid-cols-3 gap-2">
-              {(["manual", "fixed", "model"] as const).map((t) => {
-                const isSel = trigger === t;
-                return (
-                  <button key={t} onClick={() => setTrigger(t)}
-                    className={`rounded-lg border px-3 py-2 text-left text-[11px] font-semibold transition ${isSel ? "border-[#141413] bg-[#faf9f5]" : "border-[#e8e6dc]"}`}>
-                    {TRIGGER_LABEL[t]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          {trigger === "fixed" && (
-            <div>
-              <label className="block text-[11px] font-medium text-[#141413]">Cron schedule</label>
-              <input type="text" value={schedule} onChange={(e) => setSchedule(e.target.value)} placeholder="0 9 * * MON"
-                className="mt-1 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 font-mono text-[12px] text-[#141413] outline-none focus:border-[#141413]" />
-            </div>
-          )}
-          <div>
-            <label className="block text-[11px] font-medium text-[#141413]">Prompt body</label>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={10} placeholder="What should the agent do when this task fires?"
-              className="mt-1 w-full resize-none rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-2 font-mono text-[12px] leading-relaxed text-[#141413] outline-none focus:border-[#141413]" />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-[#e8e6dc] px-6 py-4">
-          <button onClick={onClose} className="rounded-lg border border-[#e8e6dc] px-4 py-2 text-[12px] text-[#6b6963] transition hover:bg-[#faf9f5]">Cancel</button>
-          <button onClick={handleSave} disabled={saving || !name.trim() || !body.trim()}
-            className="rounded-lg bg-[#141413] px-4 py-2 text-[12px] font-medium text-white transition hover:bg-[#2a2a28] disabled:opacity-50">
-            {saving ? "Saving\u2026" : isEdit ? "Save" : "Create task"}
+    <div className="mb-2 rounded-xl border-2 border-dashed border-[#b0aea5] bg-white p-3">
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        disabled={isEdit}
+        placeholder="task_name"
+        autoFocus
+        className="w-full text-[13px] font-semibold text-[#141413] outline-none placeholder:text-[#b0aea5] disabled:opacity-60"
+      />
+      <input
+        type="text"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description"
+        className="mt-1 w-full text-[11px] text-[#6b6963] outline-none placeholder:text-[#b0aea5]"
+      />
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={3}
+        placeholder="Prompt body..."
+        className="mt-2 w-full resize-none rounded-md border border-[#e8e6dc] bg-[#faf9f5] px-2 py-1.5 font-mono text-[11px] leading-relaxed text-[#141413] outline-none focus:border-[#b0aea5] placeholder:text-[#b0aea5]"
+      />
+      <div className="mt-2 flex items-center gap-1.5">
+        {(["manual", "fixed", "model"] as const).map((t) => (
+          <button key={t} onClick={() => setTrigger(t)}
+            className={`rounded-md px-2 py-0.5 text-[10px] font-medium transition ${trigger === t ? "bg-[#141413] text-white" : "bg-[#faf9f5] text-[#6b6963] hover:bg-[#e8e6dc]"}`}>
+            {TRIGGER_LABEL[t]}
           </button>
-        </div>
+        ))}
+        {trigger === "fixed" && (
+          <input type="text" value={schedule} onChange={(e) => setSchedule(e.target.value)} placeholder="0 9 * * MON"
+            className="ml-1 w-[100px] rounded-md border border-[#e8e6dc] bg-[#faf9f5] px-1.5 py-0.5 font-mono text-[10px] text-[#141413] outline-none" />
+        )}
       </div>
-    </>
+      <div className="mt-2 flex justify-end gap-1.5">
+        <button onClick={onCancel} className="rounded-md px-2.5 py-1 text-[11px] text-[#6b6963] hover:bg-[#faf9f5]">Cancel</button>
+        <button onClick={handleSave} disabled={saving || !name.trim() || !body.trim()}
+          className="rounded-md bg-[#141413] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#2a2a28] disabled:opacity-50">
+          {saving ? "Saving\u2026" : isEdit ? "Save" : "Create"}
+        </button>
+      </div>
+    </div>
   );
 }
