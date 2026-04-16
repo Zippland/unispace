@@ -224,7 +224,7 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
       </div>
 
       {/* ═══ Right panel — project homepage only ═══ */}
-      {miraMode === "project" && !isConversation && (
+      {miraMode === "project" && (
         <ProjectSettingPanel onOpenFile={onOpenFile} />
       )}
     </div>
