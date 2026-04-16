@@ -172,25 +172,25 @@ function TaskCard({ task, colColor, running, onRun, onEdit, onDelete, onStatusCh
   const bgColor = isMiraRecommend ? "bg-[#faf8f0]" : "bg-white";
 
   return (
-    <div className={`group relative flex rounded-xl border border-[#e8e6dc] ${bgColor} transition hover:border-[#b0aea5]`}>
+    <div
+      onClick={() => setMenuOpen(!menuOpen)}
+      className={`group relative flex cursor-pointer rounded-xl border border-[#e8e6dc] ${bgColor} transition hover:border-[#b0aea5] hover:shadow-sm`}
+    >
       {/* Left color bar */}
       <div className="w-[3px] shrink-0 rounded-l-xl" style={{ backgroundColor: colColor }} />
       <div className="flex-1 p-3">
       <div className="flex items-start justify-between gap-2">
         <h4 className="text-[13px] font-semibold text-[#141413]">{task.name}</h4>
         <div className="relative">
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5] transition hover:text-[#141413]"
-          >
+          <span className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5]">
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
             </svg>
-          </button>
+          </span>
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-6 z-20 w-[140px] rounded-lg border border-[#e8e6dc] bg-white py-1 shadow-lg">
+              <div className="absolute right-0 top-6 z-20 w-[140px] rounded-lg border border-[#e8e6dc] bg-white py-1 shadow-lg" onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => { onRun(); setMenuOpen(false); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-[12px] text-[#141413] hover:bg-[#faf9f5]">
                   <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   {running ? "Starting\u2026" : "Run"}
