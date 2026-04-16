@@ -2,6 +2,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { loadProjectContext } from "./config";
 import { buildDatasourceMcp } from "./datasources";
 import { buildConnectorMcp } from "./connectors";
+import { buildTaskMcp } from "./tasks";
 
 // ── Wire events (kept compatible with the previous agent) ────
 
@@ -79,6 +80,7 @@ export async function* runAgent(
   // tool. Connector list is resolved at construction time (once per
   // turn); a connector added mid-turn requires a new chat turn.
   const connectorMcp = await buildConnectorMcp(cwd);
+  const taskMcp = buildTaskMcp(cwd);
 
   try {
     const q = query({
@@ -110,6 +112,7 @@ export async function* runAgent(
         mcpServers: {
           unispace_datasources: datasourceMcp,
           unispace_connectors: connectorMcp,
+          unispace_tasks: taskMcp,
         },
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
         ...(agentsRegistry && agentName

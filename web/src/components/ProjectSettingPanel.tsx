@@ -16,12 +16,6 @@ interface Props {
   onOpenFile: (path: string, name: string) => void;
 }
 
-const TRIGGER_ICON: Record<string, string> = {
-  manual: "\u{1F590}\uFE0F",
-  fixed: "\u23F0",
-  model: "\u{1F916}",
-};
-
 const CONNECTOR_EMOJI: Record<string, string> = {
   slack: "\u{1F4AC}",
   gmail: "\u2709\uFE0F",
@@ -41,7 +35,6 @@ const ALL_CARDS = [
   { key: "persona", label: "Persona" },
   { key: "files", label: "Files" },
   { key: "datasource", label: "Datasource" },
-  { key: "tasks", label: "Task" },
   { key: "skills", label: "Skills" },
   { key: "connectors", label: "Connector" },
   { key: "dispatch", label: "Dispatch" },
@@ -96,7 +89,6 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
     persona: true,
     files: false,
     datasource: false,
-    tasks: false,
     skills: false,
     connectors: false,
     dispatch: false,
@@ -196,12 +188,7 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
           </div>
         </SettingSection>}
 
-        {/* ── 5. Task ── */}
-        {visibleCards.has("tasks") && <SettingSection title="Task" open={openCards.tasks} onToggle={() => toggleCard("tasks")}>
-          <TaskSummaryList />
-        </SettingSection>}
-
-        {/* ── 6. Skill ── */}
+        {/* ── 5. Skill ── */}
         {visibleCards.has("skills") && skillsList.length > 0 && (
           <SettingSection title="Skills" open={openCards.skills} onToggle={() => toggleCard("skills")}>
             <div className="space-y-1">
@@ -242,49 +229,6 @@ function SettingSection({ title, open, onToggle, children }: {
         </svg>
       </button>
       {open && <div className="px-[12px] pb-[12px]">{children}</div>}
-    </div>
-  );
-}
-
-// ── TaskSummaryList ──────────────────────────────────────────
-
-function TaskSummaryList() {
-  const { serverUrl, connected, currentProject } = useStore();
-  const [tasks, setTasks] = useState<api.TaskFile[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!connected) return;
-    let cancelled = false;
-    setLoading(true);
-    api.fetchTasks(serverUrl)
-      .then((t) => { if (!cancelled) setTasks(t); })
-      .catch(() => { if (!cancelled) setTasks([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [serverUrl, connected, currentProject]);
-
-  if (loading && tasks.length === 0) {
-    return <p className="text-[12px] italic text-[#9f9c93]">Loading\u2026</p>;
-  }
-  if (tasks.length === 0) {
-    return <p className="text-[12px] italic text-[#9f9c93]">No tasks yet.</p>;
-  }
-
-  return (
-    <div className="space-y-0.5">
-      {tasks.map((t) => {
-        const icon = TRIGGER_ICON[t.trigger] || "\u{1F4CC}";
-        return (
-          <div key={t.name} title={t.description || t.name} className="flex items-center gap-2 rounded-md px-1 py-1 text-[13px] text-[#29291f] hover:bg-[rgba(41,41,31,0.06)]">
-            <span className="text-[12px] leading-none">{icon}</span>
-            <span className="min-w-0 flex-1 truncate">{t.name}</span>
-            {t.trigger !== "manual" && (
-              <span className="text-[10px] text-[#b0aea5]">{t.trigger}</span>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }

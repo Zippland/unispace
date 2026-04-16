@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore, type MessagePart, type ChatMessage, type FileEntry } from "../store";
 import * as api from "../api";
+import ProjectTasksPanel from "./ProjectTasksPanel";
 
 // ═══════════════════════════════════════════════════════════════
 //  SVG Icons (ported from finance_agent)
@@ -470,7 +471,7 @@ function ProjectEmptyState({
               </div>
             )
           ) : (
-            <p className="py-10 text-center text-[14px] font-light text-[#9f9c93]">No tasks yet</p>
+            <ProjectTasksPanel />
           )}
         </div>
       </div>

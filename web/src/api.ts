@@ -352,6 +352,7 @@ export async function uninstallDatasource(
 
 export type TaskTrigger = "manual" | "fixed" | "model";
 export type TaskContinuation = "new" | "append";
+export type TaskStatus = "backlog" | "planned" | "running";
 
 export interface TaskFile {
   name: string;
@@ -359,6 +360,8 @@ export interface TaskFile {
   trigger: TaskTrigger;
   schedule?: string;
   continuation?: TaskContinuation;
+  status: TaskStatus;
+  source?: string;
   last_run_at?: string;
   last_session_id?: string;
   body: string;
@@ -382,6 +385,8 @@ export interface SaveTaskInput {
   trigger?: TaskTrigger;
   schedule?: string;
   continuation?: TaskContinuation;
+  status?: TaskStatus;
+  source?: string;
   body: string;
 }
 
