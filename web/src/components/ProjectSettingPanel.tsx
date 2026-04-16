@@ -116,6 +116,10 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
   // ── Files panel ref ──
   const filesPanelRef = useRef<FilesPanelHandle>(null);
 
+  // ── Connectors ──
+  const [connectorPickerOpen, setConnectorPickerOpen] = useState(false);
+  const [connectorRefreshKey, setConnectorRefreshKey] = useState(0);
+
   return (
     <div className="w-[320px] shrink-0 overflow-y-auto p-3 space-y-3">
         {/* ── Settings gear ── */}
@@ -158,27 +162,36 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
                 {claudeExpanded ? claudeContent : claudeContent.slice(0, 200)}
                 {!claudeExpanded && claudeContent.length > 200 && "\u2026"}
               </p>
-              {claudeContent.length > 200 && (
-                <button
-                  onClick={() => setClaudeExpanded(!claudeExpanded)}
-                  className="mt-2 text-[11px] font-medium text-[#29291f] hover:underline"
-                >
-                  {claudeExpanded ? "Show less" : "Show more"}
-                </button>
-              )}
+              <div className="mt-2 flex items-center gap-2">
+                {claudeContent.length > 200 && (
+                  <button onClick={() => setClaudeExpanded(!claudeExpanded)} className="text-[11px] font-medium text-[#29291f] hover:underline">
+                    {claudeExpanded ? "Show less" : "Show more"}
+                  </button>
+                )}
+                <button onClick={() => onOpenFile("CLAUDE.md", "CLAUDE.md")} className="ml-auto text-[11px] text-[#d97757] hover:underline">Edit</button>
+              </div>
             </div>
           ) : hasClaude ? (
             <p className="text-[12px] italic text-[#9f9c93]">Loading\u2026</p>
           ) : (
-            <p className="text-[12px] italic text-[#9f9c93]">No CLAUDE.md yet.</p>
+            <button onClick={async () => { await api.saveFile(serverUrl, "CLAUDE.md", "# Agent Persona\n\n"); onOpenFile("CLAUDE.md", "CLAUDE.md"); }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#e8e6dc] py-3 text-[12px] text-[#9f9c93] transition hover:border-[#d97757] hover:text-[#d97757]">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              Create Persona
+            </button>
           )}
         </SettingSection>}
 
         {/* ── 2. Files ── */}
         {visibleCards.has("files") && <SettingSection title="Files" open={openCards.files} onToggle={() => toggleCard("files")}>
-          <div className="max-h-[300px] overflow-y-auto -mx-[12px] -mb-[12px]">
+          <div className="max-h-[300px] overflow-y-auto -mx-[12px]">
             <FilesPanel ref={filesPanelRef} onOpenFile={onOpenFile} />
           </div>
+          <button onClick={() => filesPanelRef.current?.openUpload()}
+            className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#e8e6dc] py-2 text-[11px] text-[#9f9c93] transition hover:border-[#d97757] hover:text-[#d97757]">
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
+            Upload files
+          </button>
         </SettingSection>}
 
         {/* ── 4. Datasource ── */}
@@ -189,7 +202,7 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
         </SettingSection>}
 
         {/* ── 5. Skill ── */}
-        {visibleCards.has("skills") && skillsList.length > 0 && (
+        {visibleCards.has("skills") && (
           <SettingSection title="Skills" open={openCards.skills} onToggle={() => toggleCard("skills")}>
             <div className="space-y-1">
               {skillsList.map((s) => (
@@ -199,12 +212,36 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
                 </button>
               ))}
             </div>
+            <label className="mt-1 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#e8e6dc] py-2 text-[11px] text-[#9f9c93] transition hover:border-[#d97757] hover:text-[#d97757]">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
+              Upload skill (.zip)
+              <input type="file" accept=".zip" className="hidden" onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const name = file.name.replace(/\.zip$/, "");
+                  await api.uploadFile(serverUrl, file, `.claude/skills/${name}/`);
+                  const updatedFiles = await api.fetchFiles(serverUrl);
+                  useStore.getState().setFiles(updatedFiles);
+                } catch (err) { console.error("Skill upload failed:", err); }
+                e.target.value = "";
+              }} />
+            </label>
           </SettingSection>
         )}
 
         {/* ── 7. Connector ── */}
         {visibleCards.has("connectors") && <SettingSection title="Connector" open={openCards.connectors} onToggle={() => toggleCard("connectors")}>
-          <ConnectorSummaryList />
+          <ConnectorSummaryList onRefresh={() => setConnectorRefreshKey((k) => k + 1)} />
+          {connectorPickerOpen ? (
+            <ConnectorCatalogPicker onClose={() => { setConnectorPickerOpen(false); setConnectorRefreshKey((k) => k + 1); }} />
+          ) : (
+            <button onClick={() => setConnectorPickerOpen(true)}
+              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#e8e6dc] py-2 text-[11px] text-[#9f9c93] transition hover:border-[#d97757] hover:text-[#d97757]">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              Add connector
+            </button>
+          )}
         </SettingSection>}
 
         {/* ── 8. Dispatch ── */}
@@ -235,21 +272,31 @@ function SettingSection({ title, open, onToggle, children }: {
 
 // ── ConnectorSummaryList ─────────────────────────────────────
 
-function ConnectorSummaryList() {
+function ConnectorSummaryList({ onRefresh }: { onRefresh?: () => void }) {
   const { serverUrl, connected, currentProject } = useStore();
   const [items, setItems] = useState<api.ConnectorSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     if (!connected) return;
-    let cancelled = false;
     setLoading(true);
     api.fetchConnectors(serverUrl)
-      .then((list) => { if (!cancelled) setItems(list); })
-      .catch(() => { if (!cancelled) setItems([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [serverUrl, connected, currentProject]);
+      .then(setItems)
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [serverUrl, connected]);
+
+  useEffect(() => { refresh(); }, [refresh, currentProject, refreshKey]);
+  // parent can bump refreshKey via onRefresh
+  useEffect(() => { if (onRefresh) onRefresh(); }, []);
+
+  async function handleUninstall(id: string) {
+    try {
+      await api.uninstallConnector(serverUrl, id);
+      setRefreshKey((k) => k + 1);
+    } catch {}
+  }
 
   if (loading && items.length === 0) {
     return <p className="text-[12px] italic text-[#9f9c93]">Loading\u2026</p>;
@@ -261,12 +308,63 @@ function ConnectorSummaryList() {
   return (
     <div className="space-y-0.5">
       {items.map((c) => (
-        <div key={c.id} title={c.description} className="flex items-center gap-2 rounded-md px-1 py-1 text-[13px] text-[#29291f] hover:bg-[rgba(41,41,31,0.06)]">
+        <div key={c.id} title={c.description} className="group flex items-center gap-2 rounded-md px-1 py-1 text-[13px] text-[#29291f] hover:bg-[rgba(41,41,31,0.06)]">
           <span className="text-[12px] leading-none">{CONNECTOR_EMOJI[c.type] || "\u{1F50C}"}</span>
           <span className="min-w-0 flex-1 truncate">{c.display_name || c.name}</span>
-          <span className="text-[10px] text-[#b0aea5]">{c.actions.length} action{c.actions.length === 1 ? "" : "s"}</span>
+          <span className="text-[10px] text-[#b0aea5] group-hover:hidden">{c.actions.length} action{c.actions.length === 1 ? "" : "s"}</span>
+          <button onClick={() => handleUninstall(c.id)} className="hidden text-[#b0aea5] hover:text-red-500 group-hover:block" title="Uninstall">
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+          </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ConnectorCatalogPicker({ onClose }: { onClose: () => void }) {
+  const { serverUrl } = useStore();
+  const [catalog, setCatalog] = useState<api.ConnectorCatalogItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.fetchConnectorCatalog(serverUrl)
+      .then(setCatalog)
+      .catch(() => setCatalog([]))
+      .finally(() => setLoading(false));
+  }, [serverUrl]);
+
+  async function handleInstall(id: string) {
+    try {
+      await api.installConnector(serverUrl, id);
+      setCatalog((prev) => prev.map((c) => c.id === id ? { ...c, installed: true } : c));
+    } catch {}
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] p-2">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-medium text-[#6b6963]">Catalog</span>
+        <button onClick={onClose} className="text-[#b0aea5] hover:text-[#141413]">
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+      {loading ? (
+        <p className="text-[11px] text-[#b0aea5]">Loading...</p>
+      ) : (
+        <div className="space-y-1 max-h-[200px] overflow-y-auto">
+          {catalog.map((c) => (
+            <div key={c.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-[12px]">
+              <span className="text-[11px]">{CONNECTOR_EMOJI[c.type] || "\u{1F50C}"}</span>
+              <span className="min-w-0 flex-1 truncate text-[#29291f]">{c.display_name || c.name}</span>
+              {c.installed ? (
+                <span className="text-[10px] text-[#788c5d]">Installed</span>
+              ) : (
+                <button onClick={() => handleInstall(c.id)} className="text-[10px] text-[#d97757] hover:underline">Install</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
