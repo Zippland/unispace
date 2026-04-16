@@ -11,7 +11,7 @@ export interface FileEntry {
   channel?: string;
 }
 
-export type FileType = "image" | "markdown" | "code" | "csv" | "json" | "text";
+export type FileType = "image" | "markdown" | "code" | "csv" | "json" | "text" | "task";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp"]);
 const CODE_EXTS = new Set([
@@ -129,6 +129,7 @@ interface Store {
 
   // Tabs
   openFile: (path: string, name: string) => void;
+  openTask: (name: string, taskJson: string) => void;
   closeFile: (path: string) => void;
   setActiveTab: (tab: string | null) => void;
   setFileContent: (path: string, content: string) => void;
@@ -206,6 +207,20 @@ export const useStore = create<Store>((set) => ({
         return { activeTab: path };
       const type = getFileType(name);
       const tab: FileTab = { path, name, type, loading: type !== "image" };
+      return { openTabs: [...s.openTabs, tab], activeTab: path };
+    }),
+
+  openTask: (name, taskJson) =>
+    set((s) => {
+      const path = `__task__/${name}`;
+      if (s.openTabs.some((t) => t.path === path)) {
+        // Already open — just activate and update content
+        return {
+          openTabs: s.openTabs.map((t) => t.path === path ? { ...t, content: taskJson, loading: false } : t),
+          activeTab: path,
+        };
+      }
+      const tab: FileTab = { path, name: name === "__new__" ? "New Task" : name, type: "task", content: taskJson, loading: false };
       return { openTabs: [...s.openTabs, tab], activeTab: path };
     }),
 

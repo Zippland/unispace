@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   fetchTasks,
-  saveTask,
   deleteTask,
   runTask,
+  saveTask,
   type TaskFile,
   type TaskTrigger,
   type TaskStatus,
-  type SaveTaskInput,
 } from "../api";
 import { useStore } from "../store";
 
@@ -33,11 +32,9 @@ const TRIGGER_LABEL: Record<TaskTrigger, string> = {
 };
 
 export default function ProjectTasksPanel() {
-  const { serverUrl, connected, currentProject, setActiveSession, setActiveTab } = useStore();
+  const { serverUrl, connected, currentProject, setActiveSession, setActiveTab, openTask } = useStore();
   const [tasks, setTasks] = useState<TaskFile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<TaskFile | null>(null);
-  const [creating, setCreating] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -76,11 +73,12 @@ export default function ProjectTasksPanel() {
     } catch {}
   }
 
-  async function handleSave(input: SaveTaskInput) {
-    await saveTask(serverUrl, input);
-    setEditing(null);
-    setCreating(false);
-    refresh();
+  function handleEdit(task: TaskFile) {
+    openTask(task.name, JSON.stringify(task));
+  }
+
+  function handleCreate() {
+    openTask("__new__", JSON.stringify({ name: "", description: "", trigger: "manual", schedule: "", body: "" }));
   }
 
   const grouped: Record<TaskStatus, TaskFile[]> = { backlog: [], planned: [], running: [] };
@@ -94,11 +92,11 @@ export default function ProjectTasksPanel() {
         <p className="py-6 text-center text-[12px] text-[#b0aea5]">Loading tasks\u2026</p>
       )}
 
-      {!loading && tasks.length === 0 && !creating && (
+      {!loading && tasks.length === 0 && (
         <div className="flex flex-col items-center py-8">
           <p className="text-[13px] font-light text-[#9f9c93]">No project tasks yet</p>
           <button
-            onClick={() => setCreating(true)}
+            onClick={handleCreate}
             className="mt-3 flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white px-3 py-1.5 text-[11px] text-[#141413] transition hover:border-[#b0aea5]"
           >
             <svg className="h-3 w-3 text-[#6b6963]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -109,7 +107,7 @@ export default function ProjectTasksPanel() {
         </div>
       )}
 
-      {(tasks.length > 0 || creating) && (
+      {tasks.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           {COLUMNS.map((col) => (
             <div key={col.key} className="flex flex-col">
@@ -121,22 +119,13 @@ export default function ProjectTasksPanel() {
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-[#b0aea5]">{grouped[col.key].length}</span>
-                  {col.key === "backlog" && !creating && !editing && (
-                    <button onClick={() => setCreating(true)} className="flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] hover:text-[#141413]" title="New task">
+                  {col.key === "backlog" && (
+                    <button onClick={handleCreate} className="flex h-4 w-4 items-center justify-center rounded text-[#b0aea5] hover:text-[#141413]" title="New task">
                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                     </button>
                   )}
                 </div>
               </div>
-
-              {/* Inline create/edit card at top of backlog */}
-              {col.key === "backlog" && (creating || editing) && (
-                <InlineTaskEditor
-                  task={editing}
-                  onSave={handleSave}
-                  onCancel={() => { setCreating(false); setEditing(null); }}
-                />
-              )}
 
               {/* Cards */}
               <div className="space-y-2">
@@ -147,7 +136,7 @@ export default function ProjectTasksPanel() {
                     colColor={col.color}
                     running={running === task.name}
                     onRun={() => handleRun(task)}
-                    onEdit={() => setEditing(task)}
+                    onEdit={() => handleEdit(task)}
                     onDelete={() => handleDelete(task.name)}
                     onStatusChange={(s) => handleStatusChange(task, s)}
                   />
@@ -245,83 +234,3 @@ function TaskCard({ task, colColor, running, onRun, onEdit, onDelete, onStatusCh
   );
 }
 
-// ── InlineTaskEditor ─────────────────────────────────────────
-
-function InlineTaskEditor({ task, onSave, onCancel }: {
-  task: TaskFile | null;
-  onSave: (input: SaveTaskInput) => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState(task?.name || "");
-  const [description, setDescription] = useState(task?.description || "");
-  const [trigger, setTrigger] = useState<TaskTrigger>(task?.trigger || "manual");
-  const [schedule, setSchedule] = useState(task?.schedule || "");
-  const [body, setBody] = useState(task?.body || "");
-  const [saving, setSaving] = useState(false);
-  const isEdit = !!task;
-
-  async function handleSave() {
-    if (!name.trim() || !body.trim()) return;
-    setSaving(true);
-    try {
-      await onSave({
-        name: name.trim(),
-        description: description.trim(),
-        trigger,
-        schedule: trigger === "fixed" ? schedule.trim() : undefined,
-        status: task?.status || "backlog",
-        body,
-      });
-    } catch (e) {
-      console.error(e);
-    }
-    setSaving(false);
-  }
-
-  return (
-    <div className="mb-2 rounded-xl border-2 border-dashed border-[#b0aea5] bg-white p-3">
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        disabled={isEdit}
-        placeholder="task_name"
-        autoFocus
-        className="w-full text-[13px] font-semibold text-[#141413] outline-none placeholder:text-[#b0aea5] disabled:opacity-60"
-      />
-      <input
-        type="text"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Description"
-        className="mt-1 w-full text-[11px] text-[#6b6963] outline-none placeholder:text-[#b0aea5]"
-      />
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        rows={3}
-        placeholder="Prompt body..."
-        className="mt-2 w-full resize-none rounded-md border border-[#e8e6dc] bg-[#faf9f5] px-2 py-1.5 font-mono text-[11px] leading-relaxed text-[#141413] outline-none focus:border-[#b0aea5] placeholder:text-[#b0aea5]"
-      />
-      <div className="mt-2 flex items-center gap-1.5">
-        {(["manual", "fixed", "model"] as const).map((t) => (
-          <button key={t} onClick={() => setTrigger(t)}
-            className={`rounded-md px-2 py-0.5 text-[10px] font-medium transition ${trigger === t ? "bg-[#141413] text-white" : "bg-[#faf9f5] text-[#6b6963] hover:bg-[#e8e6dc]"}`}>
-            {TRIGGER_LABEL[t]}
-          </button>
-        ))}
-        {trigger === "fixed" && (
-          <input type="text" value={schedule} onChange={(e) => setSchedule(e.target.value)} placeholder="0 9 * * MON"
-            className="ml-1 w-[100px] rounded-md border border-[#e8e6dc] bg-[#faf9f5] px-1.5 py-0.5 font-mono text-[10px] text-[#141413] outline-none" />
-        )}
-      </div>
-      <div className="mt-2 flex justify-end gap-1.5">
-        <button onClick={onCancel} className="rounded-md px-2.5 py-1 text-[11px] text-[#6b6963] hover:bg-[#faf9f5]">Cancel</button>
-        <button onClick={handleSave} disabled={saving || !name.trim() || !body.trim()}
-          className="rounded-md bg-[#141413] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#2a2a28] disabled:opacity-50">
-          {saving ? "Saving\u2026" : isEdit ? "Save" : "Create"}
-        </button>
-      </div>
-    </div>
-  );
-}

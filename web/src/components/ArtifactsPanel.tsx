@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useStore } from "../store";
 import FileViewer from "./FileViewer";
+import TaskArtifactEditor from "./TaskArtifactEditor";
 
 // ═══════════════════════════════════════════════════════════════
 //  ArtifactsPanel — right-side file preview that replaces the
@@ -68,7 +69,11 @@ export default function ArtifactsPanel() {
       {/* ── File content ── */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
         {currentTab ? (
-          <FileViewer tab={currentTab} controlsSlot={controlsRef.current} />
+          currentTab.type === "task" ? (
+            <TaskArtifactEditor tab={currentTab} controlsSlot={controlsRef.current} />
+          ) : (
+            <FileViewer tab={currentTab} controlsSlot={controlsRef.current} />
+          )
         ) : (
           <div className="flex flex-1 items-center justify-center text-[12px] text-[#b0aea5]">
             No file selected
