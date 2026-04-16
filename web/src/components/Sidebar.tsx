@@ -102,6 +102,7 @@ export default function Sidebar({
   const {
     projects,
     currentProject,
+    pinnedProjects,
     files,
     serverUrl,
     setFiles,
@@ -362,20 +363,23 @@ export default function Sidebar({
           </nav>
 
           {/* ── Pin section ─────────────────────────────────── */}
-          {projects.length > 0 && (
+          {pinnedProjects.length > 0 && (
             <div className="mt-3 border-t border-[#e8e6dc] px-3 pt-3">
               <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
                 Pin
               </div>
-              {projects.slice(0, 3).map((p) => (
+              {pinnedProjects.map((name) => (
                 <button
-                  key={p.name}
-                  onClick={() => {
-                    onMiraModeChange("CATWORK");
+                  key={name}
+                  onClick={async () => {
+                    await handleSwitchProject(name);
+                    onMiraModeChange("project");
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[#6b6963] transition hover:bg-[#141413]/[0.04] hover:text-[#141413]"
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition hover:bg-[#141413]/[0.04] hover:text-[#141413] ${
+                    currentProject === name ? "text-[#141413] font-medium" : "text-[#6b6963]"
+                  }`}
                 >
-                  <span className="truncate">{p.name}</span>
+                  <span className="truncate">{name}</span>
                 </button>
               ))}
             </div>

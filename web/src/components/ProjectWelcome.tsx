@@ -186,7 +186,10 @@ export default function ProjectWelcome({
       setRenameTarget(name);
       setRenameName(name);
     } else if (action === "pin") {
-      setToast(`Pinned "${name}"`);
+      const { pinnedProjects, togglePinProject } = useStore.getState();
+      togglePinProject(name);
+      const wasPinned = pinnedProjects.includes(name);
+      setToast(wasPinned ? `Unpinned "${name}"` : `Pinned "${name}"`);
       setTimeout(() => setToast(null), 2000);
     } else if (action === "share") {
       setToast("Share — coming soon");
@@ -304,25 +307,23 @@ export default function ProjectWelcome({
             style={{ left: ctxMenu.x, top: ctxMenu.y }}
           >
             {[
-              { key: "rename", label: "Rename", icon: "✏️" },
-              { key: "pin", label: "Pin", icon: "📌" },
-              { key: "share", label: "Share", icon: "🔗" },
+              { key: "rename", label: "Rename" },
+              { key: "pin", label: useStore.getState().pinnedProjects.includes(ctxMenu.name) ? "Unpin" : "Pin" },
+              { key: "share", label: "Share" },
             ].map((item) => (
               <button
                 key={item.key}
                 onClick={() => handleCtxAction(item.key, ctxMenu.name)}
-                className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#29291f] transition hover:bg-[rgba(41,41,31,0.06)]"
+                className="flex w-full px-4 py-2 text-left text-[13px] text-[#29291f] transition hover:bg-[rgba(41,41,31,0.06)]"
               >
-                <span className="text-[14px]">{item.icon}</span>
                 {item.label}
               </button>
             ))}
             <div className="mx-3 my-1 border-t border-[rgba(41,41,31,0.1)]" />
             <button
               onClick={() => handleCtxAction("delete", ctxMenu.name)}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#d97757] transition hover:bg-[rgba(41,41,31,0.06)]"
+              className="flex w-full px-4 py-2 text-left text-[13px] text-[#d97757] transition hover:bg-[rgba(41,41,31,0.06)]"
             >
-              <span className="text-[14px]">🗑️</span>
               Delete
             </button>
           </div>

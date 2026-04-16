@@ -89,6 +89,8 @@ interface Store {
 
   projects: ProjectInfo[];
   currentProject: string;
+  pinnedProjects: string[];
+  togglePinProject: (name: string) => void;
 
   sessions: SessionInfo[];
   activeSessionId: string | null;
@@ -145,6 +147,14 @@ export const useStore = create<Store>((set) => ({
   workDir: "",
   projects: [],
   currentProject: "",
+  pinnedProjects: (() => { try { return JSON.parse(localStorage.getItem("us:pinned_projects") || "[]"); } catch { return []; } })(),
+  togglePinProject: (name) => set((s) => {
+    const pinned = s.pinnedProjects.includes(name)
+      ? s.pinnedProjects.filter((n) => n !== name)
+      : [...s.pinnedProjects, name];
+    localStorage.setItem("us:pinned_projects", JSON.stringify(pinned));
+    return { pinnedProjects: pinned };
+  }),
   sessions: [],
   activeSessionId: null,
   messages: {},
