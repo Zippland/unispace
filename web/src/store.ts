@@ -11,7 +11,7 @@ export interface FileEntry {
   channel?: string;
 }
 
-export type FileType = "image" | "markdown" | "code" | "csv" | "json" | "text" | "task";
+export type FileType = "image" | "markdown" | "code" | "csv" | "json" | "text" | "task" | "dispatch";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp"]);
 const CODE_EXTS = new Set([
@@ -130,6 +130,7 @@ interface Store {
   // Tabs
   openFile: (path: string, name: string) => void;
   openTask: (name: string, taskJson: string) => void;
+  openDispatch: (id: string, dispatchJson: string) => void;
   closeFile: (path: string) => void;
   setActiveTab: (tab: string | null) => void;
   setFileContent: (path: string, content: string) => void;
@@ -221,6 +222,19 @@ export const useStore = create<Store>((set) => ({
         };
       }
       const tab: FileTab = { path, name: name === "__new__" ? "New Task" : name, type: "task", content: taskJson, loading: false };
+      return { openTabs: [...s.openTabs, tab], activeTab: path };
+    }),
+
+  openDispatch: (id, dispatchJson) =>
+    set((s) => {
+      const path = `__dispatch__/${id}`;
+      if (s.openTabs.some((t) => t.path === path)) {
+        return {
+          openTabs: s.openTabs.map((t) => t.path === path ? { ...t, content: dispatchJson, loading: false } : t),
+          activeTab: path,
+        };
+      }
+      const tab: FileTab = { path, name: id === "__new__" ? "New Dispatch" : id, type: "dispatch", content: dispatchJson, loading: false };
       return { openTabs: [...s.openTabs, tab], activeTab: path };
     }),
 

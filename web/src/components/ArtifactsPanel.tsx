@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useStore } from "../store";
 import FileViewer from "./FileViewer";
 import TaskArtifactEditor from "./TaskArtifactEditor";
+import DispatchArtifactEditor from "./DispatchArtifactEditor";
 
 // ═══════════════════════════════════════════════════════════════
 //  ArtifactsPanel — right-side file preview that replaces the
@@ -71,6 +72,8 @@ export default function ArtifactsPanel() {
         {currentTab ? (
           currentTab.type === "task" ? (
             <TaskArtifactEditor tab={currentTab} controlsSlot={controlsRef.current} />
+          ) : currentTab.type === "dispatch" ? (
+            <DispatchArtifactEditor tab={currentTab} controlsSlot={controlsRef.current} />
           ) : (
             <FileViewer tab={currentTab} controlsSlot={controlsRef.current} />
           )

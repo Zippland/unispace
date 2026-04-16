@@ -274,7 +274,7 @@ function ConnectorSummaryList() {
 // ── DispatchSummaryList ──────────────────────────────────────
 
 function DispatchSummaryList() {
-  const { serverUrl } = useStore();
+  const { serverUrl, openDispatch } = useStore();
   const [channels, setChannels] = useState<Record<string, { enabled?: boolean }>>({});
 
   useEffect(() => {
@@ -286,12 +286,21 @@ function DispatchSummaryList() {
     return () => { cancelled = true; };
   }, [serverUrl]);
 
+  function handleClick(id: string) {
+    const ch = channels[id] || {};
+    openDispatch(id, JSON.stringify({ id, mode: "custom_bot", enabled: !!ch.enabled, bot_name: "", app_id: "", app_secret: "", welcome_message: "" }));
+  }
+
   return (
     <div className="space-y-1">
       {DISPATCH_CHANNELS.map((c) => {
         const enabled = !!channels[c.id]?.enabled;
         return (
-          <div key={c.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-[13px] text-[#29291f] hover:bg-[rgba(41,41,31,0.06)]">
+          <div
+            key={c.id}
+            onClick={() => handleClick(c.id)}
+            className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-[13px] text-[#29291f] hover:bg-[rgba(41,41,31,0.06)]"
+          >
             <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${enabled ? "bg-[#7c9a5e]" : "bg-[#b0aea5]/40"}`} />
             <span className="min-w-0 flex-1">{c.label}</span>
             <span className={`text-[10px] uppercase tracking-wide ${enabled ? "text-[#7c9a5e]" : "text-[#b0aea5]"}`}>
@@ -300,6 +309,15 @@ function DispatchSummaryList() {
           </div>
         );
       })}
+      <button
+        onClick={() => openDispatch("__new__", JSON.stringify({ id: "", mode: "mira_bot", enabled: true, bot_name: "", app_id: "", app_secret: "", welcome_message: "" }))}
+        className="mt-1 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[12px] text-[#b0aea5] hover:bg-[rgba(41,41,31,0.06)] hover:text-[#6b6963]"
+      >
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        Add dispatch
+      </button>
     </div>
   );
 }
