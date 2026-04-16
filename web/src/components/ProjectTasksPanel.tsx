@@ -182,7 +182,7 @@ function TaskCard({ task, colColor, running, onRun, onEdit, onDelete, onStatusCh
       <div className="flex items-start justify-between gap-2">
         <h4 className="text-[13px] font-semibold text-[#141413]">{task.name}</h4>
         <div className="relative">
-          <span className="flex h-5 w-5 items-center justify-center rounded text-[#b0aea5]">
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[rgba(41,41,31,0.05)] text-[#9f9c93]">
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
             </svg>
