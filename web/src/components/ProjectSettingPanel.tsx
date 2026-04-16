@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useStore, type FileEntry } from "../store";
 import * as api from "../api";
 import FilesPanel, { type FilesPanelHandle } from "./FilesPanel";
@@ -15,12 +15,6 @@ import DataSourcePanel from "./DataSourcePanel";
 interface Props {
   onOpenFile: (path: string, name: string) => void;
 }
-
-const MODEL_OPTIONS = [
-  { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-  { value: "claude-sonnet-4-5-20250514", label: "Sonnet 4.5" },
-  { value: "claude-opus-4-5-20250514", label: "Opus 4.5" },
-];
 
 const TRIGGER_ICON: Record<string, string> = {
   manual: "\u{1F590}\uFE0F",
@@ -43,12 +37,63 @@ const DISPATCH_CHANNELS = [
   { id: "feishu", label: "Feishu", description: "Lark/Feishu bot \u2014 inbound chats become sessions" },
 ];
 
+const ALL_CARDS = [
+  { key: "persona", label: "Persona" },
+  { key: "files", label: "Files" },
+  { key: "datasource", label: "Datasource" },
+  { key: "tasks", label: "Task" },
+  { key: "skills", label: "Skills" },
+  { key: "connectors", label: "Connector" },
+  { key: "dispatch", label: "Dispatch" },
+] as const;
+
+const VISIBLE_KEY = "us:project_visible_cards";
+const DEFAULT_VISIBLE = new Set(ALL_CARDS.map((c) => c.key));
+
+function loadVisible(): Set<string> {
+  try {
+    const raw = localStorage.getItem(VISIBLE_KEY);
+    if (!raw) return new Set(DEFAULT_VISIBLE);
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? new Set(arr) : new Set(DEFAULT_VISIBLE);
+  } catch { return new Set(DEFAULT_VISIBLE); }
+}
+
 export default function ProjectSettingPanel({ onOpenFile }: Props) {
   const { currentProject, files, serverUrl } = useStore();
 
+  // ── Card visibility (persisted) ──
+  const [visibleCards, setVisibleCards] = useState<Set<string>>(loadVisible);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem(VISIBLE_KEY, JSON.stringify([...visibleCards]));
+  }, [visibleCards]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [settingsOpen]);
+
+  const toggleVisible = useCallback((key: string) => {
+    setVisibleCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+
+  // ── Card expand/collapse ──
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({
     persona: true,
-    model: true,
     files: false,
     datasource: false,
     tasks: false,
@@ -70,16 +115,6 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
       .catch(() => setClaudeContent(null));
   }, [serverUrl, hasClaude, currentProject]);
 
-  // ── Model ──
-  const [currentModel, setCurrentModel] = useState<string>("");
-
-  useEffect(() => {
-    if (!currentProject) return;
-    api.fetchProjectSettings(serverUrl, currentProject).then((s) => {
-      setCurrentModel(s.model || "");
-    }).catch(() => {});
-  }, [serverUrl, currentProject]);
-
   // ── Skills ──
   const skillsList = useMemo(() => {
     const dir = files.find((f) => f.name === "skills" && f.type === "directory");
@@ -90,18 +125,41 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
   const filesPanelRef = useRef<FilesPanelHandle>(null);
 
   return (
-    <div className="flex w-[320px] shrink-0 flex-col border-l border-[rgba(41,41,31,0.1)] bg-white">
-      <div className="flex items-center justify-between border-b border-[rgba(41,41,31,0.1)] px-5 py-3">
-        <span className="font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold text-[#6a685d]">Setting</span>
-        <svg className="h-4 w-4 text-[#9f9c93]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-        </svg>
-      </div>
+    <div className="w-[320px] shrink-0 overflow-y-auto p-3 space-y-3">
+        {/* ── Settings gear ── */}
+        <div className="flex justify-end" ref={settingsRef}>
+          <div className="relative">
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="flex h-7 w-7 items-center justify-center rounded-[6px] text-[#9f9c93] hover:bg-[rgba(41,41,31,0.06)] hover:text-[#29291f]"
+              title="Toggle cards"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            </button>
+            {settingsOpen && (
+              <div className="absolute right-0 top-8 z-10 w-[180px] rounded-[10px] border border-[rgba(41,41,31,0.1)] bg-white py-1 shadow-lg">
+                {ALL_CARDS.map((c) => (
+                  <button
+                    key={c.key}
+                    onClick={() => toggleVisible(c.key)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-[#29291f] hover:bg-[rgba(41,41,31,0.04)]"
+                  >
+                    <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] ${visibleCards.has(c.key) ? "border-[#29291f] bg-[#29291f] text-white" : "border-[#b0aea5]"}`}>
+                      {visibleCards.has(c.key) && "\u2713"}
+                    </span>
+                    <span>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {/* ── 1. Persona ── */}
-        <SettingSection title="Persona" open={openCards.persona} onToggle={() => toggleCard("persona")}>
+        {visibleCards.has("persona") && <SettingSection title="Persona" open={openCards.persona} onToggle={() => toggleCard("persona")}>
           {claudeContent != null ? (
             <div>
               <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-[#29291f]">
@@ -122,39 +180,29 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
           ) : (
             <p className="text-[12px] italic text-[#9f9c93]">No CLAUDE.md yet.</p>
           )}
-        </SettingSection>
+        </SettingSection>}
 
-        {/* ── 2. Model ── */}
-        <SettingSection title="Model" open={openCards.model} onToggle={() => toggleCard("model")}>
-          <ModelSelector
-            serverUrl={serverUrl}
-            projectName={currentProject}
-            value={currentModel}
-            onChange={setCurrentModel}
-          />
-        </SettingSection>
-
-        {/* ── 3. Files ── */}
-        <SettingSection title="Files" open={openCards.files} onToggle={() => toggleCard("files")}>
+        {/* ── 2. Files ── */}
+        {visibleCards.has("files") && <SettingSection title="Files" open={openCards.files} onToggle={() => toggleCard("files")}>
           <div className="max-h-[300px] overflow-y-auto -mx-[12px] -mb-[12px]">
             <FilesPanel ref={filesPanelRef} onOpenFile={onOpenFile} />
           </div>
-        </SettingSection>
+        </SettingSection>}
 
         {/* ── 4. Datasource ── */}
-        <SettingSection title="Datasource" open={openCards.datasource} onToggle={() => toggleCard("datasource")}>
+        {visibleCards.has("datasource") && <SettingSection title="Datasource" open={openCards.datasource} onToggle={() => toggleCard("datasource")}>
           <div className="max-h-[300px] overflow-y-auto -mx-[12px] -mb-[12px]">
             <DataSourcePanel pickerOpen={false} onClosePicker={() => {}} />
           </div>
-        </SettingSection>
+        </SettingSection>}
 
         {/* ── 5. Task ── */}
-        <SettingSection title="Task" open={openCards.tasks} onToggle={() => toggleCard("tasks")}>
+        {visibleCards.has("tasks") && <SettingSection title="Task" open={openCards.tasks} onToggle={() => toggleCard("tasks")}>
           <TaskSummaryList />
-        </SettingSection>
+        </SettingSection>}
 
         {/* ── 6. Skill ── */}
-        {skillsList.length > 0 && (
+        {visibleCards.has("skills") && skillsList.length > 0 && (
           <SettingSection title="Skills" open={openCards.skills} onToggle={() => toggleCard("skills")}>
             <div className="space-y-1">
               {skillsList.map((s) => (
@@ -168,15 +216,14 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
         )}
 
         {/* ── 7. Connector ── */}
-        <SettingSection title="Connector" open={openCards.connectors} onToggle={() => toggleCard("connectors")}>
+        {visibleCards.has("connectors") && <SettingSection title="Connector" open={openCards.connectors} onToggle={() => toggleCard("connectors")}>
           <ConnectorSummaryList />
-        </SettingSection>
+        </SettingSection>}
 
         {/* ── 8. Dispatch ── */}
-        <SettingSection title="Dispatch" open={openCards.dispatch} onToggle={() => toggleCard("dispatch")}>
+        {visibleCards.has("dispatch") && <SettingSection title="Dispatch" open={openCards.dispatch} onToggle={() => toggleCard("dispatch")}>
           <DispatchSummaryList />
-        </SettingSection>
-      </div>
+        </SettingSection>}
     </div>
   );
 }
@@ -187,7 +234,7 @@ function SettingSection({ title, open, onToggle, children }: {
   title: string; open: boolean; onToggle: () => void; children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-[12px] border border-[rgba(41,41,31,0.1)]">
+    <div className="overflow-hidden rounded-[12px] border border-[rgba(41,41,31,0.1)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
       <button onClick={onToggle} className="flex w-full items-center gap-2 px-[12px] py-3 text-left hover:bg-[rgba(41,41,31,0.03)]">
         <span className="flex-1 text-[14px] font-light text-[#9f9c93]">{title}</span>
         <svg className={`h-3 w-3 text-[#9f9c93] transition ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -195,35 +242,6 @@ function SettingSection({ title, open, onToggle, children }: {
         </svg>
       </button>
       {open && <div className="px-[12px] pb-[12px]">{children}</div>}
-    </div>
-  );
-}
-
-// ── ModelSelector ────────────────────────────────────────────
-
-function ModelSelector({ serverUrl, projectName, value, onChange }: {
-  serverUrl: string; projectName: string; value: string; onChange: (v: string) => void;
-}) {
-  const label = MODEL_OPTIONS.find((o) => o.value === value)?.label || value || "Default";
-
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const next = e.target.value;
-    onChange(next);
-    api.updateProjectSettings(serverUrl, projectName, { model: next }).catch(() => {});
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      <select
-        value={value}
-        onChange={handleChange}
-        className="w-full rounded-md border border-[rgba(41,41,31,0.1)] bg-transparent px-2 py-1.5 text-[13px] text-[#29291f] outline-none hover:border-[rgba(41,41,31,0.2)] focus:border-[rgba(41,41,31,0.3)]"
-      >
-        <option value="">Default</option>
-        {MODEL_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
     </div>
   );
 }
