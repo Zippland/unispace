@@ -361,6 +361,7 @@ function McpEditor({ mcp, onChange, onDelete }: {
 
 function SkillEditor({ skill, onChange, onDelete }: { skill: SkillDef; onChange: (s: SkillDef) => void; onDelete: () => void }) {
   const [open, setOpen] = useState(!skill.name);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   return (
     <div className="rounded-xl border border-[#e8e6dc] bg-white">
       <div className="flex items-center gap-2 px-4 py-3 cursor-pointer" onClick={() => setOpen(!open)}>
@@ -385,9 +386,27 @@ function SkillEditor({ skill, onChange, onDelete }: { skill: SkillDef; onChange:
               <input type="text" value={skill.description} onChange={(e) => onChange({ ...skill, description: e.target.value })} className={INPUT_SM} placeholder="Short description" />
             </Field>
           </div>
-          <Field label="SKILL.md Content">
-            <textarea value={skill.content} onChange={(e) => onChange({ ...skill, content: e.target.value })}
-              rows={6} className={INPUT_SM + " font-mono resize-none"} placeholder="# Skill Name\n\nDescribe how to use this skill..." />
+          <Field label="Skill Archive (.zip)">
+            <input ref={fileInputRef} type="file" accept=".zip" className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const url = URL.createObjectURL(file);
+                  onChange({ ...skill, archive_url: url, name: skill.name || file.name.replace(/\.zip$/, "") });
+                }
+              }}
+            />
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#e8e6dc] bg-[#faf9f5] px-3 py-3 transition hover:border-[#d97757]"
+            >
+              <svg className="h-4 w-4 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+              </svg>
+              <span className="text-xs text-[#6b6963]">
+                {skill.archive_url ? "Archive uploaded" : "Click to upload .zip"}
+              </span>
+            </div>
           </Field>
         </div>
       )}
@@ -440,28 +459,32 @@ function WorkspaceTab({ agent, onChange }: { agent: AgentConfig; onChange: (a: A
             <SectionTitle>Default Files</SectionTitle>
             <p className="mt-0.5 text-xs text-[#6b6963]">Pre-loaded into each user's workspace.</p>
           </div>
-          <button onClick={() => onChange({ ...agent, default_files: [...agent.default_files, { path: "", content: "" }] })}
-            className="text-xs text-[#d97757] hover:underline">+ Add file</button>
+          <label className="cursor-pointer text-xs text-[#d97757] hover:underline">
+            + Upload files
+            <input type="file" multiple className="hidden" onChange={(e) => {
+              const files = e.target.files;
+              if (!files) return;
+              const newFiles = Array.from(files).map((file) => ({
+                path: file.name,
+                file_url: URL.createObjectURL(file),
+              }));
+              onChange({ ...agent, default_files: [...agent.default_files, ...newFiles] });
+              e.target.value = "";
+            }} />
+          </label>
         </div>
-        <div className="mt-3 space-y-3">
+        <div className="mt-3 space-y-2">
           {agent.default_files.map((f, i) => (
-            <div key={i} className="rounded-xl border border-[#e8e6dc] bg-white p-4">
-              <div className="flex items-center gap-2">
-                <Field label="Path">
-                  <input type="text" value={f.path}
-                    onChange={(e) => { const arr = [...agent.default_files]; arr[i] = { ...f, path: e.target.value }; onChange({ ...agent, default_files: arr }); }}
-                    className={INPUT_SM + " font-mono"} placeholder="data/config.json" />
-                </Field>
-                <button onClick={() => onChange({ ...agent, default_files: agent.default_files.filter((_, j) => j !== i) })}
-                  className="mt-5 text-[#b0aea5] hover:text-red-500">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-              <div className="mt-2">
-                <textarea value={f.content}
-                  onChange={(e) => { const arr = [...agent.default_files]; arr[i] = { ...f, content: e.target.value }; onChange({ ...agent, default_files: arr }); }}
-                  rows={4} className={INPUT_SM + " font-mono resize-none"} placeholder="File content..." />
-              </div>
+            <div key={i} className="flex items-center gap-2 rounded-lg border border-[#e8e6dc] bg-white px-4 py-2.5">
+              <svg className="h-4 w-4 shrink-0 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+              <span className="flex-1 truncate text-xs font-mono text-[#141413]">{f.path}</span>
+              {f.file_url && <span className="text-[10px] text-[#788c5d]">uploaded</span>}
+              <button onClick={() => onChange({ ...agent, default_files: agent.default_files.filter((_, j) => j !== i) })}
+                className="text-[#b0aea5] hover:text-red-500">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+              </button>
             </div>
           ))}
           {agent.default_files.length === 0 && <Empty>No default files</Empty>}

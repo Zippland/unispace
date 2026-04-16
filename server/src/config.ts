@@ -27,7 +27,12 @@ export const paths = {
   config: () => join(getDir(), "config.json"),
   channels: () => join(getDir(), "channels.json"),
   projectsRoot: () => join(getDir(), "projects"),
-  templatesRoot: () => join(getDir(), "project-templates"),
+  templatesRoot: () => {
+    // Prefer bundled templates shipped with the app; fall back to user dir
+    const bundled = join(TEMPLATE_DIR, "project-templates");
+    if (existsSync(bundled)) return bundled;
+    return join(getDir(), "project-templates");
+  },
 
   // Traces (global, cross-project)
   tracesRoot: () => join(getDir(), "traces"),
