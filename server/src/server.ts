@@ -491,7 +491,11 @@ export function createServer(_initialConfig: Config) {
     const name = c.req.param("name");
     if (!projectExists(name)) return c.json({ error: "Not found" }, 404);
     const body = await c.req.json();
-    writeProjectSettings(name, { model: body.model });
+    writeProjectSettings(name, {
+      model: body.model,
+      emoji: body.emoji,
+      description: body.description,
+    });
     return c.json({ ok: true, settings: readProjectSettings(name) });
   });
 

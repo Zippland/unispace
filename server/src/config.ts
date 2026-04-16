@@ -124,6 +124,8 @@ export function projectExists(name: string): boolean {
 
 export interface ProjectSettings {
   model?: string;
+  emoji?: string;
+  description?: string;
 }
 
 /** Path-based settings reader. Source of truth for parsing
@@ -134,7 +136,11 @@ function readProjectSettingsAt(projectDir: string): ProjectSettings {
   if (!existsSync(file)) return {};
   try {
     const raw = JSON.parse(readFileSync(file, "utf-8"));
-    return { model: typeof raw.model === "string" ? raw.model : undefined };
+    return {
+      model: typeof raw.model === "string" ? raw.model : undefined,
+      emoji: typeof raw.emoji === "string" ? raw.emoji : undefined,
+      description: typeof raw.description === "string" ? raw.description : undefined,
+    };
   } catch {
     return {};
   }

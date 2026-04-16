@@ -264,7 +264,7 @@ export default function App() {
       {/* ── Project mode: ProjectShell owns the full viewport ── */}
       {miraMode === "project" ? (
         <div className="flex-1 min-w-0 h-full">
-          <ProjectShell onModeChange={setMiraMode} />
+          <ProjectShell onModeChange={setMiraMode} onOpenFile={handleOpenFile} />
         </div>
       ) : (
       <>

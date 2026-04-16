@@ -125,6 +125,8 @@ export async function createBlankProject(url: string, projectName: string) {
 
 export interface ProjectSettings {
   model?: string;
+  emoji?: string;
+  description?: string;
 }
 
 export async function fetchProjectSettings(url: string, name: string) {

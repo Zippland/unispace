@@ -271,39 +271,82 @@ function EmptyState({
 }: {
   inputBarSlot?: ReactNode;
 }) {
-  const { currentProject } = useStore();
+  const {
+    currentProject, sessions,
+    setActiveSession, setActiveTab: setStoreActiveTab,
+  } = useStore();
+  const [tab, setTab] = useState<"recents" | "task">("recents");
+
+  const sorted = useMemo(
+    () => [...sessions].sort((a, b) => b.createdAt - a.createdAt),
+    [sessions],
+  );
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl px-8 py-12">
-        {/* Compact hero */}
-        <div className="mb-6 flex flex-col items-center text-center">
-          {/* Project brand mark — 3D cube, same as Project mode shell */}
-          <svg className="h-14 w-14" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"
-              stroke="#d97757"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <h1 className="mt-5 font-['Poppins',_Arial,_sans-serif] text-[24px] font-semibold tracking-tight text-[#141413]">
-            Hi, I'm{" "}
-            <span className="text-[#d97757]">
-              {currentProject || "your agent"}
-            </span>
-            .
-          </h1>
-          <p className="mt-1.5 font-['Poppins',_Arial,_sans-serif] text-[13px] text-[#b0aea5]">
-            Defined by you. Powered by Mira.
-          </p>
+      <div className="mx-auto w-full max-w-3xl px-8 py-10">
+        {/* Input bar — real, from ChatPanel */}
+        {inputBarSlot && <div className="mb-8">{inputBarSlot}</div>}
+
+        {/* Recents | Task tabs */}
+        <div className="flex items-center gap-5 border-b border-[#e8e6dc]">
+          {(["recents", "task"] as const).map((t) => {
+            const label = t === "recents" ? "Recents" : "Task";
+            const active = tab === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`relative pb-3 text-[14px] font-medium transition ${
+                  active ? "text-[#141413]" : "text-[#b0aea5] hover:text-[#6b6963]"
+                }`}
+              >
+                {label}
+                {active && (
+                  <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-[#141413]" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Shared input bar — same component as the bottom bar.
-            Rendered here via slot prop so empty state keeps the bar
-            on-screen without duplicating JSX. */}
-        {inputBarSlot && <div className="mb-8">{inputBarSlot}</div>}
+        {/* Content */}
+        <div className="mt-4">
+          {tab === "recents" ? (
+            sorted.length === 0 ? (
+              <p className="py-10 text-center text-[13px] text-[#b0aea5]">
+                No chats yet
+              </p>
+            ) : (
+              <div className="space-y-0.5">
+                {sorted.map((s) => {
+                  const d = new Date(s.createdAt);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        setActiveSession(s.id);
+                        setStoreActiveTab(null);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-[#faf9f5]"
+                    >
+                      <span className="flex-1 truncate text-[14px] font-medium text-[#141413]">
+                        {s.title || s.id}
+                      </span>
+                      <span className="shrink-0 text-[12px] text-[#b0aea5]">
+                        {d.toLocaleDateString()}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <p className="py-10 text-center text-[13px] text-[#b0aea5]">
+              No tasks yet
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
