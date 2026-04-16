@@ -375,7 +375,6 @@ export default function Sidebar({
                   }}
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[#6b6963] transition hover:bg-[#141413]/[0.04] hover:text-[#141413]"
                 >
-                  <span className="text-[13px]">📁</span>
                   <span className="truncate">{p.name}</span>
                 </button>
               ))}
