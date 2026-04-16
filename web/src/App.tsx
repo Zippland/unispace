@@ -111,7 +111,7 @@ export default function App() {
   const [devOpen, setDevOpen] = useState(false);
   const [agentEditor, setAgentEditor] = useState<AgentEditorMode | null>(null);
   const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
-  const [miraMode, setMiraMode] = useState<MiraMode>("CATWORK");
+  const [miraMode, setMiraMode] = useState<MiraMode>("new_chat");
   const [skillDialogOpen, setSkillDialogOpen] = useState(false);
 
   // Shared "open a project by name" — used both when the user picks
@@ -261,10 +261,10 @@ export default function App() {
 
   return (
     <div className="h-screen flex bg-[#faf9f5] text-[#141413]">
-      {/* ── Project mode: ProjectShell owns the full viewport ── */}
-      {miraMode === "project" ? (
+      {/* ── CATWORK / Project: icon strip layout ── */}
+      {miraMode === "project" || miraMode === "CATWORK" ? (
         <div className="flex-1 min-w-0 h-full">
-          <ProjectShell onModeChange={setMiraMode} onOpenFile={handleOpenFile} />
+          <ProjectShell miraMode={miraMode} onModeChange={setMiraMode} onOpenFile={handleOpenFile} />
         </div>
       ) : (
       <>
@@ -313,7 +313,7 @@ export default function App() {
 
       {miraMode === "new_chat" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-          <MiraWelcomeMain />
+          <ChatPanel />
         </div>
       ) : miraMode === "task" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -322,13 +322,6 @@ export default function App() {
       ) : miraMode === "customize" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <GlobalCustomizePanel />
-        </div>
-      ) : miraMode === "CATWORK" ? (
-        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-          <ProjectWelcome
-            onProjectCreated={openProject}
-            onSelectExisting={openProject}
-          />
         </div>
       ) : null}
       </>

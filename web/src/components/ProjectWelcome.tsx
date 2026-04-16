@@ -14,7 +14,7 @@ import {
 //
 //  Top header:  "Project" title  |  search  |  + New Project
 //  Cards:       emoji + name + description + context menu
-//  Brand:       Anthropic palette (#141413 / #faf9f5 / #d97757)
+//  Brand:       Figma tokens (#29291f / #fafaf7 / #f2f2ee)
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
@@ -64,7 +64,7 @@ const BU_COLORS: Record<string, string> = {
   legal: "#9b8757", rd: "#507a96", design: "#c4688a", community: "#5a8d7a",
 };
 
-function buColor(bu: string) { return BU_COLORS[bu] || "#b0aea5"; }
+function buColor(bu: string) { return BU_COLORS[bu] || "#9f9c93"; }
 
 function defaultPendingName(tmpl: { id: string; bu: string }): string {
   const suffix = Math.floor(Math.random() * 900 + 100);
@@ -223,29 +223,29 @@ export default function ProjectWelcome({
   // ── Render ──────────────────────────────────────────────────
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-[#faf9f5]">
+    <div className="relative flex h-full min-h-0 flex-col bg-[#fafaf7]">
       {/* ── Top header ─────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-4 border-b border-[#e8e6dc] bg-white px-8 py-4">
-        <h1 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#141413]">
+      <div className="flex shrink-0 items-center gap-4 border-b border-[rgba(41,41,31,0.1)] bg-white px-8 py-4">
+        <h1 className="font-['Poppins',_Arial,_sans-serif] text-[16px] font-medium text-[#29291f]">
           Project
         </h1>
         <div className="flex-1" />
         {/* Search */}
-        <div className="flex w-[240px] items-center gap-2 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-1.5">
-          <svg className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="flex w-[240px] items-center gap-2 rounded-full border border-[#e3e3de] bg-white px-3 py-1.5">
+          <svg className="h-3.5 w-3.5 shrink-0 text-[#9f9c93]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search"
-            className="w-full border-0 bg-transparent text-[13px] text-[#141413] outline-none placeholder:text-[#b0aea5]"
+            className="w-full border-0 bg-transparent text-[13px] text-[#29291f] outline-none placeholder:text-[#9f9c93]"
           />
         </div>
         {/* + New Project */}
         <button
           onClick={openBlankConfirm}
-          className="flex items-center gap-1.5 rounded-lg bg-[#141413] px-4 py-2 text-[13px] font-medium text-white transition hover:bg-[#2a2a28]"
+          className="flex items-center gap-1.5 rounded-full bg-[#29291f] px-4 py-2 text-[13px] font-medium text-white transition hover:bg-[#3d3d2f]"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -255,7 +255,7 @@ export default function ProjectWelcome({
       </div>
 
       {/* ── Tab bar ────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-6 border-b border-[#e8e6dc] bg-white px-8">
+      <div className="flex shrink-0 items-center gap-6 border-b border-[rgba(41,41,31,0.1)] bg-white px-8">
         {(["my_project", "market"] as const).map((t) => {
           const label = t === "my_project" ? "My Project" : "Market";
           const active = tab === t;
@@ -263,13 +263,13 @@ export default function ProjectWelcome({
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`relative pb-3 pt-3 text-[14px] font-medium transition ${
-                active ? "text-[#141413]" : "text-[#b0aea5] hover:text-[#6b6963]"
+              className={`relative pb-3 pt-3 text-[14px] transition ${
+                active ? "font-medium text-[#29291f]" : "font-light text-[#6a685d]"
               }`}
             >
               {label}
               {active && (
-                <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-[#141413]" />
+                <span className="absolute inset-x-0 bottom-0 h-[1.5px] rounded-full bg-[#333329]" />
               )}
             </button>
           );
@@ -277,7 +277,7 @@ export default function ProjectWelcome({
       </div>
 
       {/* ── Content ────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-[86px] py-6">
         {tab === "my_project" ? (
           <MyProjectGrid
             projects={sortedProjects}
@@ -300,7 +300,7 @@ export default function ProjectWelcome({
         <>
           <div className="fixed inset-0 z-40" onClick={closeCtx} />
           <div
-            className="fixed z-50 w-[160px] rounded-xl border border-[#e8e6dc] bg-white py-1 shadow-[0_8px_24px_rgba(20,20,19,0.12)]"
+            className="fixed z-50 w-[160px] rounded-xl border border-[rgba(41,41,31,0.1)] bg-white py-1 shadow-[0_8px_24px_rgba(20,20,19,0.12)]"
             style={{ left: ctxMenu.x, top: ctxMenu.y }}
           >
             {[
@@ -311,16 +311,16 @@ export default function ProjectWelcome({
               <button
                 key={item.key}
                 onClick={() => handleCtxAction(item.key, ctxMenu.name)}
-                className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#141413] transition hover:bg-[#faf9f5]"
+                className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#29291f] transition hover:bg-[rgba(41,41,31,0.06)]"
               >
                 <span className="text-[14px]">{item.icon}</span>
                 {item.label}
               </button>
             ))}
-            <div className="mx-3 my-1 border-t border-[#e8e6dc]" />
+            <div className="mx-3 my-1 border-t border-[rgba(41,41,31,0.1)]" />
             <button
               onClick={() => handleCtxAction("delete", ctxMenu.name)}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#d97757] transition hover:bg-[#faf9f5]"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#d97757] transition hover:bg-[rgba(41,41,31,0.06)]"
             >
               <span className="text-[14px]">🗑️</span>
               Delete
@@ -332,9 +332,9 @@ export default function ProjectWelcome({
       {/* ── Rename dialog ──────────────────────────────────── */}
       {renameTarget && (
         <>
-          <div className="fixed inset-0 z-50 bg-[#141413]/25 backdrop-blur-sm" onClick={() => setRenameTarget(null)} />
+          <div className="fixed inset-0 z-50 bg-[#29291f]/25 backdrop-blur-sm" onClick={() => setRenameTarget(null)} />
           <div className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
-            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[16px] font-semibold text-[#141413]">
+            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[16px] font-semibold text-[#29291f]">
               Rename project
             </h3>
             <input
@@ -342,13 +342,13 @@ export default function ProjectWelcome({
               value={renameName}
               onChange={(e) => setRenameName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleRename()}
-              className="mt-4 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-4 py-2.5 text-[14px] text-[#141413] outline-none focus:border-[#141413]"
+              className="mt-4 w-full rounded-lg border border-[#d6d5d0] bg-[#fafaf7] px-4 py-2.5 text-[14px] text-[#29291f] outline-none focus:border-[#29291f]"
             />
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setRenameTarget(null)} className="rounded-lg border border-[#e8e6dc] px-4 py-2 text-[13px] text-[#6b6963] hover:bg-[#faf9f5]">
+              <button onClick={() => setRenameTarget(null)} className="rounded-lg border border-[rgba(41,41,31,0.1)] px-4 py-2 text-[13px] text-[#6a685d] hover:bg-[rgba(41,41,31,0.06)]">
                 Cancel
               </button>
-              <button onClick={handleRename} className="rounded-lg bg-[#141413] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#2a2a28]">
+              <button onClick={handleRename} className="rounded-lg bg-[#29291f] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#3d3d2f]">
                 Rename
               </button>
             </div>
@@ -359,38 +359,38 @@ export default function ProjectWelcome({
       {/* ── Create dialog ──────────────────────────────────── */}
       {pending && (
         <>
-          <div className="fixed inset-0 z-50 bg-[#141413]/25 backdrop-blur-sm" onClick={() => !creating && setPending(null)} />
+          <div className="fixed inset-0 z-50 bg-[#29291f]/25 backdrop-blur-sm" onClick={() => !creating && setPending(null)} />
           <div className="fixed left-1/2 top-1/2 z-50 w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-8 shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
-            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#141413]">
+            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#29291f]">
               Create project
             </h3>
             <div className="mt-4 flex items-center gap-3">
               <span className="text-[28px]">{pending.icon || "📁"}</span>
-              <span className="text-[15px] font-medium text-[#141413]">{pending.name}</span>
+              <span className="text-[15px] font-medium text-[#29291f]">{pending.name}</span>
               {pending.id !== "__blank__" && (
                 <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white" style={{ background: buColor(pending.bu) }}>
                   {pending.bu}
                 </span>
               )}
             </div>
-            <p className="mt-3 font-['Lora',_Georgia,_serif] text-[14px] leading-relaxed text-[#6b6963]">
+            <p className="mt-3 font-['Lora',_Georgia,_serif] text-[14px] leading-relaxed text-[#6a685d]">
               {pending.description}
             </p>
-            <label className="mt-6 block text-[13px] font-medium text-[#6b6963]">Project name</label>
+            <label className="mt-6 block text-[13px] font-medium text-[#6a685d]">Project name</label>
             <input
               type="text"
               value={pendingName}
               onChange={(e) => { setPendingName(e.target.value); setError(""); }}
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              className="mt-2 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-4 py-2.5 text-[14px] text-[#141413] outline-none focus:border-[#141413]"
+              className="mt-2 w-full rounded-lg border border-[#d6d5d0] bg-[#fafaf7] px-4 py-2.5 text-[14px] text-[#29291f] outline-none focus:border-[#29291f]"
             />
             {error && <p className="mt-2 text-[12px] text-[#d97757]">{error}</p>}
             <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setPending(null)} disabled={creating} className="rounded-lg border border-[#e8e6dc] px-5 py-2.5 text-[14px] text-[#6b6963] hover:bg-[#faf9f5] disabled:opacity-50">
+              <button onClick={() => setPending(null)} disabled={creating} className="rounded-lg border border-[rgba(41,41,31,0.1)] px-5 py-2.5 text-[14px] text-[#6a685d] hover:bg-[rgba(41,41,31,0.06)] disabled:opacity-50">
                 Cancel
               </button>
-              <button onClick={handleCreate} disabled={creating || !pendingName.trim()} className="rounded-lg bg-[#d97757] px-5 py-2.5 text-[14px] font-medium text-white hover:bg-[#c4613f] disabled:cursor-not-allowed disabled:opacity-50">
+              <button onClick={handleCreate} disabled={creating || !pendingName.trim()} className="rounded-lg bg-[#29291f] px-5 py-2.5 text-[14px] font-medium text-white hover:bg-[#3d3d2f] disabled:cursor-not-allowed disabled:opacity-50">
                 {creating ? "Creating…" : "Create"}
               </button>
             </div>
@@ -400,7 +400,7 @@ export default function ProjectWelcome({
 
       {/* ── Toast ──────────────────────────────────────────── */}
       {toast && (
-        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#141413] px-4 py-2 text-[12px] text-white shadow-lg">
+        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#29291f] px-4 py-2 text-[12px] text-white shadow-lg">
           {toast}
         </div>
       )}
@@ -423,14 +423,14 @@ function MyProjectGrid({
 }) {
   if (projects.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center text-[14px] text-[#b0aea5]">
-        No projects yet. Click <span className="mx-1 font-medium text-[#141413]">+ New Project</span> to get started.
+      <div className="flex h-48 items-center justify-center text-[14px] text-[#9f9c93]">
+        No projects yet. Click <span className="mx-1 font-medium text-[#29291f]">+ New Project</span> to get started.
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2 lg:grid-cols-3">
       {projects.map((p) => (
         <ProjectCard
           key={p.name}
@@ -477,8 +477,8 @@ function MarketGrid({
               onClick={() => onBUChange(t.key)}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition ${
                 active
-                  ? "bg-[#141413] text-white"
-                  : "bg-[#e8e6dc]/50 text-[#6b6963] hover:bg-[#e8e6dc]"
+                  ? "bg-[#29291f] text-white"
+                  : "bg-[#f2f2ee] text-[#6a685d] hover:bg-[rgba(41,41,31,0.1)]"
               }`}
             >
               {t.label}
@@ -488,13 +488,13 @@ function MarketGrid({
       </div>
 
       {loading ? (
-        <div className="flex h-48 items-center justify-center text-[13px] text-[#b0aea5]">Loading templates…</div>
+        <div className="flex h-48 items-center justify-center text-[13px] text-[#9f9c93]">Loading templates…</div>
       ) : templates.length === 0 ? (
-        <div className="flex h-48 items-center justify-center text-[13px] text-[#b0aea5]">
+        <div className="flex h-48 items-center justify-center text-[13px] text-[#9f9c93]">
           No templates found.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => (
             <ProjectCard
               key={t.id}
@@ -533,26 +533,26 @@ function ProjectCard({
   return (
     <button
       onClick={onClick}
-      className="group relative flex gap-4 rounded-2xl border border-[#e8e6dc] bg-white px-5 py-5 text-left transition hover:border-[#b0aea5] hover:shadow-[0_4px_20px_rgba(20,20,19,0.06)]"
+      className="group relative flex flex-col gap-[16px] rounded-[16px] border border-[rgba(41,41,31,0.1)] bg-white p-[16px] text-left transition hover:border-[#9f9c93] hover:shadow-[0_4px_20px_rgba(20,20,19,0.06)]"
     >
       {/* Icon */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#faf9f5] text-[22px]">
+      <div className="flex size-[32px] shrink-0 items-center justify-center rounded-[6px] bg-[#f2f2ee] text-[20px]">
         {icon}
       </div>
 
       {/* Body */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">
+          <span className="truncate text-[16px] font-medium text-[#29291f]">
             {name}
           </span>
           {badge && (
-            <span className="shrink-0 rounded border border-[#e8e6dc] px-1.5 py-0.5 text-[10px] font-medium text-[#b0aea5]">
+            <span className="shrink-0 rounded-[6px] bg-[#f2f2ee] px-[6px] h-[20px] inline-flex items-center text-[12px] text-[#6a685d]">
               {badge}
             </span>
           )}
         </div>
-        <p className="mt-1 line-clamp-2 font-['Lora',_Georgia,_serif] text-[13px] leading-relaxed text-[#6b6963]">
+        <p className="mt-1 line-clamp-2 h-[44px] overflow-hidden text-[14px] font-light leading-relaxed text-[#6a685d]">
           {description || "—"}
         </p>
       </div>
@@ -561,7 +561,7 @@ function ProjectCard({
       {onMenuClick && (
         <div
           onClick={onMenuClick}
-          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-md text-[#b0aea5] opacity-0 transition hover:bg-[#faf9f5] hover:text-[#141413] group-hover:opacity-100"
+          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-md text-[#9f9c93] opacity-0 transition hover:bg-[rgba(41,41,31,0.06)] hover:text-[#29291f] group-hover:opacity-100"
         >
           <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
             <circle cx={12} cy={5} r={1.5} />

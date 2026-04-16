@@ -75,7 +75,7 @@ function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?
 
   return (
     <div className="relative pl-8 pb-1">
-      <div className="absolute left-0 top-0.5 flex h-5 w-5 items-center justify-center text-[#b0aea5]">
+      <div className="absolute left-0 top-0.5 flex h-5 w-5 items-center justify-center text-[#9f9c93]">
         <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round"
             d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"
@@ -88,22 +88,22 @@ function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?
             className={isStreaming ? "origin-[16.5px_18.75px] animate-[sparkle-sm_2s_ease-in-out_0.8s_infinite]" : ""} />
         </svg>
       </div>
-      <div className="absolute left-[9px] top-6 bottom-0 w-px bg-[#e8e6dc]" />
+      <div className="absolute left-[9px] top-6 bottom-0 w-px bg-[rgba(41,41,31,0.1)]" />
       <div>
         <div
-          className={`relative text-[13px] leading-relaxed text-[#b0aea5] ${
+          className={`relative text-[13px] leading-relaxed text-[#9f9c93] ${
             shouldTruncate ? "max-h-[7.5rem] overflow-hidden" : ""
           }`}
         >
           <pre className="whitespace-pre-wrap font-[inherit]">{content || "Thinking..."}</pre>
           {shouldTruncate && (
-            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#faf9f5] to-transparent" />
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#fafaf7] to-transparent" />
           )}
         </div>
         {isLong && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="mt-1 text-[13px] text-[#b0aea5] transition hover:text-[#141413]"
+            className="mt-1 text-[13px] text-[#9f9c93] transition hover:text-[#29291f]"
           >
             {expanded ? "Show less" : "Show more"}
           </button>
@@ -128,23 +128,23 @@ function ToolCallStep({ part }: { part: MessagePart }) {
     <>
       {/* Tool call (use) */}
       <div className="relative pl-8 pb-1">
-        <div className="absolute left-0 top-0.5 flex h-5 w-5 items-center justify-center text-[#b0aea5]">
-          <ToolIcon name={part.name || ""} className={`h-[18px] w-[18px] ${loading ? "animate-pulse text-[#d97757]" : ""}`} />
+        <div className="absolute left-0 top-0.5 flex h-5 w-5 items-center justify-center text-[#9f9c93]">
+          <ToolIcon name={part.name || ""} className={`h-[18px] w-[18px] ${loading ? "animate-pulse text-[#29291f]" : ""}`} />
         </div>
-        <div className="absolute left-[9px] top-6 bottom-0 w-px bg-[#e8e6dc]" />
+        <div className="absolute left-[9px] top-6 bottom-0 w-px bg-[rgba(41,41,31,0.1)]" />
         <button
           onClick={() => hasDetail && setExpanded(!expanded)}
-          className="flex items-center gap-1.5 text-[13px] text-[#b0aea5] transition hover:text-[#141413]"
+          className="flex items-center gap-1.5 text-[13px] text-[#9f9c93] transition hover:text-[#29291f]"
         >
           <span>{loading ? `${part.name}...` : part.name}</span>
           {hasDetail && !loading && (
-            <ChevronDown className={`h-3 w-3 text-[#b0aea5]/50 transition-transform ${expanded ? "rotate-180" : ""}`} />
+            <ChevronDown className={`h-3 w-3 text-[#9f9c93]/50 transition-transform ${expanded ? "rotate-180" : ""}`} />
           )}
         </button>
         {expanded && (
-          <div className="mt-2 space-y-2 text-xs text-[#b0aea5]">
+          <div className="mt-2 space-y-2 text-xs text-[#9f9c93]">
             {hasInput && (
-              <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-[#141413]/[0.03] p-3 font-mono">
+              <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-[#29291f]/[0.03] p-3 font-mono">
                 {JSON.stringify(part.input, null, 2)}
               </pre>
             )}
@@ -165,16 +165,16 @@ function ToolCallStep({ part }: { part: MessagePart }) {
               </svg>
             )}
           </div>
-          <div className="absolute left-[9px] top-6 bottom-0 w-px bg-[#e8e6dc]" />
+          <div className="absolute left-[9px] top-6 bottom-0 w-px bg-[rgba(41,41,31,0.1)]" />
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`flex items-center gap-1.5 text-[13px] transition hover:text-[#141413] ${isError ? "text-[#d97757]" : "text-[#b0aea5]"}`}
+            className={`flex items-center gap-1.5 text-[13px] transition hover:text-[#29291f] ${isError ? "text-[#d97757]" : "text-[#9f9c93]"}`}
           >
             <span>{isError ? `${part.name} failed` : `${part.name} done`}</span>
-            <ChevronDown className={`h-3 w-3 text-[#b0aea5]/50 transition-transform ${expanded ? "rotate-180" : ""}`} />
+            <ChevronDown className={`h-3 w-3 text-[#9f9c93]/50 transition-transform ${expanded ? "rotate-180" : ""}`} />
           </button>
           {expanded && (
-            <pre className={`mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-[#141413]/[0.03] p-3 font-mono text-xs ${isError ? "text-[#d97757]" : "text-[#b0aea5]"}`}>
+            <pre className={`mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-[#29291f]/[0.03] p-3 font-mono text-xs ${isError ? "text-[#d97757]" : "text-[#9f9c93]"}`}>
               {part.output}
             </pre>
           )}
@@ -192,7 +192,7 @@ function DoneStep() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
       </div>
-      <span className="text-[13px] text-[#b0aea5]">Done</span>
+      <span className="text-[13px] text-[#9f9c93]">Done</span>
     </div>
   );
 }
@@ -241,7 +241,7 @@ function CollapsibleProcess({
   return (
     <div className="mb-1">
       <button onClick={() => setCollapsed(!collapsed)}
-        className="mb-1 flex items-center gap-1.5 text-[13px] text-[#b0aea5] transition hover:text-[#141413]">
+        className="mb-1 flex items-center gap-1.5 text-[13px] text-[#9f9c93] transition hover:text-[#29291f]">
         <span className="flex-1 truncate text-left">{processSummary(parts)}</span>
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${collapsed ? "" : "rotate-180"}`} />
       </button>
@@ -272,8 +272,8 @@ function EmptyState({
   inputBarSlot?: ReactNode;
 }) {
   const {
-    currentProject, sessions,
-    setActiveSession, setActiveTab: setStoreActiveTab,
+    serverUrl, currentProject, sessions, messages: storeMessages,
+    setActiveSession, setActiveTab: setStoreActiveTab, setSessionMessages,
   } = useStore();
   const [tab, setTab] = useState<"recents" | "task">("recents");
 
@@ -282,6 +282,19 @@ function EmptyState({
     [sessions],
   );
 
+  async function openSession(id: string) {
+    setActiveSession(id);
+    setStoreActiveTab(null);
+    if (!storeMessages[id] || storeMessages[id].length === 0) {
+      try {
+        const msgs = await api.fetchSessionMessages(serverUrl, id);
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          setSessionMessages(id, msgs);
+        }
+      } catch {}
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="mx-auto w-full max-w-3xl px-8 py-10">
@@ -289,7 +302,7 @@ function EmptyState({
         {inputBarSlot && <div className="mb-8">{inputBarSlot}</div>}
 
         {/* Recents | Task tabs */}
-        <div className="flex items-center gap-5 border-b border-[#e8e6dc]">
+        <div className="flex items-center gap-5 border-b border-[rgba(41,41,31,0.1)]">
           {(["recents", "task"] as const).map((t) => {
             const label = t === "recents" ? "Recents" : "Task";
             const active = tab === t;
@@ -297,13 +310,13 @@ function EmptyState({
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`relative pb-3 text-[14px] font-medium transition ${
-                  active ? "text-[#141413]" : "text-[#b0aea5] hover:text-[#6b6963]"
+                className={`relative pb-3 text-[14px] transition ${
+                  active ? "font-medium text-[#29291f]" : "font-light text-[#6a685d]"
                 }`}
               >
                 {label}
                 {active && (
-                  <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-[#141413]" />
+                  <span className="absolute inset-x-0 bottom-0 h-[1.5px] rounded-full bg-[#333329]" />
                 )}
               </button>
             );
@@ -314,7 +327,7 @@ function EmptyState({
         <div className="mt-4">
           {tab === "recents" ? (
             sorted.length === 0 ? (
-              <p className="py-10 text-center text-[13px] text-[#b0aea5]">
+              <p className="py-10 text-center text-[14px] font-light text-[#9f9c93]">
                 No chats yet
               </p>
             ) : (
@@ -324,16 +337,13 @@ function EmptyState({
                   return (
                     <button
                       key={s.id}
-                      onClick={() => {
-                        setActiveSession(s.id);
-                        setStoreActiveTab(null);
-                      }}
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-[#faf9f5]"
+                      onClick={() => openSession(s.id)}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-[rgba(41,41,31,0.06)]"
                     >
-                      <span className="flex-1 truncate text-[14px] font-medium text-[#141413]">
+                      <span className="flex-1 truncate text-[14px] font-medium text-[#29291f]">
                         {s.title || s.id}
                       </span>
-                      <span className="shrink-0 text-[12px] text-[#b0aea5]">
+                      <span className="shrink-0 text-[12px] text-[#9f9c93]">
                         {d.toLocaleDateString()}
                       </span>
                     </button>
@@ -342,7 +352,7 @@ function EmptyState({
               </div>
             )
           ) : (
-            <p className="py-10 text-center text-[13px] text-[#b0aea5]">
+            <p className="py-10 text-center text-[14px] font-light text-[#9f9c93]">
               No tasks yet
             </p>
           )}
@@ -386,14 +396,14 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
       <div className="group/user flex justify-end">
         <div className="flex items-end gap-1.5">
           <button onClick={handleCopy}
-            className="mb-1 rounded p-1 text-[#b0aea5] opacity-0 transition hover:text-[#141413] group-hover/user:opacity-100">
+            className="mb-1 rounded p-1 text-[#9f9c93] opacity-0 transition hover:text-[#29291f] group-hover/user:opacity-100">
             <CopyIcon copied={copied} />
           </button>
           <div className="max-w-3xl rounded-2xl bg-[#eeece8] px-5 py-3">
             <div className="flex flex-wrap items-center gap-2">
               {msg.files?.map((f) => (
                 <span key={f.path}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-[#141413]/[0.04] px-2 py-0.5 text-[12px] font-medium text-[#141413]/70">
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[#29291f]/[0.04] px-2 py-0.5 text-[12px] font-medium text-[#29291f]/70">
                   <span className={`inline-block h-1.5 w-1.5 rounded-full ${
                     f.kind === "skill" || f.kind === "command" ? "bg-[#d97757]"
                     : f.kind === "datasource" ? "bg-[#788c5d]"
@@ -403,7 +413,7 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
                   <span className="max-w-[200px] truncate">{f.name}</span>
                 </span>
               ))}
-              {text && <span className="text-[15px] leading-7 text-[#141413] whitespace-pre-wrap">{text}</span>}
+              {text && <span className="text-[15px] leading-7 text-[#29291f] whitespace-pre-wrap">{text}</span>}
             </div>
           </div>
         </div>
@@ -442,7 +452,7 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
                 streaming={streaming}
               />
             ) : seg.part.type === "text" && seg.part.content ? (
-              <div className="prose text-[15px] text-[#141413] max-w-none leading-7">
+              <div className="prose text-[15px] text-[#29291f] max-w-none leading-7">
                 <Markdown remarkPlugins={[remarkGfm]}>{seg.part.content}</Markdown>
               </div>
             ) : null}
@@ -451,7 +461,7 @@ const MessageBubble = memo(function MessageBubble({ msg, streaming }: { msg: Cha
         {outputText && (
           <div className="mt-1 flex items-center gap-1 opacity-0 transition group-hover/assistant:opacity-100">
             <button onClick={handleCopyOutput}
-              className="rounded p-1 text-[#b0aea5] transition hover:text-[#141413]">
+              className="rounded p-1 text-[#9f9c93] transition hover:text-[#29291f]">
               <CopyIcon copied={copied} />
             </button>
           </div>
@@ -970,7 +980,7 @@ export default function ChatPanel() {
   // picker, agent chip, attachments, streaming/stop button all live
   // in a single source of truth.
   const inputBar: ReactNode = (
-    <div className="bg-[#faf9f5] px-4 pb-5 pt-2 shrink-0">
+    <div className="bg-[#fafaf7] px-4 pb-5 pt-2 shrink-0">
         <div className="relative mx-auto flex max-w-3xl flex-col gap-2">
           {activeAgent && (
             <div className="flex items-center gap-2 self-start rounded-full border border-[#a07cc5]/25 bg-[#a07cc5]/[0.06] pl-2.5 pr-1 py-1 text-[11px]">
@@ -984,7 +994,7 @@ export default function ChatPanel() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
               </svg>
               <span className="text-[#6b4f88] font-medium">Agent:</span>
-              <span className="max-w-[160px] truncate text-[#141413]">{activeAgent.name}</span>
+              <span className="max-w-[160px] truncate text-[#29291f]">{activeAgent.name}</span>
               <button
                 onClick={() => setActiveAgent(null)}
                 className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[#a07cc5]/70 transition hover:bg-[#a07cc5]/15 hover:text-[#a07cc5]"
@@ -998,7 +1008,7 @@ export default function ChatPanel() {
           )}
           <div
             className={`relative flex items-end gap-3 rounded-[20px] border bg-white p-3 shadow-[0_2px_12px_rgba(20,20,19,0.04)] transition-colors ${
-              isDragging ? "border-[#d97757] bg-[#d97757]/[0.02]" : "border-[#e8e6dc]/80"
+              isDragging ? "border-[#29291f] bg-[#29291f]/[0.02]" : "border-[rgba(41,41,31,0.1)]/80"
             }`}
             onDragEnter={handleInputDragEnter}
             onDragLeave={handleInputDragLeave}
@@ -1007,17 +1017,17 @@ export default function ChatPanel() {
           >
             {/* Reference popover (/, #, @ autocomplete) */}
             {popover && (
-              <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-[260px] overflow-y-auto rounded-xl border border-[#e8e6dc] bg-white p-1 shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
+              <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-[260px] overflow-y-auto rounded-xl border border-[rgba(41,41,31,0.1)] bg-white p-1 shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
                 <div className="flex items-center justify-between px-3 py-1">
-                  <span className="text-[10px] font-medium uppercase tracking-wide text-[#b0aea5]">
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-[#9f9c93]">
                     {popover.trigger === "/" ? "Commands" : "Files"}
                   </span>
-                  <span className="text-[10px] text-[#b0aea5]">
+                  <span className="text-[10px] text-[#9f9c93]">
                     ↑↓ to navigate · Enter to insert
                   </span>
                 </div>
                 {candidates.length === 0 ? (
-                  <div className="px-3 py-2 text-[12px] text-[#b0aea5]">
+                  <div className="px-3 py-2 text-[12px] text-[#9f9c93]">
                     No matches
                   </div>
                 ) : (
@@ -1030,13 +1040,13 @@ export default function ChatPanel() {
                       }}
                       onMouseEnter={() => setPopoverIdx(i)}
                       className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[12px] transition ${
-                        i === popoverIdx ? "bg-[#faf9f5]" : ""
+                        i === popoverIdx ? "bg-[#fafaf7]" : ""
                       }`}
                     >
                       <span
                         className={`shrink-0 text-[11px] font-mono ${
                           popover.trigger === "/"
-                            ? "text-[#d97757]"
+                            ? "text-[#29291f]"
                             : c.kind === "datasource"
                               ? "text-[#788c5d]"
                               : "text-[#6a9bcc]"
@@ -1044,11 +1054,11 @@ export default function ChatPanel() {
                       >
                         {popover.trigger}
                       </span>
-                      <span className="truncate font-medium text-[#141413]">
+                      <span className="truncate font-medium text-[#29291f]">
                         {c.name}
                       </span>
                       {c.hint && (
-                        <span className="truncate text-[#b0aea5]">
+                        <span className="truncate text-[#9f9c93]">
                           — {c.hint}
                         </span>
                       )}
@@ -1062,10 +1072,10 @@ export default function ChatPanel() {
             {isDragging && (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[20px] bg-white/90">
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <svg className="h-4 w-4 text-[#29291f]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
                   </svg>
-                  <span className="text-[13px] text-[#d97757] font-medium">Drop to attach</span>
+                  <span className="text-[13px] text-[#29291f] font-medium">Drop to attach</span>
                 </div>
               </div>
             )}
@@ -1079,7 +1089,7 @@ export default function ChatPanel() {
                 onPaste={handlePaste}
                 placeholder="Reply..."
                 rows={1}
-                className="min-h-[44px] w-full resize-none border-0 bg-transparent px-3 py-2 text-sm leading-7 text-[#141413] outline-none placeholder:text-[#b0aea5]"
+                className="min-h-[44px] w-full resize-none border-0 bg-transparent px-3 py-2 text-sm leading-7 text-[#29291f] outline-none placeholder:text-[#9f9c93]"
               />
 
               {/* Attachment chips */}
@@ -1088,7 +1098,7 @@ export default function ChatPanel() {
                   {attachments.map((a) => (
                     <span
                       key={a.path}
-                      className="inline-flex items-center gap-1 rounded-md bg-[#141413]/[0.04] px-2 py-0.5 text-[12px] text-[#141413]/70"
+                      className="inline-flex items-center gap-1 rounded-md bg-[#29291f]/[0.04] px-2 py-0.5 text-[12px] text-[#29291f]/70"
                     >
                       <span className={`inline-block h-1.5 w-1.5 rounded-full ${
                         a.kind === "skill" ? "bg-[#d97757]"
@@ -1100,7 +1110,7 @@ export default function ChatPanel() {
                       <span className="max-w-[140px] truncate">{a.name}</span>
                       <button
                         onClick={() => removeAttachment(a.path)}
-                        className="ml-0.5 text-[#b0aea5] hover:text-[#d97757]"
+                        className="ml-0.5 text-[#9f9c93] hover:text-[#29291f]"
                       >
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1109,8 +1119,8 @@ export default function ChatPanel() {
                     </span>
                   ))}
                   {uploadingCount > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-[#faf9f5] px-2 py-0.5 text-[12px] text-[#141413]/70">
-                      <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-[#e8e6dc] border-t-[#d97757]" />
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-[#fafaf7] px-2 py-0.5 text-[12px] text-[#29291f]/70">
+                      <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-[rgba(41,41,31,0.1)] border-t-[#29291f]" />
                       Uploading...
                     </span>
                   )}
@@ -1122,13 +1132,13 @@ export default function ChatPanel() {
                 <div className="relative">
                   <button
                     onClick={() => setModelMenuOpen(!modelMenuOpen)}
-                    className="flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white px-2.5 py-1 text-[11px] text-[#6b6963] transition hover:border-[#b0aea5] hover:text-[#141413]"
+                    className="flex items-center gap-1.5 rounded-full border border-[rgba(41,41,31,0.1)] bg-white px-2.5 py-1 text-[11px] text-[#6a685d] transition hover:border-[#9f9c93] hover:text-[#29291f]"
                   >
-                    <svg className="h-3 w-3 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <svg className="h-3 w-3 text-[#29291f]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
                     </svg>
                     <span>{modelLabel(projectModel)}</span>
-                    <svg className="h-2.5 w-2.5 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="h-2.5 w-2.5 text-[#9f9c93]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                     </svg>
                   </button>
@@ -1138,19 +1148,19 @@ export default function ChatPanel() {
                         className="fixed inset-0 z-30"
                         onClick={() => setModelMenuOpen(false)}
                       />
-                      <div className="absolute bottom-full left-0 z-40 mb-1 min-w-[220px] rounded-xl border border-[#e8e6dc] bg-white py-1 shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
+                      <div className="absolute bottom-full left-0 z-40 mb-1 min-w-[220px] rounded-xl border border-[rgba(41,41,31,0.1)] bg-white py-1 shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
                         {MODEL_OPTIONS.map((opt) => {
                           const active = projectModel === opt.id;
                           return (
                             <button
                               key={opt.id || "default"}
                               onClick={() => handleSelectModel(opt.id)}
-                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition hover:bg-[#faf9f5] ${
-                                active ? "text-[#141413]" : "text-[#6b6963]"
+                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition hover:bg-[#fafaf7] ${
+                                active ? "text-[#29291f]" : "text-[#6a685d]"
                               }`}
                             >
                               <svg
-                                className={`h-3 w-3 shrink-0 ${active ? "text-[#d97757]" : "text-transparent"}`}
+                                className={`h-3 w-3 shrink-0 ${active ? "text-[#29291f]" : "text-transparent"}`}
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
@@ -1172,7 +1182,7 @@ export default function ChatPanel() {
             {streaming ? (
               <button
                 onClick={() => {/* TODO: abort */}}
-                className="mb-0.5 inline-flex h-10 items-center justify-center rounded-xl bg-[#141413] px-5 text-[13px] font-medium text-[#faf9f5] transition hover:bg-[#141413]/80"
+                className="mb-0.5 inline-flex h-10 items-center justify-center rounded-xl bg-[#29291f] px-5 text-[13px] font-medium text-[#fafaf7] transition hover:bg-[#29291f]/80"
               >
                 Stop
               </button>
@@ -1180,7 +1190,7 @@ export default function ChatPanel() {
               <button
                 onClick={sendMessage}
                 disabled={!input.trim() && attachments.length === 0}
-                className="mb-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#141413] text-[#faf9f5] transition hover:bg-[#141413]/80 disabled:cursor-not-allowed disabled:bg-[#e8e6dc] disabled:text-[#b0aea5]"
+                className="mb-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#29291f] text-[#fafaf7] transition hover:bg-[#29291f]/80 disabled:cursor-not-allowed disabled:bg-[rgba(41,41,31,0.1)] disabled:text-[#9f9c93]"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
