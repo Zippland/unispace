@@ -1,0 +1,518 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "type": "frame",
+      "id": "root",
+      "x": 0,
+      "y": 0,
+      "width": 1400,
+      "height": "fit-content",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "alignItems": "stretch",
+      "children": [
+        {
+          "type": "text",
+          "id": "title",
+          "width": "fill-container",
+          "height": "fit-content",
+          "text": "Mira · Catwork 产品形态演进",
+          "fontSize": 26,
+          "textColor": "#1F2329",
+          "textAlign": "center",
+          "verticalAlign": "middle"
+        },
+        {
+          "type": "text",
+          "id": "subtitle",
+          "width": "fill-container",
+          "height": "fit-content",
+          "text": "从 chatbot 到可装配的 agent factory",
+          "fontSize": 15,
+          "textColor": "#646A73",
+          "textAlign": "center",
+          "verticalAlign": "middle"
+        },
+        {
+          "type": "frame",
+          "id": "main",
+          "width": "fill-container",
+          "height": "fit-content",
+          "layout": "horizontal",
+          "alignItems": "stretch",
+          "gap": 24,
+          "padding": 0,
+          "children": [
+            {
+              "type": "frame",
+              "id": "current-col",
+              "width": 480,
+              "height": "fit-content",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": 0,
+              "alignItems": "stretch",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "current-title",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "text": "Mira 现状",
+                  "fontSize": 18,
+                  "textColor": "#1F2329",
+                  "textAlign": "center",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "type": "frame",
+                  "id": "infra-group",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 20,
+                  "borderWidth": 2,
+                  "borderRadius": 8,
+                  "fillColor": "#F8F9FA",
+                  "borderColor": "#ADB5BD",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "infra-label",
+                      "width": "fill-container",
+                      "height": "fit-content",
+                      "text": "基建层",
+                      "fontSize": 15,
+                      "textColor": "#495057",
+                      "textAlign": "center",
+                      "verticalAlign": "middle"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "infra-row-1",
+                      "width": "fill-container",
+                      "height": "fit-content",
+                      "layout": "horizontal",
+                      "gap": 10,
+                      "padding": 0,
+                      "alignItems": "stretch",
+                      "children": [
+                        {
+                          "type": "rect",
+                          "id": "n-sandbox",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "沙箱",
+                          "fontSize": 14,
+                          "textAlign": "center",
+                          "verticalAlign": "middle",
+                          "fillColor": "#FFFFFF",
+                          "borderColor": "#ADB5BD",
+                          "borderWidth": 2,
+                          "borderRadius": 8,
+                          "padding": 12
+                        },
+                        {
+                          "type": "rect",
+                          "id": "n-runtime",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "对话 runtime",
+                          "fontSize": 14,
+                          "textAlign": "center",
+                          "verticalAlign": "middle",
+                          "fillColor": "#FFFFFF",
+                          "borderColor": "#ADB5BD",
+                          "borderWidth": 2,
+                          "borderRadius": 8,
+                          "padding": 12
+                        },
+                        {
+                          "type": "rect",
+                          "id": "n-storage",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "存储 (tors)",
+                          "fontSize": 14,
+                          "textAlign": "center",
+                          "verticalAlign": "middle",
+                          "fillColor": "#FFFFFF",
+                          "borderColor": "#ADB5BD",
+                          "borderWidth": 2,
+                          "borderRadius": 8,
+                          "padding": 12
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "infra-row-2",
+                      "width": "fill-container",
+                      "height": "fit-content",
+                      "layout": "horizontal",
+                      "gap": 10,
+                      "padding": 0,
+                      "alignItems": "stretch",
+                      "children": [
+                        {
+                          "type": "rect",
+                          "id": "n-sso",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "SSO / 身份",
+                          "fontSize": 14,
+                          "textAlign": "center",
+                          "verticalAlign": "middle",
+                          "fillColor": "#FFFFFF",
+                          "borderColor": "#ADB5BD",
+                          "borderWidth": 2,
+                          "borderRadius": 8,
+                          "padding": 12
+                        },
+                        {
+                          "type": "rect",
+                          "id": "n-manager",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "manager agents",
+                          "fontSize": 14,
+                          "textAlign": "center",
+                          "verticalAlign": "middle",
+                          "fillColor": "#FFFFFF",
+                          "borderColor": "#ADB5BD",
+                          "borderWidth": 2,
+                          "borderRadius": 8,
+                          "padding": 12
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "chatbot-group",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 20,
+                  "borderWidth": 2,
+                  "borderRadius": 8,
+                  "fillColor": "#F8F9FA",
+                  "borderColor": "#ADB5BD",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "chatbot-label",
+                      "width": "fill-container",
+                      "height": "fit-content",
+                      "text": "chatbot 形态",
+                      "fontSize": 15,
+                      "textColor": "#495057",
+                      "textAlign": "center",
+                      "verticalAlign": "middle"
+                    },
+                    {
+                      "type": "rect",
+                      "id": "n-chatbot",
+                      "width": "fill-container",
+                      "height": "fit-content",
+                      "text": "一个对话框\n无上下文归属",
+                      "fontSize": 14,
+                      "textColor": "#646A73",
+                      "textAlign": "center",
+                      "verticalAlign": "middle",
+                      "fillColor": "#FFFFFF",
+                      "borderColor": "#ADB5BD",
+                      "borderWidth": 2,
+                      "borderRadius": 8,
+                      "padding": 16
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "arrow-col",
+              "width": 80,
+              "height": "fit-content",
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "gap": 4,
+              "padding": 0,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "arrow-icon",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "text": "→",
+                  "fontSize": 56,
+                  "textColor": "#5178C6",
+                  "textAlign": "center",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "type": "text",
+                  "id": "arrow-label",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "text": "演进",
+                  "fontSize": 14,
+                  "textColor": "#646A73",
+                  "textAlign": "center",
+                  "verticalAlign": "middle"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "new-col",
+              "width": "fill-container",
+              "height": "fit-content",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": 0,
+              "alignItems": "stretch",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "new-title",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "text": "本文档新增的三层",
+                  "fontSize": 18,
+                  "textColor": "#1F2329",
+                  "textAlign": "center",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "type": "frame",
+                  "id": "layer-folder",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "layout": "horizontal",
+                  "gap": 16,
+                  "padding": 20,
+                  "alignItems": "center",
+                  "borderWidth": 2,
+                  "borderRadius": 8,
+                  "fillColor": "#F0F4FC",
+                  "borderColor": "#5178C6",
+                  "children": [
+                    {
+                      "type": "rect",
+                      "id": "folder-badge",
+                      "width": 80,
+                      "height": 40,
+                      "text": "过渡态",
+                      "fontSize": 13,
+                      "textColor": "#FFFFFF",
+                      "textAlign": "center",
+                      "verticalAlign": "middle",
+                      "fillColor": "#5178C6",
+                      "borderColor": "#5178C6",
+                      "borderWidth": 2,
+                      "borderRadius": 20
+                    },
+                    {
+                      "type": "frame",
+                      "id": "folder-text",
+                      "width": "fill-container",
+                      "height": "fit-content",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": 0,
+                      "alignItems": "stretch",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "folder-name",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "folder",
+                          "fontSize": 18,
+                          "textColor": "#1F2329",
+                          "textAlign": "left",
+                          "verticalAlign": "middle"
+                        },
+                        {
+                          "type": "text",
+                          "id": "folder-desc",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "纯文件夹 — 装 session / 文件收集 / 沙箱归属,还没装控制面",
+                          "fontSize": 13,
+                          "textColor": "#646A73",
+                          "textAlign": "left",
+                          "verticalAlign": "middle"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "arrow-1-2",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "text": "▼  加装控制面",
+                  "fontSize": 13,
+                  "textColor": "#646A73",
+                  "textAlign": "center",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "type": "frame",
+                  "id": "layer-catwork",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "layout": "horizontal",
+                  "gap": 16,
+                  "padding": 20,
+                  "alignItems": "center",
+                  "borderWidth": 2,
+                  "borderRadius": 8,
+                  "fillColor": "#EAE2FE",
+                  "borderColor": "#8569CB",
+                  "children": [
+                    {
+                      "type": "rect",
+                      "id": "catwork-badge",
+                      "width": 80,
+                      "height": 40,
+                      "text": "成熟态",
+                      "fontSize": 13,
+                      "textColor": "#FFFFFF",
+                      "textAlign": "center",
+                      "verticalAlign": "middle",
+                      "fillColor": "#8569CB",
+                      "borderColor": "#8569CB",
+                      "borderWidth": 2,
+                      "borderRadius": 20
+                    },
+                    {
+                      "type": "frame",
+                      "id": "catwork-text",
+                      "width": "fill-container",
+                      "height": "fit-content",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": 0,
+                      "alignItems": "stretch",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "catwork-name",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "Catwork  =  folder + 控制面",
+                          "fontSize": 18,
+                          "textColor": "#1F2329",
+                          "textAlign": "left",
+                          "verticalAlign": "middle"
+                        },
+                        {
+                          "type": "text",
+                          "id": "catwork-desc",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "工作空间 + 装配层 — 加 skills / tasks / datasources / connectors 能力",
+                          "fontSize": 13,
+                          "textColor": "#646A73",
+                          "textAlign": "left",
+                          "verticalAlign": "middle"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "arrow-2-3",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "text": "▼  发布进管理面",
+                  "fontSize": 13,
+                  "textColor": "#646A73",
+                  "textAlign": "center",
+                  "verticalAlign": "middle"
+                },
+                {
+                  "type": "frame",
+                  "id": "layer-admin",
+                  "width": "fill-container",
+                  "height": "fit-content",
+                  "layout": "horizontal",
+                  "gap": 16,
+                  "padding": 20,
+                  "alignItems": "center",
+                  "borderWidth": 2,
+                  "borderRadius": 8,
+                  "fillColor": "#DFF5E5",
+                  "borderColor": "#509863",
+                  "children": [
+                    {
+                      "type": "rect",
+                      "id": "admin-badge",
+                      "width": 80,
+                      "height": 40,
+                      "text": "治理态",
+                      "fontSize": 13,
+                      "textColor": "#FFFFFF",
+                      "textAlign": "center",
+                      "verticalAlign": "middle",
+                      "fillColor": "#509863",
+                      "borderColor": "#509863",
+                      "borderWidth": 2,
+                      "borderRadius": 20
+                    },
+                    {
+                      "type": "frame",
+                      "id": "admin-text",
+                      "width": "fill-container",
+                      "height": "fit-content",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "padding": 0,
+                      "alignItems": "stretch",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "admin-name",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "后台管理面",
+                          "fontSize": 18,
+                          "textColor": "#1F2329",
+                          "textAlign": "left",
+                          "verticalAlign": "middle"
+                        },
+                        {
+                          "type": "text",
+                          "id": "admin-desc",
+                          "width": "fill-container",
+                          "height": "fit-content",
+                          "text": "BU 对 Catwork 的治理 — Template 发布 / Trace / Dashboard",
+                          "fontSize": 13,
+                          "textColor": "#646A73",
+                          "textAlign": "left",
+                          "verticalAlign": "middle"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

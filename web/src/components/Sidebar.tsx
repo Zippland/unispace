@@ -312,45 +312,66 @@ export default function Sidebar({
       {/*   Project mode: brand gets a "/ Project" chip and acts as a
            back button to the mode hub. Other modes: plain brand. */}
       <MiraBrand
-        modeLabel={inProject ? "Cattery" : undefined}
-        onBrandClick={inProject ? () => onMiraModeChange("cattery") : undefined}
+        modeLabel={inProject ? "CATWORK" : undefined}
+        onBrandClick={inProject ? () => onMiraModeChange("CATWORK") : undefined}
       />
 
       {/* ── Mira mode buttons (hidden in Project mode) ────── */}
       {!inProject && (
-        <nav className="mt-4 flex flex-col px-3">
-          <MiraModeButton
-            active={miraMode === "new_chat"}
-            onClick={() => onMiraModeChange("new_chat")}
-            label="New Chat"
-            icon={MODE_ICONS.new_chat}
-          />
-          <MiraModeButton
-            active={miraMode === "task"}
-            onClick={() => onMiraModeChange("task")}
-            label="Task"
-            icon={MODE_ICONS.task}
-          />
-          <MiraModeButton
-            active={miraMode === "cattery"}
-            onClick={() => onMiraModeChange("cattery")}
-            label="Cattery"
-            icon={MODE_ICONS.project}
-          />
-          <MiraModeButton
-            active={miraMode === "customize"}
-            onClick={() => onMiraModeChange("customize")}
-            label="Customize"
-            icon={MODE_ICONS.customize}
-          />
-        </nav>
-      )}
+        <>
+          <nav className="mt-4 flex flex-col px-3">
+            <MiraModeButton
+              active={miraMode === "new_chat"}
+              onClick={() => onMiraModeChange("new_chat")}
+              label="New Chat"
+              icon={MODE_ICONS.new_chat}
+            />
+            <MiraModeButton
+              active={miraMode === "task"}
+              onClick={() => onMiraModeChange("task")}
+              label="Task"
+              icon={MODE_ICONS.task}
+            />
+            <MiraModeButton
+              active={miraMode === "CATWORK"}
+              onClick={() => onMiraModeChange("CATWORK")}
+              label="Project"
+              icon={MODE_ICONS.project}
+            />
+            <MiraModeButton
+              active={false}
+              onClick={() => onMiraModeChange("CATWORK")}
+              label="Market"
+              icon={MODE_ICONS.market}
+            />
+          </nav>
 
-      {/* ── Non-project mode: show global Recents ────────── */}
-      {miraMode !== "project" && (
-        <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-[#e8e6dc] pt-3">
-          <GlobalRecentsList />
-        </div>
+          {/* ── Pin section ─────────────────────────────────── */}
+          {projects.length > 0 && (
+            <div className="mt-3 border-t border-[#e8e6dc] px-3 pt-3">
+              <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
+                Pin
+              </div>
+              {projects.slice(0, 3).map((p) => (
+                <button
+                  key={p.name}
+                  onClick={() => {
+                    onMiraModeChange("CATWORK");
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[#6b6963] transition hover:bg-[#141413]/[0.04] hover:text-[#141413]"
+                >
+                  <span className="text-[13px]">📁</span>
+                  <span className="truncate">{p.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Recent section ──────────────────────────────── */}
+          <div className="mt-3 flex min-h-0 flex-1 flex-col border-t border-[#e8e6dc] pt-3">
+            <GlobalRecentsList />
+          </div>
+        </>
       )}
 
       {/* ── Project mode: existing UniSpace sidebar body ─── */}

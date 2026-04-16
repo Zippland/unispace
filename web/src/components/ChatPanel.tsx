@@ -263,7 +263,7 @@ function CollapsibleProcess({
 
 // ═══════════════════════════════════════════════════════════════
 //  Empty State — project welcome hero (no gallery; gallery lives
-//  in Cattery mode only).
+//  in CATWORK mode only).
 // ═══════════════════════════════════════════════════════════════
 
 function EmptyState({

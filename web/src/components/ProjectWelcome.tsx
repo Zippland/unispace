@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import * as api from "../api";
 import {
@@ -7,35 +7,35 @@ import {
 } from "../mira/templateSeed";
 
 // ═══════════════════════════════════════════════════════════════
-//  ProjectWelcome — Cattery's two-layer landing surface.
+//  CATWORK Gallery — the landing surface for project browsing.
 //
-//    1. Your projects  — existing workspaces from the store
-//    2. Explore        — BU-federated template gallery
+//    Tab 1  "My Project"  — user's existing workspaces
+//    Tab 2  "Market"      — BU-published templates from admin
 //
-//  Styled to Anthropic brand guidelines (see .claude/skills/
-//  brand-guidelines) — #141413 / #faf9f5 / #b0aea5 / #e8e6dc base,
-//  #d97757 orange as the single accent, Poppins for headings.
+//  Top header:  "Project" title  |  search  |  + New Project
+//  Cards:       emoji + name + description + context menu
+//  Brand:       Anthropic palette (#141413 / #faf9f5 / #d97757)
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
-  /** Called after a new project is created (by name) so the parent
-   *  can switch the current project and refresh state. */
   onProjectCreated: (name: string) => Promise<void> | void;
-  /** Called when the user picks an existing project. Parent wires this
-   *  to `switchProject` + store refresh + enter project mode. */
   onSelectExisting?: (name: string) => Promise<void> | void;
-  /** Optional close handler — when rendered as takeover with a project
-   *  already active, the user can back out. */
-  onClose?: () => void;
-  /** If provided, auto-open the create-project confirm dialog for this
-   *  template as soon as the gallery mounts. Used by ChatPanel's empty
-   *  state "start from template" strip to jump straight to the confirm. */
-  initialTemplate?: api.ProjectTemplate;
 }
 
-// ── Relative time formatter (used by MyProjectCard) ───────────
+// ── Helpers ───────────────────────────────────────────────────
+
+type GalleryTab = "my_project" | "market";
+
+const PROJECT_ICONS = ["📁", "📊", "📝", "🔬", "🎯", "💡", "🏗️", "📐", "🧩", "🗂️"];
+
+function iconForProject(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return PROJECT_ICONS[h % PROJECT_ICONS.length];
+}
+
 function formatUpdated(ts: number): string {
-  if (!ts) return "—";
+  if (!ts) return "";
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
   if (m < 1) return "just now";
@@ -44,15 +44,11 @@ function formatUpdated(ts: number): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}d ago`;
-  return new Date(ts).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// Demo BU list — order matters (Explore is pinned first)
 const BU_TABS = [
-  { key: "explore", label: "Explore" },
+  { key: "all", label: "All" },
   { key: "finance", label: "Finance" },
   { key: "hr", label: "HR" },
   { key: "da", label: "DA" },
@@ -63,27 +59,13 @@ const BU_TABS = [
   { key: "community", label: "Community" },
 ] as const;
 
-// Each BU gets a stable pill color — BUs that have templates get a visible
-// tag; empty BUs show muted.
 const BU_COLORS: Record<string, string> = {
-  finance: "#d97757",
-  hr: "#7c9a5e",
-  da: "#a07cc5",
-  pmo: "#6a9bcc",
-  legal: "#9b8757",
-  rd: "#507a96",
-  design: "#c4688a",
-  community: "#5a8d7a",
+  finance: "#d97757", hr: "#7c9a5e", da: "#a07cc5", pmo: "#6a9bcc",
+  legal: "#9b8757", rd: "#507a96", design: "#c4688a", community: "#5a8d7a",
 };
 
-function buColor(bu: string) {
-  return BU_COLORS[bu] || "#b0aea5";
-}
+function buColor(bu: string) { return BU_COLORS[bu] || "#b0aea5"; }
 
-// Default project name suggestion for a template. Shared by openConfirm
-// (user clicks a card) and the initialTemplate useEffect (parent preselected
-// a template). Blank gets a dedicated prefix because its id has no "/" and
-// a naive `${bu}-${id.split("/")[1]}` produces "community-undefined-XXX".
 function defaultPendingName(tmpl: { id: string; bu: string }): string {
   const suffix = Math.floor(Math.random() * 900 + 100);
   if (tmpl.id === "__blank__") return `blank-${suffix}`;
@@ -91,78 +73,80 @@ function defaultPendingName(tmpl: { id: string; bu: string }): string {
   return `${tmpl.bu}-${slug}-${suffix}`;
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Main component
+// ═══════════════════════════════════════════════════════════════
+
 export default function ProjectWelcome({
   onProjectCreated,
   onSelectExisting,
-  onClose,
-  initialTemplate,
 }: Props) {
   const { serverUrl, projects } = useStore();
-  const sortedProjects = useMemo(
-    () => [...projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)),
-    [projects],
-  );
-  const [real, setReal] = useState<api.ProjectTemplate[]>([]);
-  const [activeBU, setActiveBU] = useState<string>("explore");
-  const [loading, setLoading] = useState(true);
+
+  const [tab, setTab] = useState<GalleryTab>("my_project");
+  const [search, setSearch] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
-  // Confirm dialog state
+  // ── Templates (Market tab) ──────────────────────────────────
+  const [real, setReal] = useState<api.ProjectTemplate[]>([]);
+  const [activeBU, setActiveBU] = useState("all");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api.fetchTemplates(serverUrl)
+      .then((list) => { if (!cancelled) setReal(list); })
+      .catch(() => { if (!cancelled) setReal([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [serverUrl]);
+
+  const templates = useMemo(() => mergeTemplates(real), [real]);
+  const visibleTemplates = useMemo(() => {
+    let list = activeBU === "all" ? templates : templates.filter((t) => t.bu === activeBU);
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter((t) => t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q));
+    }
+    return list;
+  }, [templates, activeBU, search]);
+
+  // ── Projects (My Project tab) ───────────────────────────────
+  const sortedProjects = useMemo(() => {
+    let list = [...projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter((p) => p.name.toLowerCase().includes(q));
+    }
+    return list;
+  }, [projects, search]);
+
+  // ── Create dialog ───────────────────────────────────────────
   const [pending, setPending] = useState<SeedTemplate | null>(null);
   const [pendingName, setPendingName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    api
-      .fetchTemplates(serverUrl)
-      .then((list) => {
-        if (!cancelled) setReal(list);
-      })
-      .catch(() => {
-        if (!cancelled) setReal([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [serverUrl]);
-
-  // Seed + real merged list (seed order preserved, real overlays)
-  const templates = useMemo(() => mergeTemplates(real), [real]);
-
-  // If the parent handed us a preselected template, jump straight to the
-  // confirm dialog on first mount. Happens when the ChatPanel empty state
-  // strip is clicked — user already made a choice, no need to show the
-  // full gallery.
-  useEffect(() => {
-    if (initialTemplate && !pending) {
-      setPending(initialTemplate);
-      setPendingName(defaultPendingName(initialTemplate));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTemplate]);
-
-  const visible = useMemo(() => {
-    if (activeBU === "explore") return templates;
-    return templates.filter((t) => t.bu === activeBU);
-  }, [templates, activeBU]);
-
-  // Default project name suggestion when opening a template.
-  // Placeholder templates (not yet published) show a toast instead.
   function openConfirm(tmpl: SeedTemplate) {
     if (tmpl.placeholder) {
       setToast(`${tmpl.name} — BU 正在审核中，稍后上线`);
-      window.setTimeout(() => setToast(null), 2500);
+      setTimeout(() => setToast(null), 2500);
       return;
     }
     setPending(tmpl);
     setPendingName(defaultPendingName(tmpl));
     setError("");
+  }
+
+  function openBlankConfirm() {
+    openConfirm({
+      id: "__blank__",
+      name: "Blank Project",
+      description: "Empty workspace. Bring your own files, data, and customize agents.",
+      author: "Mira",
+      bu: "community",
+    });
   }
 
   async function handleCreate() {
@@ -173,11 +157,7 @@ export default function ProjectWelcome({
       if (pending.id === "__blank__") {
         await api.createBlankProject(serverUrl, pendingName.trim());
       } else {
-        await api.createProjectFromTemplate(
-          serverUrl,
-          pending.id,
-          pendingName.trim(),
-        );
+        await api.createProjectFromTemplate(serverUrl, pending.id, pendingName.trim());
       }
       await onProjectCreated(pendingName.trim());
       setPending(null);
@@ -188,179 +168,207 @@ export default function ProjectWelcome({
     }
   }
 
+  // ── Context menu ────────────────────────────────────────────
+  const [ctxMenu, setCtxMenu] = useState<{
+    name: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [renameName, setRenameName] = useState("");
+
+  const closeCtx = useCallback(() => setCtxMenu(null), []);
+
+  function handleCtxAction(action: string, name: string) {
+    setCtxMenu(null);
+    if (action === "rename") {
+      setRenameTarget(name);
+      setRenameName(name);
+    } else if (action === "pin") {
+      setToast(`Pinned "${name}"`);
+      setTimeout(() => setToast(null), 2000);
+    } else if (action === "share") {
+      setToast("Share — coming soon");
+      setTimeout(() => setToast(null), 2000);
+    } else if (action === "delete") {
+      if (window.confirm(`Delete project "${name}"? This cannot be undone.`)) {
+        api.deleteProject(serverUrl, name).then(async () => {
+          const resp = await api.fetchProjects(serverUrl);
+          useStore.getState().setProjects(resp.projects, resp.current);
+          setToast(`Deleted "${name}"`);
+          setTimeout(() => setToast(null), 2000);
+        });
+      }
+    }
+  }
+
+  async function handleRename() {
+    if (!renameTarget || !renameName.trim() || renameName === renameTarget) {
+      setRenameTarget(null);
+      return;
+    }
+    try {
+      await api.cloneProject(serverUrl, renameTarget, renameName.trim());
+      await api.deleteProject(serverUrl, renameTarget);
+      const resp = await api.fetchProjects(serverUrl);
+      useStore.getState().setProjects(resp.projects, resp.current);
+      setRenameTarget(null);
+    } catch (e: any) {
+      setToast(`Rename failed: ${e?.message || "unknown error"}`);
+      setTimeout(() => setToast(null), 3000);
+    }
+  }
+
+  // ── Render ──────────────────────────────────────────────────
+
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-y-auto bg-white">
-      {onClose && (
-        <div className="absolute left-6 top-6 z-10">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 rounded-full border border-[#e8e6dc] bg-white/70 px-3 py-1.5 text-[11px] text-[#6b6963] backdrop-blur transition hover:border-[#b0aea5]"
-            title="Back"
-          >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-            </svg>
-            Back
-          </button>
+    <div className="relative flex h-full min-h-0 flex-col bg-[#faf9f5]">
+      {/* ── Top header ─────────────────────────────────────── */}
+      <div className="flex shrink-0 items-center gap-4 border-b border-[#e8e6dc] bg-white px-8 py-4">
+        <h1 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#141413]">
+          Project
+        </h1>
+        <div className="flex-1" />
+        {/* Search */}
+        <div className="flex w-[240px] items-center gap-2 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-3 py-1.5">
+          <svg className="h-3.5 w-3.5 shrink-0 text-[#b0aea5]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search"
+            className="w-full border-0 bg-transparent text-[13px] text-[#141413] outline-none placeholder:text-[#b0aea5]"
+          />
         </div>
-      )}
-
-      <div className="mx-auto w-full max-w-5xl px-10 pb-20 pt-20">
-        {/* Hero — mirrors MiraWelcomeMain's scale */}
-        <div className="mb-14 flex flex-col items-center text-center">
-          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#141413] text-[28px]">
-            🐱
-          </div>
-          <h1 className="font-['Poppins',_Arial,_sans-serif] text-[34px] font-semibold tracking-tight text-[#141413]">
-            Welcome to Cattery
-          </h1>
-          <p className="mt-3 max-w-md font-['Lora',_Georgia,_serif] text-[15px] leading-relaxed text-[#6b6963]">
-            Pick up a project you've been working on, or start something new
-            from the gallery.
-          </p>
-        </div>
-
-        {/* ── Layer 1: Your projects ─────────────────────────── */}
-        <section className="mb-16">
-          <div className="mb-5 flex items-end justify-between border-b border-[#e8e6dc] pb-3">
-            <div className="flex items-baseline gap-3">
-              <h2 className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold uppercase tracking-[0.16em] text-[#141413]">
-                Your projects
-              </h2>
-              <span className="font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
-                {sortedProjects.length} total
-              </span>
-            </div>
-            <span className="font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
-              Sorted by last updated
-            </span>
-          </div>
-
-          {sortedProjects.length === 0 ? (
-            <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-[#e8e6dc] bg-[#faf9f5] text-[13px] text-[#b0aea5]">
-              No projects yet — pick a template below to get started.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-              {sortedProjects.map((p) => (
-                <MyProjectCard
-                  key={p.name}
-                  name={p.name}
-                  updatedAt={p.updatedAt}
-                  onClick={() => onSelectExisting?.(p.name)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* ── Layer 2: Explore gallery ───────────────────────── */}
-        <section>
-          <div className="mb-5 flex items-end justify-between border-b border-[#e8e6dc] pb-3">
-            <div className="flex items-baseline gap-3">
-              <h2 className="font-['Poppins',_Arial,_sans-serif] text-[11px] font-semibold uppercase tracking-[0.16em] text-[#141413]">
-                Explore gallery
-              </h2>
-              <span className="font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
-                {templates.length} templates
-              </span>
-            </div>
-            <span className="font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
-              Published by ByteDance BUs
-            </span>
-          </div>
-
-          <div className="mb-5 flex items-center gap-5 overflow-x-auto border-b border-[#e8e6dc] pb-0">
-            {BU_TABS.map((tab) => {
-              const isActive = activeBU === tab.key;
-              const count =
-                tab.key === "explore"
-                  ? templates.length
-                  : templates.filter((t) => t.bu === tab.key).length;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveBU(tab.key)}
-                  className={`relative flex shrink-0 items-center gap-1.5 pb-3 text-[13px] font-medium transition ${
-                    isActive
-                      ? "text-[#141413]"
-                      : "text-[#b0aea5] hover:text-[#6b6963]"
-                  }`}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <span className="rounded-full bg-[#141413]/[0.06] px-1.5 py-0.5 text-[10px] text-[#6b6963]">
-                      {count}
-                    </span>
-                  )}
-                  {isActive && (
-                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#d97757]" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {loading ? (
-            <div className="flex h-48 items-center justify-center text-[13px] text-[#b0aea5]">
-              Loading templates…
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-              <BlankCard
-                onClick={() =>
-                  openConfirm({
-                    id: "__blank__",
-                    name: "Blank Project",
-                    description:
-                      "Empty workspace. Bring your own files, data, and customize agents as you go.",
-                    author: "Mira",
-                    bu: "community",
-                  })
-                }
-              />
-              {visible.map((t) => (
-                <TemplateCard
-                  key={t.id}
-                  template={t}
-                  onClick={() => openConfirm(t)}
-                />
-              ))}
-              {visible.length === 0 && !loading && activeBU !== "explore" && (
-                <div className="col-span-full flex h-32 items-center justify-center text-[13px] text-[#b0aea5]">
-                  No templates from this BU yet. Drop a folder in{" "}
-                  <span className="mx-1 font-mono">
-                    project-templates/{activeBU}/
-                  </span>{" "}
-                  to publish one.
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+        {/* + New Project */}
+        <button
+          onClick={openBlankConfirm}
+          className="flex items-center gap-1.5 rounded-lg bg-[#141413] px-4 py-2 text-[13px] font-medium text-white transition hover:bg-[#2a2a28]"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          New Project
+        </button>
       </div>
 
-      {/* Confirm dialog */}
+      {/* ── Tab bar ────────────────────────────────────────── */}
+      <div className="flex shrink-0 items-center gap-6 border-b border-[#e8e6dc] bg-white px-8">
+        {(["my_project", "market"] as const).map((t) => {
+          const label = t === "my_project" ? "My Project" : "Market";
+          const active = tab === t;
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`relative pb-3 pt-3 text-[14px] font-medium transition ${
+                active ? "text-[#141413]" : "text-[#b0aea5] hover:text-[#6b6963]"
+              }`}
+            >
+              {label}
+              {active && (
+                <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-[#141413]" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Content ────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto px-8 py-6">
+        {tab === "my_project" ? (
+          <MyProjectGrid
+            projects={sortedProjects}
+            onSelect={(name) => onSelectExisting?.(name)}
+            onCtxMenu={setCtxMenu}
+          />
+        ) : (
+          <MarketGrid
+            templates={visibleTemplates}
+            loading={loading}
+            activeBU={activeBU}
+            onBUChange={setActiveBU}
+            onSelect={openConfirm}
+          />
+        )}
+      </div>
+
+      {/* ── Context menu overlay ───────────────────────────── */}
+      {ctxMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={closeCtx} />
+          <div
+            className="fixed z-50 w-[160px] rounded-xl border border-[#e8e6dc] bg-white py-1 shadow-[0_8px_24px_rgba(20,20,19,0.12)]"
+            style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          >
+            {[
+              { key: "rename", label: "Rename", icon: "✏️" },
+              { key: "pin", label: "Pin", icon: "📌" },
+              { key: "share", label: "Share", icon: "🔗" },
+            ].map((item) => (
+              <button
+                key={item.key}
+                onClick={() => handleCtxAction(item.key, ctxMenu.name)}
+                className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#141413] transition hover:bg-[#faf9f5]"
+              >
+                <span className="text-[14px]">{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+            <div className="mx-3 my-1 border-t border-[#e8e6dc]" />
+            <button
+              onClick={() => handleCtxAction("delete", ctxMenu.name)}
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#d97757] transition hover:bg-[#faf9f5]"
+            >
+              <span className="text-[14px]">🗑️</span>
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Rename dialog ──────────────────────────────────── */}
+      {renameTarget && (
+        <>
+          <div className="fixed inset-0 z-50 bg-[#141413]/25 backdrop-blur-sm" onClick={() => setRenameTarget(null)} />
+          <div className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
+            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[16px] font-semibold text-[#141413]">
+              Rename project
+            </h3>
+            <input
+              autoFocus
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleRename()}
+              className="mt-4 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-4 py-2.5 text-[14px] text-[#141413] outline-none focus:border-[#141413]"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setRenameTarget(null)} className="rounded-lg border border-[#e8e6dc] px-4 py-2 text-[13px] text-[#6b6963] hover:bg-[#faf9f5]">
+                Cancel
+              </button>
+              <button onClick={handleRename} className="rounded-lg bg-[#141413] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#2a2a28]">
+                Rename
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Create dialog ──────────────────────────────────── */}
       {pending && (
         <>
-          <div
-            className="fixed inset-0 z-50 bg-[#141413]/25 backdrop-blur-sm"
-            onClick={() => !creating && setPending(null)}
-          />
-          <div className="fixed left-1/2 top-1/2 z-50 w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-8 shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
-            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[22px] font-semibold tracking-tight text-[#141413]">
-              Create project from template
+          <div className="fixed inset-0 z-50 bg-[#141413]/25 backdrop-blur-sm" onClick={() => !creating && setPending(null)} />
+          <div className="fixed left-1/2 top-1/2 z-50 w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-8 shadow-[0_24px_64px_rgba(20,20,19,0.15)]">
+            <h3 className="font-['Poppins',_Arial,_sans-serif] text-[18px] font-semibold text-[#141413]">
+              Create project
             </h3>
             <div className="mt-4 flex items-center gap-3">
               <span className="text-[28px]">{pending.icon || "📁"}</span>
-              <span className="text-[15px] font-medium text-[#141413]">
-                {pending.name}
-              </span>
+              <span className="text-[15px] font-medium text-[#141413]">{pending.name}</span>
               {pending.id !== "__blank__" && (
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
-                  style={{ background: buColor(pending.bu) }}
-                >
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white" style={{ background: buColor(pending.bu) }}>
                   {pending.bu}
                 </span>
               )}
@@ -368,44 +376,29 @@ export default function ProjectWelcome({
             <p className="mt-3 font-['Lora',_Georgia,_serif] text-[14px] leading-relaxed text-[#6b6963]">
               {pending.description}
             </p>
-
-            <label className="mt-6 block text-[13px] font-medium text-[#6b6963]">
-              Project name
-            </label>
+            <label className="mt-6 block text-[13px] font-medium text-[#6b6963]">Project name</label>
             <input
               type="text"
               value={pendingName}
-              onChange={(e) => {
-                setPendingName(e.target.value);
-                setError("");
-              }}
+              onChange={(e) => { setPendingName(e.target.value); setError(""); }}
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              className="mt-2 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-4 py-2.5 text-[14px] text-[#141413] outline-none transition focus:border-[#141413]"
+              className="mt-2 w-full rounded-lg border border-[#e8e6dc] bg-[#faf9f5] px-4 py-2.5 text-[14px] text-[#141413] outline-none focus:border-[#141413]"
             />
             {error && <p className="mt-2 text-[12px] text-[#d97757]">{error}</p>}
-
             <div className="mt-6 flex justify-end gap-2">
-              <button
-                onClick={() => setPending(null)}
-                disabled={creating}
-                className="rounded-lg border border-[#e8e6dc] px-5 py-2.5 text-[14px] text-[#6b6963] transition hover:bg-[#faf9f5] disabled:opacity-50"
-              >
+              <button onClick={() => setPending(null)} disabled={creating} className="rounded-lg border border-[#e8e6dc] px-5 py-2.5 text-[14px] text-[#6b6963] hover:bg-[#faf9f5] disabled:opacity-50">
                 Cancel
               </button>
-              <button
-                onClick={handleCreate}
-                disabled={creating || !pendingName.trim()}
-                className="rounded-lg bg-[#d97757] px-5 py-2.5 text-[14px] font-medium text-white transition hover:bg-[#c4613f] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {creating ? "Creating…" : "Create project"}
+              <button onClick={handleCreate} disabled={creating || !pendingName.trim()} className="rounded-lg bg-[#d97757] px-5 py-2.5 text-[14px] font-medium text-white hover:bg-[#c4613f] disabled:cursor-not-allowed disabled:opacity-50">
+                {creating ? "Creating…" : "Create"}
               </button>
             </div>
           </div>
         </>
       )}
 
-      {/* Toast for placeholder clicks */}
+      {/* ── Toast ──────────────────────────────────────────── */}
       {toast && (
         <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#141413] px-4 py-2 text-[12px] text-white shadow-lg">
           {toast}
@@ -415,108 +408,168 @@ export default function ProjectWelcome({
   );
 }
 
-// ── Template card ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  My Project grid
+// ═══════════════════════════════════════════════════════════════
 
-function TemplateCard({
-  template,
-  onClick,
+function MyProjectGrid({
+  projects,
+  onSelect,
+  onCtxMenu,
 }: {
-  template: SeedTemplate;
-  onClick: () => void;
+  projects: { name: string; updatedAt: number }[];
+  onSelect: (name: string) => void;
+  onCtxMenu: (m: { name: string; x: number; y: number }) => void;
 }) {
+  if (projects.length === 0) {
+    return (
+      <div className="flex h-48 items-center justify-center text-[14px] text-[#b0aea5]">
+        No projects yet. Click <span className="mx-1 font-medium text-[#141413]">+ New Project</span> to get started.
+      </div>
+    );
+  }
+
   return (
-    <button
-      onClick={onClick}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-[#e8e6dc] bg-white text-left transition hover:border-[#b0aea5] hover:shadow-[0_8px_24px_rgba(20,20,19,0.08)]"
-    >
-      <div className={`aspect-[4/3] w-full bg-gradient-to-br ${template.gradient || "from-[#e8e6dc] to-[#d6c5b3]"} relative`}>
-        <div className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-[18px] backdrop-blur-sm">
-          {template.icon || "📁"}
-        </div>
-        <div
-          className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm"
-          style={{ background: buColor(template.bu) }}
-        >
-          {template.bu}
-        </div>
-        {template.placeholder && (
-          <div className="absolute bottom-3 left-3 rounded-full bg-white/80 px-2 py-0.5 text-[9px] font-medium text-[#6b6963] backdrop-blur-sm">
-            Preview
-          </div>
-        )}
-      </div>
-      <div className="flex-1 px-4 py-3">
-        <div className="truncate font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium text-[#141413]">
-          {template.name}
-        </div>
-        <div className="mt-1 line-clamp-2 font-['Lora',_Georgia,_serif] text-[12px] leading-relaxed text-[#6b6963]">
-          {template.description}
-        </div>
-        <div className="mt-2 font-['Lora',_Georgia,_serif] text-[11px] italic text-[#b0aea5]">
-          by {template.author}
-        </div>
-      </div>
-    </button>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {projects.map((p) => (
+        <ProjectCard
+          key={p.name}
+          name={p.name}
+          icon={iconForProject(p.name)}
+          description={formatUpdated(p.updatedAt) ? `Updated ${formatUpdated(p.updatedAt)}` : "—"}
+          onClick={() => onSelect(p.name)}
+          onMenuClick={(e) => {
+            e.stopPropagation();
+            onCtxMenu({ name: p.name, x: e.clientX, y: e.clientY });
+          }}
+        />
+      ))}
+    </div>
   );
 }
 
-// ── Existing project card (Your projects layer) ────────────
-//
-//  Minimal card for workspaces the user already owns. No gradient
-//  thumb — these aren't templates. Clean uniform cards that pick up
-//  a subtle orange (#d97757) accent on hover.
+// ═══════════════════════════════════════════════════════════════
+//  Market grid (BU templates)
+// ═══════════════════════════════════════════════════════════════
 
-function MyProjectCard({
+function MarketGrid({
+  templates,
+  loading,
+  activeBU,
+  onBUChange,
+  onSelect,
+}: {
+  templates: SeedTemplate[];
+  loading: boolean;
+  activeBU: string;
+  onBUChange: (bu: string) => void;
+  onSelect: (t: SeedTemplate) => void;
+}) {
+  return (
+    <>
+      {/* BU filter tabs */}
+      <div className="mb-5 flex items-center gap-4 overflow-x-auto">
+        {BU_TABS.map((t) => {
+          const active = activeBU === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => onBUChange(t.key)}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition ${
+                active
+                  ? "bg-[#141413] text-white"
+                  : "bg-[#e8e6dc]/50 text-[#6b6963] hover:bg-[#e8e6dc]"
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div className="flex h-48 items-center justify-center text-[13px] text-[#b0aea5]">Loading templates…</div>
+      ) : templates.length === 0 ? (
+        <div className="flex h-48 items-center justify-center text-[13px] text-[#b0aea5]">
+          No templates found.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {templates.map((t) => (
+            <ProjectCard
+              key={t.id}
+              name={t.name}
+              icon={t.icon || "📁"}
+              description={t.description}
+              badge="Example"
+              onClick={() => onSelect(t)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Shared project card — used by both My Project and Market
+// ═══════════════════════════════════════════════════════════════
+
+function ProjectCard({
   name,
-  updatedAt,
+  icon,
+  description,
+  badge,
   onClick,
+  onMenuClick,
 }: {
   name: string;
-  updatedAt: number;
+  icon: string;
+  description: string;
+  badge?: string;
   onClick: () => void;
+  onMenuClick?: (e: React.MouseEvent) => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-[#e8e6dc] bg-white px-4 py-4 text-left transition hover:border-[#d97757]/50 hover:shadow-[0_6px_20px_rgba(20,20,19,0.05)]"
+      className="group relative flex gap-4 rounded-2xl border border-[#e8e6dc] bg-white px-5 py-5 text-left transition hover:border-[#b0aea5] hover:shadow-[0_4px_20px_rgba(20,20,19,0.06)]"
     >
-      <span
-        className="truncate font-['Poppins',_Arial,_sans-serif] text-[14px] font-medium text-[#141413]"
-        title={name}
-      >
-        {name}
-      </span>
-      <span className="mt-1 font-['Lora',_Georgia,_serif] text-[12px] italic text-[#b0aea5]">
-        Updated {formatUpdated(updatedAt)}
-      </span>
-    </button>
-  );
-}
+      {/* Icon */}
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#faf9f5] text-[22px]">
+        {icon}
+      </div>
 
-// ── Blank project card (pinned first) ───────────────────────
+      {/* Body */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">
+            {name}
+          </span>
+          {badge && (
+            <span className="shrink-0 rounded border border-[#e8e6dc] px-1.5 py-0.5 text-[10px] font-medium text-[#b0aea5]">
+              {badge}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 line-clamp-2 font-['Lora',_Georgia,_serif] text-[13px] leading-relaxed text-[#6b6963]">
+          {description || "—"}
+        </p>
+      </div>
 
-function BlankCard({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-dashed border-[#e8e6dc] bg-[#faf9f5] text-left transition hover:border-[#b0aea5] hover:bg-white"
-    >
-      <div className="flex aspect-[4/3] w-full items-center justify-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-dashed border-[#b0aea5] text-[#b0aea5] transition group-hover:border-[#141413] group-hover:text-[#141413]">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      {/* "..." menu trigger */}
+      {onMenuClick && (
+        <div
+          onClick={onMenuClick}
+          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-md text-[#b0aea5] opacity-0 transition hover:bg-[#faf9f5] hover:text-[#141413] group-hover:opacity-100"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx={12} cy={5} r={1.5} />
+            <circle cx={12} cy={12} r={1.5} />
+            <circle cx={12} cy={19} r={1.5} />
           </svg>
         </div>
-      </div>
-      <div className="flex-1 px-4 py-3">
-        <div className="truncate font-['Poppins',_Arial,_sans-serif] text-[13px] font-medium text-[#141413]">
-          Blank project
-        </div>
-        <div className="mt-1 line-clamp-2 font-['Lora',_Georgia,_serif] text-[12px] leading-relaxed text-[#6b6963]">
-          Start empty. Add files, data, and customize agents as you go.
-        </div>
-        <div className="mt-2 font-['Lora',_Georgia,_serif] text-[11px] italic text-[#b0aea5]">by Mira</div>
-      </div>
+      )}
     </button>
   );
 }

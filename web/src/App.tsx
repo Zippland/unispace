@@ -14,6 +14,7 @@ import CustomizePanel, {
 } from "./components/CustomizePanel";
 import { usePromoted, type CustomizeSub } from "./lib/customize";
 import ProjectWelcome from "./components/ProjectWelcome";
+import ProjectShell from "./components/ProjectShell";
 import { SkillDialog } from "./components/Sidebar";
 import { type MiraMode } from "./mira/MiraChrome";
 import {
@@ -110,11 +111,11 @@ export default function App() {
   const [devOpen, setDevOpen] = useState(false);
   const [agentEditor, setAgentEditor] = useState<AgentEditorMode | null>(null);
   const [customizeSub, setCustomizeSub] = useState<CustomizeSub | null>(null);
-  const [miraMode, setMiraMode] = useState<MiraMode>("cattery");
+  const [miraMode, setMiraMode] = useState<MiraMode>("CATWORK");
   const [skillDialogOpen, setSkillDialogOpen] = useState(false);
 
   // Shared "open a project by name" — used both when the user picks
-  // an existing project from the Cattery "Your projects" layer and
+  // an existing project from the CATWORK "Your projects" layer and
   // after a new project is created from a template. Switches the
   // current project on the server, refreshes client state, then
   // enters project mode.
@@ -260,7 +261,14 @@ export default function App() {
 
   return (
     <div className="h-screen flex bg-[#faf9f5] text-[#141413]">
-      {/* Sidebar */}
+      {/* ── Project mode: ProjectShell owns the full viewport ── */}
+      {miraMode === "project" ? (
+        <div className="flex-1 min-w-0 h-full">
+          <ProjectShell onModeChange={setMiraMode} />
+        </div>
+      ) : (
+      <>
+      {/* Sidebar (non-project modes only) */}
       <div style={{ width: sidebarW }} className="shrink-0 h-full">
         <Sidebar
           onOpenFile={handleOpenFile}
@@ -280,9 +288,7 @@ export default function App() {
         onResize={(dx) => setSidebarW((w) => clamp(w + dx, 180, 400))}
       />
 
-      {/* Customize sub-nav column — slides in as a second sidebar when
-          the gear icon is clicked. Just the vertical sub-nav; the
-          selected sub's content takes over the main area below. */}
+      {/* Customize sub-nav column */}
       {customizeSub && (
         <>
           <div
@@ -317,112 +323,15 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <GlobalCustomizePanel />
         </div>
-      ) : miraMode === "cattery" ? (
+      ) : miraMode === "CATWORK" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <ProjectWelcome
             onProjectCreated={openProject}
             onSelectExisting={openProject}
           />
         </div>
-      ) : agentEditor ? (
-        /* Subagent / prompt editor takes over the entire main area */
-        <div className="flex-1 flex flex-col min-w-0 h-full">
-          <AgentEditorPanel
-            mode={agentEditor}
-            onClose={() => setAgentEditor(null)}
-            onSaved={async () => {
-              // Refresh file tree so the sidebar list picks up the change
-              try {
-                const files = await api.fetchFiles(serverUrl);
-                setFiles(files);
-              } catch {}
-            }}
-          />
-        </div>
-      ) : customizeSub ? (
-        /* Customize selected sub takes over the main area (chat is hidden
-           while customize is open) */
-        <div className="flex-1 flex flex-col min-w-0 h-full">
-          <CustomizeContent
-            sub={customizeSub}
-            onOpenFile={handleOpenFile}
-            onOpenDispatch={() => setDispatchOpen(true)}
-            onOpenAgentEditor={setAgentEditor}
-            onCreateSkill={() => setSkillDialogOpen(true)}
-          />
-        </div>
-      ) : hasTabs ? (
-        <>
-          {/* Chat: fixed width, middle */}
-          <div
-            style={{ width: chatW }}
-            className="shrink-0 flex flex-col h-full"
-          >
-            <ChatPanel />
-          </div>
-
-          {/* Handle: chat ↔ preview */}
-          <ResizeHandle
-            onResize={(dx) => setChatW((w) => clamp(w + dx, 280, 700))}
-          />
-
-          {/* Preview: fills remaining space, right */}
-          <div className="flex-1 flex flex-col min-w-[200px] h-full bg-white">
-            {/* Tab bar — tabs on the left, active file controls portaled into the right slot */}
-            <div className="flex items-center border-b border-[#e8e6dc] bg-white shrink-0">
-              <div className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-                {openTabs.map((tab) => {
-                  const isActive = activeTab === tab.path;
-                  return (
-                    <button
-                      key={tab.path}
-                      onClick={() => setActiveTab(tab.path)}
-                      title={tab.path}
-                      className={`group relative flex items-center gap-2 pl-3.5 pr-2 py-2 text-[12px] shrink-0 transition-colors ${
-                        isActive
-                          ? "text-[#141413]"
-                          : "text-[#b0aea5] hover:text-[#6b6963]"
-                      }`}
-                    >
-                      <span className="truncate max-w-[140px] tracking-tight">{tab.name}</span>
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeFile(tab.path);
-                        }}
-                        className="flex h-4 w-4 items-center justify-center rounded-sm opacity-0 transition group-hover:opacity-60 hover:!opacity-100 hover:bg-[#e8e6dc] text-[#6b6963]"
-                      >
-                        <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                        </svg>
-                      </span>
-                      {isActive && (
-                        <span className="absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full bg-[#d97757]" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              <div
-                ref={setControlsSlot}
-                className="flex items-center gap-2 px-3 shrink-0"
-              />
-            </div>
-
-            {activeFileTab ? (
-              <FileViewer tab={activeFileTab} controlsSlot={controlsSlot} />
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-[#b0aea5] text-sm">
-                Select a tab
-              </div>
-            )}
-          </div>
-        </>
-      ) : (
-        /* No preview: chat fills all remaining space */
-        <div className="flex-1 flex flex-col min-w-0 h-full">
-          <ChatPanel />
-        </div>
+      ) : null}
+      </>
       )}
 
       {/* Dev panel (right edge, only in dev mode) */}
