@@ -1,5 +1,7 @@
 # Mira · Catwork · Feature 清单
 
+> **⚠️ 开发事实源已迁移到 [spec.md](./spec.md)**。本文档为完整产品愿景和历史讨论记录，spec.md 和本文档有冲突时以 spec.md 为准。
+
 > **背景**：Mira 目前只有基建层（沙箱 / 存储 / SSO / 对话 runtime）和 chatbot 形态（单轮/多轮对话，无工作空间概念）。本文档描述要新增的 **"Catwork" 形态** —— 让 Mira 从"几个对话框"进化成"一个可装配的 agent factory"。
 >
 > 可参考 demo：<https://github.com/Zippland/unispace/tree/mira-demo>

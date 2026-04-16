@@ -167,6 +167,21 @@ export default function App() {
       setProjects(projectsResp.projects, projectsResp.current);
       setSessions(sessions);
       setFiles(files);
+
+      // Ensure mira project is active on initial load (home page)
+      if (projectsResp.current !== "mira") {
+        try {
+          await api.switchProject(url, "mira");
+          const [p2, s2, f2] = await Promise.all([
+            api.fetchProjects(url),
+            api.fetchSessions(url),
+            api.fetchFiles(url),
+          ]);
+          setProjects(p2.projects, p2.current);
+          setSessions(s2);
+          setFiles(f2);
+        } catch {}
+      }
     } catch {
       setConnection(false);
     }
@@ -261,8 +276,8 @@ export default function App() {
 
   return (
     <div className="h-screen flex bg-[#faf9f5] text-[#141413]">
-      {/* ── CATWORK / Project: icon strip layout ── */}
-      {miraMode === "project" || miraMode === "CATWORK" ? (
+      {/* ── Project mode: icon strip layout ── */}
+      {miraMode === "project" ? (
         <div className="flex-1 min-w-0 h-full">
           <ProjectShell miraMode={miraMode} onModeChange={setMiraMode} onOpenFile={handleOpenFile} />
         </div>
@@ -322,6 +337,13 @@ export default function App() {
       ) : miraMode === "customize" ? (
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <GlobalCustomizePanel />
+        </div>
+      ) : miraMode === "CATWORK" ? (
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <ProjectWelcome
+            onProjectCreated={openProject}
+            onSelectExisting={openProject}
+          />
         </div>
       ) : null}
       </>

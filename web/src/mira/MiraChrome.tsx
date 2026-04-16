@@ -136,66 +136,77 @@ export function MiraUserChip() {
 
 // ── Global Recents ────────────────────────────────────────────
 //
-//  Static demo session list rendered in the sidebar when the user is
-//  in a non-project Mira mode (New Chat / Task / Customize). Tags are
-//  colored by a deterministic hash on the project slug.
+//  Fetches ALL sessions across projects. Mira sessions show without
+//  tag; other project sessions get a colored project label.
 
-function colorForProject(seed: string): string {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+import { useState, useEffect } from "react";
+import { useStore, type SessionInfo } from "../store";
+import * as api from "../api";
+
+export function GlobalRecentsList({ onNavigate }: { onNavigate?: () => void } = {}) {
+  const { serverUrl, setActiveSession, setActiveTab, setSessionMessages, messages } = useStore();
+  const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
+
+  useEffect(() => {
+    api.fetchSessions(serverUrl, true)
+      .then((list: SessionInfo[]) => setAllSessions(list))
+      .catch(() => {});
+  }, [serverUrl]);
+
+  const sorted = [...allSessions].sort((a, b) => b.createdAt - a.createdAt);
+
+  async function openSession(s: SessionInfo) {
+    // Switch to the session's project so ChatPanel has the right context
+    if (s.projectName) {
+      try {
+        await api.switchProject(serverUrl, s.projectName);
+        const [p, sess, f] = await Promise.all([
+          api.fetchProjects(serverUrl),
+          api.fetchSessions(serverUrl),
+          api.fetchFiles(serverUrl),
+        ]);
+        useStore.getState().setProjects(p.projects, p.current);
+        useStore.getState().setSessions(sess);
+        useStore.getState().setFiles(f);
+      } catch {}
+    }
+    onNavigate?.();
+    setActiveSession(s.id);
+    setActiveTab(null);
+    if (!messages[s.id] || messages[s.id].length === 0) {
+      try {
+        const msgs = await api.fetchSessionMessages(serverUrl, s.id);
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          setSessionMessages(s.id, msgs);
+        }
+      } catch {}
+    }
   }
-  const hue = h % 360;
-  return `hsl(${hue}, 50%, 60%)`;
-}
 
-interface RecentSession {
-  id: string;
-  title: string;
-  project?: string;
-}
-
-const GLOBAL_RECENTS: RecentSession[] = [
-  { id: "1", title: "周报总结优化版" },
-  { id: "2", title: "Weekly Report", project: "finance" },
-  { id: "3", title: "doc 编辑能力" },
-  { id: "4", title: "PDF 生成流程" },
-  { id: "5", title: "Skill 部署渠道" },
-  { id: "6", title: "MCP 使用推荐场景" },
-  { id: "7", title: "importer CLI 配置说明", project: "importer" },
-  { id: "8", title: "字节 SSO 域名注册" },
-  { id: "9", title: "字节 SSO 登录流程" },
-  { id: "10", title: "MCP 开发框架说明" },
-  { id: "11", title: "importer CLI 配置生成", project: "importer" },
-  { id: "12", title: "环境复盘 v1.2 使用" },
-  { id: "13", title: "CI 部署手册 SMCP 使用" },
-  { id: "14", title: "CIS 部署条件 MCP 风险评估" },
-  { id: "15", title: "小说家风格演进" },
-  { id: "16", title: "Prompt 写作实用技巧" },
-];
-
-export function GlobalRecentsList() {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-3 pt-2">
-      <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
+      <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#9f9c93]">
         Recents
       </div>
       <div className="flex-1 overflow-y-auto">
-        {GLOBAL_RECENTS.map((s) => (
-          <button
-            key={s.id}
-            className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[#6b6963] transition hover:bg-[#141413]/[0.04] hover:text-[#141413]"
-          >
-            <span
-              className="h-3 w-[3px] shrink-0 rounded-full"
-              style={{
-                background: s.project ? colorForProject(s.project) : "#e8e6dc",
-              }}
-              title={s.project || "global"}
-            />
-            <span className="truncate">{s.title}</span>
-          </button>
-        ))}
+        {sorted.length === 0 ? (
+          <p className="px-2 py-4 text-[12px] text-[#9f9c93]">No sessions yet</p>
+        ) : (
+          sorted.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => openSession(s)}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[#6a685d] transition hover:bg-[rgba(41,41,31,0.04)] hover:text-[#29291f]"
+            >
+              {s.projectName && s.projectName !== "mira" && (
+                <span className="shrink-0 rounded bg-[#f2f2ee] px-1.5 py-0.5 text-[10px] text-[#6a685d]">
+                  {s.projectName}
+                </span>
+              )}
+              <span className="truncate">{s.title || s.id}</span>
+            </button>
+          ))
+        )}
       </div>
     </div>
   );

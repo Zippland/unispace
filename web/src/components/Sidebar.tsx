@@ -322,7 +322,22 @@ export default function Sidebar({
           <nav className="mt-4 flex flex-col px-3">
             <MiraModeButton
               active={miraMode === "new_chat"}
-              onClick={() => onMiraModeChange("new_chat")}
+              onClick={() => {
+                onMiraModeChange("new_chat");
+                setActiveSession(null);
+                setActiveTab(null);
+                // Switch back to mira project so Recents/ChatPanel show mira sessions
+                api.switchProject(serverUrl, "mira").then(async () => {
+                  const [p, s, f] = await Promise.all([
+                    api.fetchProjects(serverUrl),
+                    api.fetchSessions(serverUrl),
+                    api.fetchFiles(serverUrl),
+                  ]);
+                  useStore.getState().setProjects(p.projects, p.current);
+                  useStore.getState().setSessions(s);
+                  useStore.getState().setFiles(f);
+                }).catch(() => {});
+              }}
               label="New Chat"
               icon={MODE_ICONS.new_chat}
             />
@@ -369,7 +384,7 @@ export default function Sidebar({
 
           {/* ── Recent section ──────────────────────────────── */}
           <div className="mt-3 flex min-h-0 flex-1 flex-col border-t border-[#e8e6dc] pt-3">
-            <GlobalRecentsList />
+            <GlobalRecentsList onNavigate={() => onMiraModeChange("new_chat")} />
           </div>
         </>
       )}

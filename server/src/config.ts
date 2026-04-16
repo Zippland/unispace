@@ -58,7 +58,7 @@ const DEFAULTS: Config = {
   server: {
     port: 3210,
   },
-  currentProject: "default",
+  currentProject: "mira",
 };
 
 // ── Init ──────────────────────────────────────────────────────

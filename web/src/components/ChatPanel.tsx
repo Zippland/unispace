@@ -266,13 +266,142 @@ function CollapsibleProcess({
 //  in CATWORK mode only).
 // ═══════════════════════════════════════════════════════════════
 
-function EmptyState({
+// ── Mira welcome data (action chips + template gallery) ──────
+
+const WELCOME_CHIPS = [
+  { label: "Deep Research", emoji: "🔬" },
+  { label: "Excel Analysis", emoji: "📊" },
+  { label: "Docx Drafter", emoji: "📝" },
+  { label: "Slide Writer", emoji: "📑" },
+  { label: "Translate", emoji: "🌐" },
+  { label: "Cowork", emoji: "🤝" },
+];
+
+const WELCOME_TABS = ["Explore", "General", "Product", "Design", "HR", "DA", "Finance", "PMO", "Legal"];
+
+const WELCOME_TEMPLATES = [
+  { id: "1", title: "产品需求探究", subtitle: "Product Research", author: "Mira Team", uses: 1283, gradient: "from-[#f0e9dc] to-[#e8dcc4]" },
+  { id: "2", title: "文化演绎能力 · 绘画大师", subtitle: "Cultural Interpretation", author: "Mira Team", uses: 842, gradient: "from-[#e6d9ce] to-[#d6c5b3]" },
+  { id: "3", title: "行业简报", subtitle: "Industry Briefing", author: "Community", uses: 3210, gradient: "from-[#ded2c4] to-[#c8b89e]" },
+  { id: "4", title: "学生报告与数据课程解读", subtitle: "Academic Report", author: "Mira Team", uses: 567, gradient: "from-[#e0d6cb] to-[#c9b7a3]" },
+  { id: "5", title: "Clean Expression", subtitle: "精准表达助手", author: "Mira Team", uses: 2104, gradient: "from-[#e8e0d4] to-[#d0c3b2]" },
+  { id: "6", title: "Marketing Strategy", subtitle: "营销策略设计", author: "Community", uses: 1847, gradient: "from-[#ead9c4] to-[#d4bc9c]" },
+  { id: "7", title: "Code Review Buddy", subtitle: "代码审查助手", author: "Mira Team", uses: 3421, gradient: "from-[#d4cdc0] to-[#b5ab97]" },
+  { id: "8", title: "Weekly Review", subtitle: "周度复盘", author: "Community", uses: 912, gradient: "from-[#e6ddcf] to-[#c9b79c]" },
+];
+
+// ── Mira welcome empty state (outer) ──────────────────────────
+
+function MiraEmptyState({
+  inputBarSlot,
+}: {
+  inputBarSlot?: ReactNode;
+}) {
+  const [activeTab, setActiveTab] = useState("Explore");
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      {/* Top-right security policy chip */}
+      <div className="absolute right-6 top-6 z-10">
+        <button className="flex items-center gap-1.5 rounded-full border border-[rgba(41,41,31,0.1)] bg-white/70 px-3 py-1.5 text-[11px] text-[#6a685d] backdrop-blur hover:border-[#9f9c93]">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7c9a5e]" />
+          View security policy
+        </button>
+      </div>
+
+      <div className="mx-auto w-full max-w-4xl px-10 pb-16 pt-20">
+        {/* Hero */}
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#29291f] text-[28px]">
+            🐱
+          </div>
+          <h1 className="text-[34px] font-semibold tracking-tight text-[#29291f]">
+            What's on your mind?
+          </h1>
+          <p className="mt-2 text-[14px] text-[#6a685d]">
+            Trusted AI Work Platform for Every ByteDancer
+          </p>
+        </div>
+
+        {/* Real input from ChatPanel */}
+        {inputBarSlot && <div className="mb-4">{inputBarSlot}</div>}
+
+        {/* Action chips */}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          {WELCOME_CHIPS.map((chip) => (
+            <button
+              key={chip.label}
+              className="flex items-center gap-1.5 rounded-full border border-[rgba(41,41,31,0.1)] bg-white px-3.5 py-1.5 text-[12px] text-[#29291f] transition hover:border-[#9f9c93] hover:bg-[#fafaf7]"
+            >
+              <span className="text-[13px]">{chip.emoji}</span>
+              <span>{chip.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Template gallery */}
+        <div className="mt-12">
+          <div className="mb-5 flex items-center gap-5 border-b border-[rgba(41,41,31,0.1)] pb-0">
+            {WELCOME_TABS.map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`relative pb-3 text-[13px] font-medium transition ${
+                    isActive ? "text-[#29291f]" : "text-[#9f9c93] hover:text-[#6a685d]"
+                  }`}
+                >
+                  {tab}
+                  {isActive && (
+                    <span className="absolute inset-x-0 bottom-0 h-[1.5px] rounded-full bg-[#333329]" />
+                  )}
+                </button>
+              );
+            })}
+            <div className="ml-auto pb-3">
+              <button className="text-[13px] font-medium text-[#9f9c93] hover:text-[#29291f]">
+                My Templates
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {WELCOME_TEMPLATES.map((t) => (
+              <button key={t.id} className="group flex flex-col overflow-hidden rounded-2xl border border-[rgba(41,41,31,0.1)] bg-white text-left transition hover:border-[#9f9c93] hover:shadow-[0_8px_24px_rgba(20,20,19,0.08)]">
+                <div className={`aspect-[4/3] w-full bg-gradient-to-br ${t.gradient}`}>
+                  <div className="flex h-full items-center justify-center">
+                    <div className="rounded-lg bg-white/60 px-3 py-1.5 text-[11px] font-medium text-[#29291f] backdrop-blur">
+                      {t.subtitle}
+                    </div>
+                  </div>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="truncate text-[13px] font-medium text-[#29291f]">{t.title}</div>
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#9f9c93]">
+                    <span>{t.author}</span>
+                    <span>·</span>
+                    <span>{t.uses.toLocaleString()} uses</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Project landing empty state (inner) ───────────────────────
+
+function ProjectEmptyState({
   inputBarSlot,
 }: {
   inputBarSlot?: ReactNode;
 }) {
   const {
-    serverUrl, currentProject, sessions, messages: storeMessages,
+    serverUrl, sessions, messages: storeMessages,
     setActiveSession, setActiveTab: setStoreActiveTab, setSessionMessages,
   } = useStore();
   const [tab, setTab] = useState<"recents" | "task">("recents");
@@ -298,10 +427,8 @@ function EmptyState({
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="mx-auto w-full max-w-3xl px-8 py-10">
-        {/* Input bar — real, from ChatPanel */}
         {inputBarSlot && <div className="mb-8">{inputBarSlot}</div>}
 
-        {/* Recents | Task tabs */}
         <div className="flex items-center gap-5 border-b border-[rgba(41,41,31,0.1)]">
           {(["recents", "task"] as const).map((t) => {
             const label = t === "recents" ? "Recents" : "Task";
@@ -315,21 +442,16 @@ function EmptyState({
                 }`}
               >
                 {label}
-                {active && (
-                  <span className="absolute inset-x-0 bottom-0 h-[1.5px] rounded-full bg-[#333329]" />
-                )}
+                {active && <span className="absolute inset-x-0 bottom-0 h-[1.5px] rounded-full bg-[#333329]" />}
               </button>
             );
           })}
         </div>
 
-        {/* Content */}
         <div className="mt-4">
           {tab === "recents" ? (
             sorted.length === 0 ? (
-              <p className="py-10 text-center text-[14px] font-light text-[#9f9c93]">
-                No chats yet
-              </p>
+              <p className="py-10 text-center text-[14px] font-light text-[#9f9c93]">No chats yet</p>
             ) : (
               <div className="space-y-0.5">
                 {sorted.map((s) => {
@@ -340,21 +462,15 @@ function EmptyState({
                       onClick={() => openSession(s.id)}
                       className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-[rgba(41,41,31,0.06)]"
                     >
-                      <span className="flex-1 truncate text-[14px] font-medium text-[#29291f]">
-                        {s.title || s.id}
-                      </span>
-                      <span className="shrink-0 text-[12px] text-[#9f9c93]">
-                        {d.toLocaleDateString()}
-                      </span>
+                      <span className="flex-1 truncate text-[14px] font-medium text-[#29291f]">{s.title || s.id}</span>
+                      <span className="shrink-0 text-[12px] text-[#9f9c93]">{d.toLocaleDateString()}</span>
                     </button>
                   );
                 })}
               </div>
             )
           ) : (
-            <p className="py-10 text-center text-[14px] font-light text-[#9f9c93]">
-              No tasks yet
-            </p>
+            <p className="py-10 text-center text-[14px] font-light text-[#9f9c93]">No tasks yet</p>
           )}
         </div>
       </div>
@@ -490,7 +606,7 @@ function modelLabel(id?: string): string {
   return match?.label ?? id ?? "Sonnet 4.5";
 }
 
-export default function ChatPanel() {
+export default function ChatPanel({ variant = "mira" }: { variant?: "mira" | "project" } = {}) {
   const {
     serverUrl, activeSessionId, messages, streaming, currentProject,
     setActiveSession, addSession, appendMessage, updateMessage,
@@ -1206,7 +1322,11 @@ export default function ChatPanel() {
     <div className="flex-1 flex flex-col h-full min-w-0">
       {isEmpty ? (
         <main className="flex-1 flex">
-          <EmptyState inputBarSlot={inputBar} />
+          {variant === "project" ? (
+            <ProjectEmptyState inputBarSlot={inputBar} />
+          ) : (
+            <MiraEmptyState inputBarSlot={inputBar} />
+          )}
         </main>
       ) : (
         <>

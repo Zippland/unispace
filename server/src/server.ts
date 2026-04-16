@@ -235,6 +235,13 @@ function currentProjectDir(): string {
 // ── Server ────────────────────────────────────────────────────
 
 export function createServer(_initialConfig: Config) {
+  // Ensure the "mira" home project exists (Mira main workspace)
+  if (!projectExists("mira")) {
+    const miraDir = paths.project("mira");
+    mkdirSync(join(miraDir, "sessions"), { recursive: true });
+    mkdirSync(join(miraDir, ".claude"), { recursive: true });
+  }
+
   const app = new Hono();
 
   app.use("*", cors());
@@ -922,7 +929,8 @@ export function createServer(_initialConfig: Config) {
 
   app.get("/api/sessions", (c) => {
     const cfg = loadConfig();
-    const scope = c.req.query("project") ?? cfg.currentProject;
+    const all = c.req.query("all") === "1";
+    const scope = all ? undefined : (c.req.query("project") ?? cfg.currentProject);
     return c.json(
       listSessions(scope).map((s) => ({
         id: s.id,

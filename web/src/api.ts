@@ -148,8 +148,9 @@ export async function updateProjectSettings(
   return res.json();
 }
 
-export async function fetchSessions(url: string) {
-  const res = await fetch(`${url}/api/sessions`);
+export async function fetchSessions(url: string, all?: boolean) {
+  const params = all ? "?all=1" : "";
+  const res = await fetch(`${url}/api/sessions${params}`);
   return res.json();
 }
 

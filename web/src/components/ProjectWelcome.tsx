@@ -114,7 +114,7 @@ export default function ProjectWelcome({
 
   // ── Projects (My Project tab) ───────────────────────────────
   const sortedProjects = useMemo(() => {
-    let list = [...projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    let list = [...projects].filter((p) => p.name !== "mira").sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     if (search) {
       const q = search.toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q));
