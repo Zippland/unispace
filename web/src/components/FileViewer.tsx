@@ -21,7 +21,10 @@ export default function FileViewer({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [mdMode, setMdMode] = useState<"preview" | "source">("preview");
+  // CLAUDE.md opens in source mode by default (primary use = edit persona)
+  const [mdMode, setMdMode] = useState<"preview" | "source">(
+    tab.name === "CLAUDE.md" ? "source" : "preview"
+  );
 
   useEffect(() => {
     setDraft(tab.content || "");
