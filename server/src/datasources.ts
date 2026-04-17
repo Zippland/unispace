@@ -63,6 +63,10 @@ export interface DatasourceFile {
   _demo_note?: string;
   schema: DatasourceSchema;
   sample_rows?: Record<string, unknown>[];
+  /** Session datasource: source session id (hyperlink, not copy) */
+  source_session_id?: string;
+  /** Session datasource: source project id */
+  source_project_id?: string;
 }
 
 // ── Loaders ──────────────────────────────────────────────────
@@ -286,6 +290,34 @@ export function buildDatasourceMcp(projectDir: string) {
               isError: true,
             };
           }
+          // Session datasource: read source session in real-time (hyperlink)
+          if (ds.type === "session" && ds.source_session_id) {
+            const { getSession } = await import("./session");
+            const session = getSession(ds.source_session_id);
+            if (!session) {
+              return { content: [{ type: "text" as const, text: `Source session '${ds.source_session_id}' no longer exists.` }], isError: true };
+            }
+            const rows = session.messages.flatMap((msg) =>
+              msg.parts.map((part) => ({
+                role: msg.role,
+                type: part.type,
+                content: part.content || (part.type === "tool_call" ? `[tool: ${part.name}]` : ""),
+                ...(part.name ? { tool_name: part.name } : {}),
+              })),
+            );
+            return {
+              content: [{
+                type: "text" as const,
+                text: JSON.stringify({
+                  id: ds.id, type: "session",
+                  source_session_id: ds.source_session_id,
+                  description: ds.description,
+                  row_count: rows.length,
+                  rows,
+                }, null, 2),
+              }],
+            };
+          }
           if (!ds.sample_rows || ds.sample_rows.length === 0) {
             return {
               content: [
@@ -331,4 +363,39 @@ export function buildDatasourceMcp(projectDir: string) {
       ),
     ],
   });
+}
+
+// ── Session mount (hyperlink datasource) ────────────────────
+
+const SESSION_SCHEMA: DatasourceSchema = {
+  dimensions: [
+    { key: "role", label: "Role", type: "string", values: ["user", "assistant"] },
+    { key: "type", label: "Part Type", type: "string", values: ["text", "thinking", "tool_call"] },
+  ],
+  metrics: [],
+};
+
+export async function mountSession(
+  projectDir: string,
+  sessionId: string,
+  sessionTitle: string,
+  sourceProjectId: string,
+  sourceProjectName: string,
+): Promise<DatasourceFile> {
+  const dsId = `session/${sessionId}`;
+  const entry: DatasourceFile = {
+    type: "session",
+    id: dsId,
+    name: sessionId,
+    display_name: sessionTitle || sessionId.slice(0, 8),
+    description: `Mounted from ${sourceProjectName}`,
+    schema: SESSION_SCHEMA,
+    source_session_id: sessionId,
+    source_project_id: sourceProjectId,
+  };
+
+  const dir = join(projectDir, ".claude", "datasources", "session");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  await writeFile(join(dir, `${sessionId}.json`), JSON.stringify(entry, null, 2));
+  return entry;
 }

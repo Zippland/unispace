@@ -57,6 +57,7 @@ import {
   listCatalogWithStatus,
   installFromCatalog,
   uninstallDatasource,
+  mountSession,
 } from "./datasources";
 import {
   listTasks,
@@ -701,6 +702,28 @@ export function createServer(_initialConfig: Config) {
         { error: e instanceof Error ? e.message : String(e) },
         400,
       );
+    }
+  });
+
+  app.post("/api/datasources/mount-session", async (c) => {
+    const workDir = currentProjectDir();
+    const cfg = loadConfig();
+    const body = (await c.req.json().catch(() => ({}))) as { sessionId?: string };
+    if (!body.sessionId) return c.json({ error: "sessionId required" }, 400);
+    const session = getSession(body.sessionId);
+    if (!session) return c.json({ error: "Session not found" }, 404);
+    const sourceProject = getProjectById(session.projectId);
+    try {
+      const ds = await mountSession(
+        workDir,
+        session.id,
+        session.title || session.id.slice(0, 8),
+        session.projectId,
+        sourceProject?.name || session.projectId,
+      );
+      return c.json({ ok: true, id: ds.id });
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
     }
   });
 

@@ -362,6 +362,22 @@ export async function uninstallDatasource(
   }
 }
 
+export async function mountSessionAsDatasource(
+  url: string,
+  sessionId: string,
+): Promise<{ ok: boolean; id: string }> {
+  const res = await fetch(`${url}/api/datasources/mount-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Mount failed");
+  }
+  return res.json();
+}
+
 // ── Tasks ─────────────────────────────────────────────────────
 
 export type TaskTrigger = "manual" | "fixed" | "model";

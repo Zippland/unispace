@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   fetchDatasources,
   fetchDatasourceCatalog,
+  fetchSessions,
   installDatasource,
   uninstallDatasource,
+  mountSessionAsDatasource,
   type DatasourceSummary,
   type DatasourceCatalogItem,
 } from "../api";
-import { useStore } from "../store";
+import { useStore, type SessionInfo } from "../store";
 
 // ═══════════════════════════════════════════════════════════════
 //  DataSourcePanel — project-scoped external data handles.
@@ -75,6 +77,12 @@ const TYPE_META: Record<string, TypeMeta> = {
     color: "#6a9bcc",
     icon: ICON_CHART,
   },
+  session: {
+    label: "Session",
+    hint: "跨项目对话引用",
+    color: "#6a5f4f",
+    icon: "M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155",
+  },
 };
 
 const UNKNOWN_META: TypeMeta = {
@@ -85,7 +93,7 @@ const UNKNOWN_META: TypeMeta = {
 };
 
 // Stable display order for type groups (matches the old seed).
-const TYPE_ORDER = ["aeolus", "cis-core", "hive", "lark_sheet", "sentry"];
+const TYPE_ORDER = ["aeolus", "cis-core", "hive", "lark_sheet", "sentry", "session"];
 
 function typeMeta(type: string): TypeMeta {
   return TYPE_META[type] || UNKNOWN_META;
@@ -453,7 +461,17 @@ function DataSourcePicker({
             </p>
           )}
 
-          {!loading && activeItems.length === 0 && (
+          {/* Session mount UI — different from catalog items */}
+          {!loading && selected === "session" && (
+            <SessionMountList
+              onMounted={() => { refresh(); onInstalled(); }}
+              installedIds={new Set(catalog.filter((c) => c.installed).map((c) => c.id))}
+              busy={busy}
+              onBusy={setBusy}
+            />
+          )}
+
+          {!loading && selected !== "session" && activeItems.length === 0 && (
             <div className="rounded-xl border border-dashed border-[#e8e6dc] bg-[#fffdf8] p-8 text-center">
               <div
                 className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl"
@@ -485,7 +503,7 @@ function DataSourcePicker({
             </div>
           )}
 
-          {!loading &&
+          {!loading && selected !== "session" &&
             activeItems.map((item) => (
               <div
                 key={item.id}
@@ -585,5 +603,89 @@ function DataSourcePicker({
         </div>
       </div>
     </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SessionMountList — browse sessions from other projects and
+//  mount them as datasources (hyperlink, not copy).
+// ═══════════════════════════════════════════════════════════════
+
+function SessionMountList({
+  onMounted,
+  installedIds,
+  busy,
+  onBusy,
+}: {
+  onMounted: () => void;
+  installedIds: Set<string>;
+  busy: string | null;
+  onBusy: (id: string | null) => void;
+}) {
+  const { serverUrl, currentProject, projects } = useStore();
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSessions(serverUrl, true)
+      .then((list: SessionInfo[]) => setSessions(list.filter((s: SessionInfo) => s.projectId !== currentProject)))
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false));
+  }, [serverUrl, currentProject]);
+
+  function projectName(id?: string): string {
+    if (!id) return "?";
+    return projects.find((p) => p.id === id)?.name || id.slice(0, 8);
+  }
+
+  async function handleMount(s: SessionInfo) {
+    onBusy(s.id);
+    try {
+      await mountSessionAsDatasource(serverUrl, s.id);
+      onMounted();
+    } catch {}
+    onBusy(null);
+  }
+
+  if (loading) return <p className="py-8 text-center text-[12px] text-[#b0aea5]">Loading sessions...</p>;
+
+  if (sessions.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-[#e8e6dc] bg-[#fffdf8] p-8 text-center">
+        <div className="text-[13px] font-semibold text-[#141413]">No sessions from other projects</div>
+        <div className="mt-1 text-[11px] text-[#b0aea5]">Create sessions in other Catworks first, then mount them here.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {sessions.map((s) => {
+        const mounted = installedIds.has(`session/${s.id}`);
+        return (
+          <div key={s.id} className="flex items-center gap-3 rounded-xl border border-[#e8e6dc] bg-white p-3 transition hover:border-[#b0aea5]">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-[#141413]">{s.title || s.id.slice(0, 8)}</p>
+              <p className="mt-0.5 text-[11px] text-[#b0aea5]">
+                <span className="rounded bg-[#141413]/[0.06] px-1 py-0.5 text-[10px] font-medium text-[#6b6963]">{projectName(s.projectId)}</span>
+                {" "}
+                {s.messageCount} messages
+              </p>
+            </div>
+            {mounted ? (
+              <span className="text-[11px] font-medium text-[#788c5d]">Mounted</span>
+            ) : (
+              <button
+                onClick={() => handleMount(s)}
+                disabled={busy === s.id}
+                className="rounded-lg bg-[#141413] px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-[#2a2a28] disabled:opacity-50"
+              >
+                {busy === s.id ? "Mounting..." : "Mount"}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
