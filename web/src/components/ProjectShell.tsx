@@ -4,7 +4,7 @@ import * as api from "../api";
 import ChatPanel from "./ChatPanel";
 import ProjectSettingPanel from "./ProjectSettingPanel";
 import ArtifactsPanel from "./ArtifactsPanel";
-import type { MiraMode } from "../mira/MiraChrome";
+import { type MiraMode, GlobalRecentsList } from "../mira/MiraChrome";
 
 // ═══════════════════════════════════════════════════════════════
 //  ProjectShell — the project-mode layout.
@@ -26,7 +26,7 @@ interface Props {
 }
 
 export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Props) {
-  const { currentProject, projects, activeSessionId, sessions, serverUrl: storeUrl, activeTab } = useStore();
+  const { currentProject, projects, pinnedProjects, activeSessionId, sessions, serverUrl: storeUrl, activeTab } = useStore();
   const currentProjectInfo = projects.find((p) => p.id === currentProject);
   const projectDisplayName = currentProjectInfo?.name || currentProject;
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -113,7 +113,7 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
         <nav className="flex flex-1 flex-col items-center gap-[4px]">
           <NavIcon
             label="Sidebar"
-            active={false}
+            active={sidebarOpen}
             onClick={() => setSidebarOpen(!sidebarOpen)}
             d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
           />
@@ -151,6 +151,37 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
           <div className="flex size-[24px] items-center justify-center rounded-full bg-[#29291f] text-[10px] font-semibold text-white">Z</div>
         </div>
       </div>
+
+      {/* ═══ Expanded sidebar (mira sidebar collapsed → expanded) ═══ */}
+      {sidebarOpen && (
+        <div className="flex w-[240px] shrink-0 flex-col border-r border-[#e8e6dc] bg-[#fafaf7]">
+          {/* Pin */}
+          {pinnedProjects.length > 0 && (
+            <div className="border-b border-[#e8e6dc] px-3 py-3">
+              <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#9f9c93]">Pin</div>
+              {pinnedProjects.map((pinId) => {
+                const p = projects.find((p) => p.id === pinId);
+                if (!p) return null;
+                return (
+                  <button key={pinId} onClick={async () => {
+                    await api.switchProject(storeUrl, pinId);
+                    const [pr, s, f] = await Promise.all([api.fetchProjects(storeUrl), api.fetchSessions(storeUrl), api.fetchFiles(storeUrl)]);
+                    useStore.getState().setProjects(pr.projects, pr.current);
+                    useStore.getState().setSessions(s);
+                    useStore.getState().setFiles(f);
+                  }} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition hover:bg-[#141413]/[0.04] hover:text-[#141413] ${currentProject === pinId ? "text-[#141413] font-medium" : "text-[#6b6963]"}`}>
+                    <span className="truncate">{p.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {/* Recents */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <GlobalRecentsList onNavigate={() => setSidebarOpen(false)} />
+          </div>
+        </div>
+      )}
 
       {/* ═══ Center ═══ */}
       <div className="flex min-w-0 flex-1 flex-col bg-[#fafaf7]">

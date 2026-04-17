@@ -71,18 +71,22 @@
 - 用户 clone Template = 新建一个 Catwork + 装配字段来自 Template 快照 + 记录来源版本
 - 升级 = 用新版快照覆盖当前装配字段。用户本地修改会被覆盖。文件和对话历史不动
 
-### Datasource 四源模型
+### Datasource 开放模型
 
-Datasource 不是一个独立的物理存储，而是一个聚合视图。产品层把四种不同来源的资源统一呈现为"数据源"卡片：
+Datasource 是 **agent 可读取的外部信息的统一入口**。底层来源开放，不限于固定类型。用户不关心底层形态，只看到统一的 datasource 列表。
+
+当前支持的来源：
 
 | 来源 | 说明 |
 |------|------|
-| **cli** | 命令行工具（如风神 CLI） |
-| **mcp** | MCP server 条目（与 Connector 共用物理存储，归属语义不同） |
-| **skill** | Skill 文件（与 Skill 共用物理存储） |
-| **session** | 其他 Catwork 的对话记录挂载 |
+| **预设数据集** | 平台内置的结构化数据（Aeolus / Hive / Sentry 等） |
+| **Connector 数据面** | Connector 连接后，其读取能力自动成为 datasource |
+| **Session 挂载** | 其他 Catwork 的对话记录，超链接方式挂载 |
+| **飞书群聊** | Dispatch 绑定的群聊记录作为数据源 |
+| **飞书文档/表格** | 外部链接导入的文档和表格 |
+| **自定义 URL** | 任意可访问的 API 或数据端点 |
 
-用户不关心底层形态，只看到统一的 datasource 列表。编辑时路由到对应的底层入口。
+新的来源类型可以随时加入，不需要改 agent 接口 — agent 只看到统一的 `list_datasources` / `query_datasource` 工具。
 
 ---
 
@@ -136,7 +140,7 @@ Catwork 作为 agent 可被装配的 8 个维度。用户渐进式发现。
 
 ### Datasource
 
-外部数据源的统一入口。表面同构（统一卡片列表），底层异构（cli / mcp / skill / session 四种来源）。拖进 chat 可让 agent 查询。Datasource 是聚合视图，不持有独立数据。
+agent 可读取的外部信息的统一入口。底层来源开放（预设数据集 / Connector 数据面 / Session 挂载 / 飞书群聊 / 外部链接 / 自定义 URL），表面同构。Connector 连接后其数据面自动出现在 datasource 列表。飞书群聊通过 Dispatch 绑定后也可作为 datasource 挂载。拖进 chat 可让 agent 查询。
 
 ### Connector
 
