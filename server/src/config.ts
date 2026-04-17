@@ -82,9 +82,25 @@ export function ensureInit(): void {
 
 export function loadConfig(): Config {
   const raw = JSON.parse(readFileSync(paths.config(), "utf-8"));
+  let current = raw.currentProject || DEFAULTS.currentProject;
+
+  // Backward compat: if currentProject is an old name/slug instead of an id,
+  // look it up in the registry and migrate to id.
+  if (!projectRegistry.has(current)) {
+    const bySlug = getProjectBySlug(current);
+    if (bySlug) {
+      current = bySlug.id;
+      // Persist the migrated id so next load is clean
+      try {
+        const updated = { ...raw, currentProject: current };
+        writeFileSync(paths.config(), JSON.stringify(updated, null, 2));
+      } catch {}
+    }
+  }
+
   const config: Config = {
     server: { ...DEFAULTS.server, ...raw.server },
-    currentProject: raw.currentProject || DEFAULTS.currentProject,
+    currentProject: current,
   };
 
   if (process.env.PORT) config.server.port = parseInt(process.env.PORT);
