@@ -7,7 +7,7 @@ import {
   unlinkSync,
   mkdirSync,
 } from "fs";
-import { paths, listProjects, projectExists } from "./config";
+import { listProjects, projectExists, projectDir, getProjectById } from "./config";
 import type { AgentEvent } from "./agent";
 
 // ── Display types ─────────────────────────────────────────────
@@ -32,7 +32,9 @@ export interface ChatMessage {
 
 export interface Session {
   id: string;
-  projectName: string;
+  projectId: string;
+  /** @deprecated — old sessions may still have this. Use projectId. */
+  projectName?: string;
   /** SDK session id, assigned after the first agent turn. Used for resume. */
   sdkSessionId?: string;
   title?: string;
@@ -48,14 +50,18 @@ const sessions = new Map<string, Session>();
 
 // ── Persistence (one JSON file per session) ──────────────────
 
+function sessionsDir(projectId: string): string {
+  return join(projectDir(projectId), "sessions");
+}
+
 function sessionPath(s: Session): string {
-  return join(paths.projectSessions(s.projectName), `${s.id}.json`);
+  return join(sessionsDir(s.projectId), `${s.id}.json`);
 }
 
 export function saveSession(session: Session): void {
   if (!sessions.has(session.id)) return;
   session.updatedAt = Date.now();
-  const dir = paths.projectSessions(session.projectName);
+  const dir = sessionsDir(session.projectId);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(sessionPath(session), JSON.stringify(session, null, 2));
 }
@@ -63,13 +69,19 @@ export function saveSession(session: Session): void {
 export function loadAllSessions(): void {
   sessions.clear();
   for (const proj of listProjects()) {
-    const dir = paths.projectSessions(proj.name);
+    const dir = join(proj.path, "sessions");
     if (!existsSync(dir)) continue;
     for (const file of readdirSync(dir)) {
       if (!file.endsWith(".json")) continue;
       try {
         const raw = readFileSync(join(dir, file), "utf-8");
         const s: Session = JSON.parse(raw);
+        // Backward compat: migrate old projectName → projectId
+        if (!s.projectId && (s as any).projectName) {
+          s.projectId = proj.id;
+          delete (s as any).projectName;
+        }
+        if (!s.projectId) s.projectId = proj.id;
         sessions.set(s.id, s);
       } catch (e) {
         console.error(`  Failed to load session ${file}:`, e);
@@ -81,13 +93,13 @@ export function loadAllSessions(): void {
 
 // ── CRUD ──────────────────────────────────────────────────────
 
-export function createSession(projectName: string): Session {
-  if (!projectExists(projectName)) {
-    throw new Error(`Project not found: ${projectName}`);
+export function createSession(projectId: string): Session {
+  if (!getProjectById(projectId)) {
+    throw new Error(`Project not found: ${projectId}`);
   }
   const session: Session = {
     id: crypto.randomUUID(),
-    projectName,
+    projectId,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     messages: [],
@@ -101,10 +113,10 @@ export function getSession(id: string): Session | undefined {
   return sessions.get(id);
 }
 
-export function listSessions(projectName?: string): Session[] {
+export function listSessions(projectId?: string): Session[] {
   const all = [...sessions.values()];
-  const filtered = projectName
-    ? all.filter((s) => s.projectName === projectName)
+  const filtered = projectId
+    ? all.filter((s) => s.projectId === projectId)
     : all;
   return filtered.sort((a, b) => b.updatedAt - a.updatedAt);
 }

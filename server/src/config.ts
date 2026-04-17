@@ -99,26 +99,81 @@ export function saveConfig(config: Config): void {
 // ── Projects ──────────────────────────────────────────────────
 
 export interface ProjectInfo {
-  name: string;
-  path: string;
+  id: string;          // stable uuid, never changes
+  name: string;        // display name, user can rename
+  slug: string;        // folder name on disk
+  path: string;        // absolute path
   updatedAt: number;
 }
 
-export function listProjects(): ProjectInfo[] {
-  const root = paths.projectsRoot();
-  if (!existsSync(root)) return [];
+/** In-memory id → ProjectInfo registry. Rebuilt on startup and after mutations. */
+const projectRegistry = new Map<string, ProjectInfo>();
 
-  return readdirSync(root, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => {
-      const p = join(root, e.name);
-      return { name: e.name, path: p, updatedAt: statSync(p).mtimeMs };
-    })
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+function generateProjectId(): string {
+  return `cw_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }
 
-export function projectExists(name: string): boolean {
-  return existsSync(paths.project(name));
+interface ProjectMeta { id: string; name: string }
+
+function readProjectMeta(projectDir: string): ProjectMeta | null {
+  const metaPath = join(projectDir, "project.json");
+  if (!existsSync(metaPath)) return null;
+  try { return JSON.parse(readFileSync(metaPath, "utf-8")); } catch { return null; }
+}
+
+function writeProjectMeta(projectDir: string, meta: ProjectMeta): void {
+  writeFileSync(join(projectDir, "project.json"), JSON.stringify(meta, null, 2));
+}
+
+/** Scan projects root, ensure every project has a project.json with stable id. */
+export function loadProjectRegistry(): void {
+  projectRegistry.clear();
+  const root = paths.projectsRoot();
+  if (!existsSync(root)) return;
+
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const dir = join(root, entry.name);
+    let meta = readProjectMeta(dir);
+    if (!meta) {
+      // Backward compat: auto-generate id for old projects without project.json
+      meta = { id: generateProjectId(), name: entry.name };
+      writeProjectMeta(dir, meta);
+    }
+    projectRegistry.set(meta.id, {
+      id: meta.id,
+      name: meta.name,
+      slug: entry.name,
+      path: dir,
+      updatedAt: statSync(dir).mtimeMs,
+    });
+  }
+}
+
+export function listProjects(): ProjectInfo[] {
+  return [...projectRegistry.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function getProjectById(id: string): ProjectInfo | undefined {
+  return projectRegistry.get(id);
+}
+
+export function getProjectBySlug(slug: string): ProjectInfo | undefined {
+  for (const p of projectRegistry.values()) {
+    if (p.slug === slug) return p;
+  }
+  return undefined;
+}
+
+/** Resolve a project id to its directory path. Throws if not found. */
+export function projectDir(id: string): string {
+  const p = projectRegistry.get(id);
+  if (!p) throw new Error(`Project not found: ${id}`);
+  return p.path;
+}
+
+export function projectExists(idOrSlug: string): boolean {
+  return projectRegistry.has(idOrSlug) || !!getProjectBySlug(idOrSlug);
 }
 
 // ── Project settings (stored in .claude/settings.json) ──────
@@ -151,8 +206,8 @@ function readProjectSettingsAt(projectDir: string): ProjectSettings {
   }
 }
 
-export function readProjectSettings(name: string): ProjectSettings {
-  return readProjectSettingsAt(paths.project(name));
+export function readProjectSettings(id: string): ProjectSettings {
+  return readProjectSettingsAt(projectDir(id));
 }
 
 // ── Project context (everything the SDK runner needs at run time) ──
@@ -205,10 +260,11 @@ export function saveChannelsConfig(config: ChannelsConfig): void {
 }
 
 export function writeProjectSettings(
-  name: string,
+  id: string,
   partial: ProjectSettings,
 ): void {
-  const file = paths.projectSettings(name);
+  const dir = projectDir(id);
+  const file = join(dir, ".claude", "settings.json");
   const dir = join(file, "..");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
@@ -273,89 +329,110 @@ export function listTemplates(): TemplateInfo[] {
   return out;
 }
 
-/** Create a new project by cloning a template. Throws if target exists. */
-export function createProjectFromTemplate(
-  templateId: string,
-  projectName: string,
-): void {
-  // Validate template id shape: "<bu>/<slug>", no path traversal
+/** Helper: ensure projects root, slugify name, check no collision. Returns { slug, dst }. */
+function prepareProjectDir(displayName: string): { slug: string; dst: string } {
+  const slug = displayName.trim().replace(/[^a-zA-Z0-9-_]/g, "-");
+  if (!slug) throw new Error("Invalid project name");
+  const dst = paths.project(slug);
+  if (existsSync(dst)) {
+    // append random suffix to avoid collision
+    const suffix = crypto.randomUUID().slice(0, 3);
+    const altSlug = `${slug}-${suffix}`;
+    const altDst = paths.project(altSlug);
+    if (existsSync(altDst)) throw new Error(`Project already exists: ${slug}`);
+    return { slug: altSlug, dst: altDst };
+  }
+  if (!existsSync(paths.projectsRoot())) mkdirSync(paths.projectsRoot(), { recursive: true });
+  return { slug, dst };
+}
+
+/** Write project.json and register in memory. Returns the new ProjectInfo. */
+function finalizeNewProject(dst: string, slug: string, displayName: string): ProjectInfo {
+  const id = generateProjectId();
+  writeProjectMeta(dst, { id, name: displayName });
+  mkdirSync(join(dst, "sessions"), { recursive: true });
+  const info: ProjectInfo = { id, name: displayName, slug, path: dst, updatedAt: Date.now() };
+  projectRegistry.set(id, info);
+  return info;
+}
+
+/** Create a new project by cloning a template. Returns the new project id. */
+export function createProjectFromTemplate(templateId: string, projectName: string): string {
   if (!/^[a-zA-Z0-9-_]+\/[a-zA-Z0-9-_]+$/.test(templateId)) {
     throw new Error(`Invalid template id: ${templateId}`);
   }
-  const [bu, slug] = templateId.split("/");
-  const src = join(paths.templatesRoot(), bu, slug);
+  const [bu, tmplSlug] = templateId.split("/");
+  const src = join(paths.templatesRoot(), bu, tmplSlug);
   if (!existsSync(src)) throw new Error(`Template not found: ${templateId}`);
 
-  const safeName = projectName.trim().replace(/[^a-zA-Z0-9-_]/g, "-");
-  if (!safeName) throw new Error("Invalid project name");
-  const dst = paths.project(safeName);
-  if (existsSync(dst)) throw new Error(`Project already exists: ${safeName}`);
-
-  // Ensure projects root exists then copy
-  if (!existsSync(paths.projectsRoot())) {
-    mkdirSync(paths.projectsRoot(), { recursive: true });
-  }
+  const { slug, dst } = prepareProjectDir(projectName);
   cpSync(src, dst, { recursive: true });
 
-  // Strip the template metadata file from the clone — it's only used at
-  // gallery time and has no meaning inside an instantiated project.
+  // Strip template metadata
   const tmplMeta = join(dst, "template.json");
-  if (existsSync(tmplMeta)) {
-    try {
-      unlinkSync(tmplMeta);
-    } catch {}
-  }
+  if (existsSync(tmplMeta)) try { unlinkSync(tmplMeta); } catch {}
 
-  // Templates don't ship a sessions/ subdir — every project needs one
-  const sessDir = paths.projectSessions(safeName);
-  if (!existsSync(sessDir)) mkdirSync(sessDir, { recursive: true });
+  const info = finalizeNewProject(dst, slug, projectName);
+  return info.id;
 }
 
-/** Create an empty project scaffold with a minimal CLAUDE.md and the
- *  standard subdirectories. Used by the "Blank project" card in the
- *  welcome gallery. */
-export function createBlankProject(name: string): void {
-  const safeName = name.trim().replace(/[^a-zA-Z0-9-_]/g, "-");
-  if (!safeName) throw new Error("Invalid project name");
-  const dst = paths.project(safeName);
-  if (existsSync(dst)) throw new Error(`Project already exists: ${safeName}`);
-
-  if (!existsSync(paths.projectsRoot())) {
-    mkdirSync(paths.projectsRoot(), { recursive: true });
-  }
+/** Create an empty project scaffold. Returns the new project id. */
+export function createBlankProject(name: string): string {
+  const { slug, dst } = prepareProjectDir(name);
   mkdirSync(dst, { recursive: true });
-  mkdirSync(join(dst, "sessions"), { recursive: true });
-  writeFileSync(
-    join(dst, "CLAUDE.md"),
-    `# ${safeName}\n\nYour project's main agent. Describe who this agent is, what it knows, and how it should behave.\n`,
-  );
+  writeFileSync(join(dst, "CLAUDE.md"), `# ${name}\n\nYour project's main agent.\n`);
+  const info = finalizeNewProject(dst, slug, name);
+  return info.id;
 }
 
-/** Recursively delete a project folder. Throws if it doesn't exist.
- *  Caller is responsible for enforcing "can't delete current / only
- *  project" policy at the API layer. */
-export function deleteProject(name: string): void {
-  const dir = paths.project(name);
-  if (!existsSync(dir)) throw new Error(`Project not found: ${name}`);
-  rmSync(dir, { recursive: true, force: true });
+/** Rename a project (display name + folder). Sessions are unaffected (bound by id). */
+export function renameProject(id: string, newName: string): void {
+  const proj = projectRegistry.get(id);
+  if (!proj) throw new Error(`Project not found: ${id}`);
+  const newSlug = newName.trim().replace(/[^a-zA-Z0-9-_]/g, "-");
+  if (!newSlug) throw new Error("Invalid project name");
+
+  // Update display name in project.json
+  writeProjectMeta(proj.path, { id, name: newName });
+
+  // Rename folder if slug changed
+  if (newSlug !== proj.slug) {
+    const newPath = paths.project(newSlug);
+    if (existsSync(newPath)) throw new Error(`Project folder already exists: ${newSlug}`);
+    const { renameSync } = require("fs");
+    renameSync(proj.path, newPath);
+    proj.path = newPath;
+    proj.slug = newSlug;
+  }
+  proj.name = newName;
 }
 
-/** Clone a project folder. Throws if dst already exists. */
-export function cloneProject(from: string, to: string): void {
-  const src = paths.project(from);
-  const dst = paths.project(to);
-  if (!existsSync(src)) throw new Error(`Source project not found: ${from}`);
-  if (existsSync(dst)) throw new Error(`Target project already exists: ${to}`);
-  cpSync(src, dst, { recursive: true });
-  // Wipe session history in the clone — carry only the project skeleton
-  const sessDir = paths.projectSessions(to);
+/** Delete a project by id. */
+export function deleteProject(id: string): void {
+  const proj = projectRegistry.get(id);
+  if (!proj) throw new Error(`Project not found: ${id}`);
+  rmSync(proj.path, { recursive: true, force: true });
+  projectRegistry.delete(id);
+}
+
+/** Clone a project. Returns the new project id. */
+export function cloneProject(sourceId: string, newName: string): string {
+  const src = projectRegistry.get(sourceId);
+  if (!src) throw new Error(`Source project not found: ${sourceId}`);
+  const { slug, dst } = prepareProjectDir(newName);
+  cpSync(src.path, dst, { recursive: true });
+
+  // Wipe session history in the clone
+  const sessDir = join(dst, "sessions");
   if (existsSync(sessDir)) {
     for (const f of readdirSync(sessDir)) {
       if (f === ".gitkeep") continue;
-      try {
-        unlinkSync(join(sessDir, f));
-      } catch {}
+      try { unlinkSync(join(sessDir, f)); } catch {}
     }
   }
+
+  // New clone gets its own id
+  const info = finalizeNewProject(dst, slug, newName);
+  return info.id;
 }
 
