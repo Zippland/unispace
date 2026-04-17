@@ -77,11 +77,14 @@ export function loadAllSessions(): void {
         const raw = readFileSync(join(dir, file), "utf-8");
         const s: Session = JSON.parse(raw);
         // Backward compat: migrate old projectName → projectId
-        if (!s.projectId && (s as any).projectName) {
+        // Also catch cases where projectId is an old name (not cw_ prefixed)
+        const needsMigration = !s.projectId || (s as any).projectName || !s.projectId.startsWith("cw_");
+        if (needsMigration) {
           s.projectId = proj.id;
           delete (s as any).projectName;
+          // Persist migration to disk
+          try { writeFileSync(join(dir, file), JSON.stringify(s, null, 2)); } catch {}
         }
-        if (!s.projectId) s.projectId = proj.id;
         sessions.set(s.id, s);
       } catch (e) {
         console.error(`  Failed to load session ${file}:`, e);

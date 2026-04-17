@@ -210,11 +210,12 @@ export default function TracesPage() {
                         <p className="truncate text-sm font-medium text-[#141413]">
                           {trace.query_preview || trace.trace_id}
                         </p>
-                        <p className="mt-0.5 text-xs text-[#141413]/50">
-                          {trace.project}
-                          {trace.agent_name ? ` · ${trace.agent_name}` : ""}
-                          {" · "}
-                          {formatTime(trace.created_at)}
+                        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-[#141413]/50">
+                          <span className="rounded bg-[#141413]/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-[#6b6963]">
+                            {trace.project}
+                          </span>
+                          {trace.agent_name && <span>{trace.agent_name}</span>}
+                          <span>{formatTime(trace.created_at)}</span>
                         </p>
                         <p
                           className="mt-0.5 truncate text-[10px] text-[#141413]/30"
