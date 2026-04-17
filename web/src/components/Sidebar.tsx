@@ -113,6 +113,7 @@ export default function Sidebar({
     activeAgent,
     setActiveAgent,
   } = useStore();
+  const currentProjectName = projects.find((p) => p.id === currentProject)?.name || currentProject;
 
   // Project switcher state
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
@@ -369,20 +370,24 @@ export default function Sidebar({
               <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">
                 Pin
               </div>
-              {pinnedProjects.map((name) => (
-                <button
-                  key={name}
-                  onClick={async () => {
-                    await handleSwitchProject(name);
-                    onMiraModeChange("project");
-                  }}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition hover:bg-[#141413]/[0.04] hover:text-[#141413] ${
-                    currentProject === name ? "text-[#141413] font-medium" : "text-[#6b6963]"
-                  }`}
-                >
-                  <span className="truncate">{name}</span>
-                </button>
-              ))}
+              {pinnedProjects.map((pinId) => {
+                const pinProj = projects.find((p) => p.id === pinId);
+                if (!pinProj) return null;
+                return (
+                  <button
+                    key={pinId}
+                    onClick={async () => {
+                      await handleSwitchProject(pinId);
+                      onMiraModeChange("project");
+                    }}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] transition hover:bg-[#141413]/[0.04] hover:text-[#141413] ${
+                      currentProject === pinId ? "text-[#141413] font-medium" : "text-[#6b6963]"
+                    }`}
+                  >
+                    <span className="truncate">{pinProj.name}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -409,7 +414,7 @@ export default function Sidebar({
               <path strokeLinecap="round" strokeLinejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
             </svg>
             <span className="flex-1 truncate font-['Poppins',_Arial,_sans-serif] text-[14px] font-semibold tracking-tight text-[#141413]">
-              {currentProject || "—"}
+              {currentProjectName || "—"}
             </span>
             <svg className="h-3 w-3 shrink-0 text-[#b0aea5] opacity-0 transition group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
@@ -471,7 +476,7 @@ export default function Sidebar({
                   <button
                     onClick={() => {
                       setProjectMenuOpen(false);
-                      setCloneName(`${currentProject}-copy`);
+                      setCloneName(`${currentProjectName}-copy`);
                       setCloneDialog(true);
                     }}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-[#6b6963] transition hover:bg-[#faf9f5]"
@@ -515,7 +520,7 @@ export default function Sidebar({
               Clone project
             </h3>
             <p className="text-[13px] text-[#6b6963] mb-4">
-              Copy <span className="font-mono">{currentProject}</span> to a new project.
+              Copy <span className="font-mono">{currentProjectName}</span> to a new project.
             </p>
             <input
               type="text"

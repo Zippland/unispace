@@ -26,7 +26,9 @@ interface Props {
 }
 
 export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Props) {
-  const { currentProject, activeSessionId, sessions, serverUrl: storeUrl, activeTab } = useStore();
+  const { currentProject, projects, activeSessionId, sessions, serverUrl: storeUrl, activeTab } = useStore();
+  const currentProjectInfo = projects.find((p) => p.id === currentProject);
+  const projectDisplayName = currentProjectInfo?.name || currentProject;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isConversation = !!activeSessionId;
 
@@ -67,7 +69,6 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
   }, [serverUrl, currentProject]);
 
   // ── Project switcher popover ──
-  const { projects } = useStore();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement>(null);
 
@@ -97,7 +98,7 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
     } catch {}
   }
 
-  const otherProjects = projects.filter((p) => p.name !== currentProject && p.name !== "mira");
+  const otherProjects = projects.filter((p) => p.id !== currentProject && p.slug !== "mira");
 
   return (
     <div className="flex h-full w-full">
@@ -163,7 +164,7 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
                   className="flex items-center gap-1 font-medium text-[#6a685d] hover:text-[#29291f]"
                 >
                   {projectEmoji && <span>{projectEmoji}</span>}
-                  <span>{currentProject}</span>
+                  <span>{projectDisplayName}</span>
                 </button>
                 <span className="text-[#6a685d]">/</span>
                 <span className="font-medium text-[#29291f]">{activeSessionTitle}</span>
@@ -191,7 +192,7 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
                   className="flex items-center gap-2 text-[30px] font-light tracking-tight text-[#29291f] hover:text-[#6a685d]"
                 >
                   {projectEmoji && <span className="text-[30px]">{projectEmoji}</span>}
-                  <span>{currentProject || "Untitled"}</span>
+                  <span>{projectDisplayName || "Untitled"}</span>
                   <svg className={`h-4 w-4 text-[#9f9c93] transition ${switcherOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                   </svg>
