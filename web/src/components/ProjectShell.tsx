@@ -36,7 +36,8 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
     onModeChange("new_chat");
     useStore.getState().setActiveSession(null);
     useStore.getState().setActiveTab(null);
-    api.switchProject(storeUrl, "mira").then(async () => {
+    const mira = projects.find((p) => p.slug === "mira");
+    (mira ? api.switchProject(storeUrl, mira.id) : Promise.resolve()).then(async () => {
       const [p, s, f] = await Promise.all([
         api.fetchProjects(storeUrl),
         api.fetchSessions(storeUrl),

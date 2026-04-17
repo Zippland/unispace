@@ -39,12 +39,11 @@ export async function fetchProjects(url: string) {
   }>;
 }
 
-export async function switchProject(url: string, idOrName: string) {
-  // Send both id and name — server resolves whichever matches
+export async function switchProject(url: string, projectId: string): Promise<{ ok: boolean; current: string }> {
   const res = await fetch(`${url}/api/projects/current`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: idOrName, name: idOrName }),
+    body: JSON.stringify({ id: projectId }),
   });
   if (!res.ok) throw new Error("Failed to switch project");
   return res.json();
@@ -109,7 +108,7 @@ export async function createProjectFromTemplate(
   url: string,
   templateId: string,
   projectName: string,
-) {
+): Promise<{ ok: boolean; id: string; name: string }> {
   const res = await fetch(`${url}/api/projects/from-template`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -122,7 +121,7 @@ export async function createProjectFromTemplate(
   return res.json();
 }
 
-export async function createBlankProject(url: string, projectName: string) {
+export async function createBlankProject(url: string, projectName: string): Promise<{ ok: boolean; id: string; name: string }> {
   const res = await fetch(`${url}/api/projects/blank`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

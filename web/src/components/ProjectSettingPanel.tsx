@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useStore, type FileEntry } from "../store";
+import { useStore, type FileEntry, type SessionInfo } from "../store";
 import * as api from "../api";
 import FilesPanel, { type FilesPanelHandle } from "./FilesPanel";
 import DataSourcePanel from "./DataSourcePanel";
@@ -316,13 +316,13 @@ function DatasourceCardContent() {
 
 function SessionQuickPicker({ onClose }: { onClose: () => void }) {
   const { serverUrl, currentProject, projects } = useStore();
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     api.fetchSessions(serverUrl, true)
-      .then((list: any[]) => setSessions(list.filter((s: any) => s.projectId !== currentProject)))
+      .then((list: SessionInfo[]) => setSessions(list.filter((s) => s.projectId !== currentProject)))
       .catch(() => setSessions([]))
       .finally(() => setLoading(false));
   }, [serverUrl, currentProject]);
@@ -354,7 +354,7 @@ function SessionQuickPicker({ onClose }: { onClose: () => void }) {
         <p className="text-[11px] text-[#b0aea5]">No sessions from other projects</p>
       ) : (
         <div className="space-y-1 max-h-[200px] overflow-y-auto">
-          {sessions.map((s: any) => (
+          {sessions.map((s) => (
             <div key={s.id} className="flex items-center gap-2 rounded-md px-1 py-1.5 text-[12px] hover:bg-white">
               <span className="shrink-0 rounded bg-[#141413]/[0.06] px-1 py-0.5 text-[10px] font-medium text-[#6b6963]">{projectName(s.projectId)}</span>
               <span className="min-w-0 flex-1 truncate text-[#29291f]">{s.title || s.id.slice(0, 8)}</span>

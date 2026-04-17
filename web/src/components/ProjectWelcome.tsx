@@ -18,8 +18,8 @@ import {
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
-  onProjectCreated: (name: string) => Promise<void> | void;
-  onSelectExisting?: (name: string) => Promise<void> | void;
+  onProjectCreated: (projectId: string) => Promise<void> | void;
+  onSelectExisting?: (projectId: string) => Promise<void> | void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -114,7 +114,7 @@ export default function ProjectWelcome({
 
   // ── Projects (My Project tab) ───────────────────────────────
   const sortedProjects = useMemo(() => {
-    let list = [...projects].filter((p) => p.name !== "mira").sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    let list = [...projects].filter((p) => p.slug !== "mira").sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     if (search) {
       const q = search.toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q));
@@ -230,13 +230,13 @@ export default function ProjectWelcome({
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-[#fafaf7]">
       {/* ── Top header ─────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-4 border-b border-[rgba(41,41,31,0.1)] bg-white px-8 py-4">
+      <div className="flex shrink-0 items-center gap-4 px-8 py-4">
         <h1 className="font-['Poppins',_Arial,_sans-serif] text-[16px] font-medium text-[#29291f]">
           Project
         </h1>
         <div className="flex-1" />
         {/* Search */}
-        <div className="flex w-[240px] items-center gap-2 rounded-full border border-[#e3e3de] bg-white px-3 py-1.5">
+        <div className="flex w-[240px] items-center gap-2 rounded-full border border-[#e3e3de] bg-[#fafaf7] px-3 py-1.5">
           <svg className="h-3.5 w-3.5 shrink-0 text-[#9f9c93]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
@@ -260,7 +260,7 @@ export default function ProjectWelcome({
       </div>
 
       {/* ── Tab bar ────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-6 border-b border-[rgba(41,41,31,0.1)] bg-white px-8">
+      <div className="flex shrink-0 items-center gap-6 px-8">
         {(["my_project", "market"] as const).map((t) => {
           const label = t === "my_project" ? "My Project" : "Market";
           const active = tab === t;
@@ -286,7 +286,7 @@ export default function ProjectWelcome({
         {tab === "my_project" ? (
           <MyProjectGrid
             projects={sortedProjects}
-            onSelect={(name) => onSelectExisting?.(name)}
+            onSelect={(id) => onSelectExisting?.(id)}
             onCtxMenu={setCtxMenu}
           />
         ) : (

@@ -163,7 +163,7 @@ export function GlobalRecentsList({ onNavigate }: { onNavigate?: () => void } = 
 
   async function openSession(s: SessionInfo) {
     // Switch to the session's project so ChatPanel has the right context
-    const pid = s.projectId || s.projectName;
+    const pid = s.projectId;
     if (pid) {
       try {
         await api.switchProject(serverUrl, pid);

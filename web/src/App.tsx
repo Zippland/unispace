@@ -120,9 +120,9 @@ export default function App() {
   // current project on the server, refreshes client state, then
   // enters project mode.
   const openProject = useCallback(
-    async (name: string) => {
+    async (projectId: string) => {
       try {
-        await api.switchProject(serverUrl, name);
+        await api.switchProject(serverUrl, projectId);
         const [projectsResp, sessions, files] = await Promise.all([
           api.fetchProjects(serverUrl),
           api.fetchSessions(serverUrl),
@@ -169,9 +169,10 @@ export default function App() {
       setFiles(files);
 
       // Ensure mira project is active on initial load (home page)
-      if (projectsResp.current !== "mira") {
+      const miraProject = projectsResp.projects.find((p: any) => p.slug === "mira");
+      if (miraProject && projectsResp.current !== miraProject.id) {
         try {
-          await api.switchProject(url, "mira");
+          await api.switchProject(url, miraProject.id);
           const [p2, s2, f2] = await Promise.all([
             api.fetchProjects(url),
             api.fetchSessions(url),

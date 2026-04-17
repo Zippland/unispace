@@ -329,7 +329,7 @@ export default function Sidebar({
                 setActiveSession(null);
                 setActiveTab(null);
                 // Switch back to mira project so Recents/ChatPanel show mira sessions
-                const mira = projects.find((p) => p.slug === "mira" || p.name === "mira");
+                const mira = projects.find((p) => p.slug === "mira");
                 (mira ? api.switchProject(serverUrl, mira.id) : Promise.resolve()).then(async () => {
                   const [p, s, f] = await Promise.all([
                     api.fetchProjects(serverUrl),

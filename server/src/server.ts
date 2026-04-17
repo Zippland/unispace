@@ -13,7 +13,6 @@ import {
   paths,
   listProjects,
   getProjectById,
-  getProjectBySlug,
   projectDir,
   projectExists,
   cloneProject,
@@ -457,10 +456,8 @@ export function createServer(_initialConfig: Config) {
   });
 
   app.put("/api/projects/current", async (c) => {
-    const body = await c.req.json();
-    // Accept { id } or { name } (backward compat)
-    let resolved = body.id ? getProjectById(body.id) : undefined;
-    if (!resolved && body.name) resolved = getProjectBySlug(body.name);
+    const { id } = await c.req.json();
+    const resolved = id ? getProjectById(id) : undefined;
     if (!resolved) {
       return c.json({ error: "Project not found" }, 404);
     }
