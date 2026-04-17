@@ -154,12 +154,14 @@ export default function ProjectWelcome({
     setCreating(true);
     setError("");
     try {
+      let result: { id?: string; name?: string };
       if (pending.id === "__blank__") {
-        await api.createBlankProject(serverUrl, pendingName.trim());
+        result = await api.createBlankProject(serverUrl, pendingName.trim());
       } else {
-        await api.createProjectFromTemplate(serverUrl, pending.id, pendingName.trim());
+        result = await api.createProjectFromTemplate(serverUrl, pending.id, pendingName.trim());
       }
-      await onProjectCreated(pendingName.trim());
+      // Use the server-returned id (not the user-typed name) to switch
+      await onProjectCreated(result.id || pendingName.trim());
       setPending(null);
     } catch (e: any) {
       setError(e?.message || "Failed to create");
