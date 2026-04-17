@@ -104,12 +104,17 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
     <div className="flex h-full w-full">
       {/* ═══ Left sidebar: collapsed (68px icons) / expanded (240px full) ═══ */}
       {sidebarOpen ? (
-        <div className="flex w-[240px] shrink-0 flex-col bg-white/60 overflow-hidden">
-          {/* Logo + brand */}
-          <div className="flex items-center px-5 pt-5">
+        <div className="flex w-[240px] shrink-0 flex-col bg-[#f2f2ee] overflow-hidden">
+          {/* Logo + collapse toggle */}
+          <div className="flex items-center justify-between px-5 pt-5">
             <button onClick={goHome} className="flex items-center gap-2 rounded-md text-left transition">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#141413] text-[14px]">🐱</div>
               <span className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">Mira</span>
+            </button>
+            <button onClick={() => setSidebarOpen(false)} title="Collapse" className="flex h-6 w-6 items-center justify-center rounded-md text-[#9f9c93] transition hover:bg-[rgba(41,41,31,0.06)] hover:text-[#29291f]">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
             </button>
           </div>
 
@@ -154,15 +159,10 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
 
           {/* User chip */}
           <div className="flex items-center gap-2 border-t border-[#e8e6dc] px-4 py-3">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#d97757] text-[11px] font-semibold text-white">Z</div>
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#29291f] text-[11px] font-semibold text-white">Z</div>
             <div className="flex-1 min-w-0">
               <div className="truncate text-[12px] font-medium text-[#141413]">Mira user</div>
             </div>
-            <button onClick={() => setSidebarOpen(false)} className="text-[#b0aea5] hover:text-[#141413]" title="Collapse">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-              </svg>
-            </button>
           </div>
         </div>
       ) : (
