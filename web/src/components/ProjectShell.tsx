@@ -102,65 +102,35 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
 
   return (
     <div className="flex h-full w-full">
-      {/* ═══ Left icon strip (Figma: 68px, bg #f2f2ee) ═══ */}
-      <div className="flex w-[68px] shrink-0 flex-col items-center bg-[#f2f2ee] px-[12px]">
-        {/* Logo */}
-        <div className="flex h-[52px] items-center justify-center pt-[20px]">
-          <button onClick={goHome} title="Mira Home" className="flex size-[22px] items-center justify-center text-[16px]">🐱</button>
-        </div>
+      {/* ═══ Left sidebar: collapsed (68px icons) / expanded (240px full) ═══ */}
+      {sidebarOpen ? (
+        <div className="flex w-[240px] shrink-0 flex-col bg-white/60 overflow-hidden">
+          {/* Logo + brand */}
+          <div className="flex items-center px-5 pt-5">
+            <button onClick={goHome} className="flex items-center gap-2 rounded-md text-left transition">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#141413] text-[14px]">🐱</div>
+              <span className="font-['Poppins',_Arial,_sans-serif] text-[15px] font-semibold text-[#141413]">Mira</span>
+            </button>
+          </div>
 
-        {/* Nav icons */}
-        <nav className="flex flex-1 flex-col items-center gap-[4px]">
-          <NavIcon
-            label="Sidebar"
-            active={sidebarOpen}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-          />
-          <NavIcon
-            label="Search"
-            active={false}
-            d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-          />
-          <NavIcon
-            label="New Chat"
-            active={miraMode === "new_chat"}
-            onClick={goHome}
-            d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 0 1-.923 1.785A5.969 5.969 0 0 0 6 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337Z"
-          />
-          <NavIcon
-            label="Task"
-            active={false}
-            d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-          />
-          <NavIcon
-            label="Project"
-            active={miraMode === "CATWORK" || miraMode === "project"}
-            onClick={() => onModeChange("CATWORK")}
-            d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"
-          />
-          <NavIcon
-            label="Market"
-            active={false}
-            d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z"
-          />
-        </nav>
+          {/* Nav */}
+          <nav className="mt-4 flex flex-col px-3">
+            <SidebarNavBtn label="New Chat" active={miraMode === "new_chat"} onClick={goHome}
+              d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 0 1-.923 1.785A5.969 5.969 0 0 0 6 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337Z" />
+            <SidebarNavBtn label="Task" active={false}
+              d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            <SidebarNavBtn label="Project" active={miraMode === "CATWORK" || miraMode === "project"} onClick={() => onModeChange("CATWORK")}
+              d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+            <SidebarNavBtn label="Market" active={false} onClick={() => onModeChange("CATWORK")}
+              d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+          </nav>
 
-        {/* User avatar */}
-        <div className="flex items-center justify-center py-[16px]">
-          <div className="flex size-[24px] items-center justify-center rounded-full bg-[#29291f] text-[10px] font-semibold text-white">Z</div>
-        </div>
-      </div>
-
-      {/* ═══ Expanded sidebar (mira sidebar collapsed → expanded) ═══ */}
-      {sidebarOpen && (
-        <div className="flex w-[240px] shrink-0 flex-col border-r border-[#e8e6dc] bg-[#fafaf7]">
           {/* Pin */}
           {pinnedProjects.length > 0 && (
-            <div className="border-b border-[#e8e6dc] px-3 py-3">
-              <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#9f9c93]">Pin</div>
+            <div className="mt-3 border-t border-[#e8e6dc] px-3 pt-3">
+              <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#b0aea5]">Pin</div>
               {pinnedProjects.map((pinId) => {
-                const p = projects.find((p) => p.id === pinId);
+                const p = projects.find((pr) => pr.id === pinId);
                 if (!p) return null;
                 return (
                   <button key={pinId} onClick={async () => {
@@ -176,9 +146,51 @@ export default function ProjectShell({ miraMode, onModeChange, onOpenFile }: Pro
               })}
             </div>
           )}
+
           {/* Recents */}
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="mt-3 flex min-h-0 flex-1 flex-col border-t border-[#e8e6dc] pt-3">
             <GlobalRecentsList onNavigate={() => setSidebarOpen(false)} />
+          </div>
+
+          {/* User chip */}
+          <div className="flex items-center gap-2 border-t border-[#e8e6dc] px-4 py-3">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#d97757] text-[11px] font-semibold text-white">Z</div>
+            <div className="flex-1 min-w-0">
+              <div className="truncate text-[12px] font-medium text-[#141413]">Mira user</div>
+            </div>
+            <button onClick={() => setSidebarOpen(false)} className="text-[#b0aea5] hover:text-[#141413]" title="Collapse">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex w-[68px] shrink-0 flex-col items-center bg-[#f2f2ee] px-[12px]">
+          {/* Logo */}
+          <div className="flex h-[52px] items-center justify-center pt-[20px]">
+            <button onClick={goHome} title="Mira Home" className="flex size-[22px] items-center justify-center text-[16px]">🐱</button>
+          </div>
+
+          {/* Nav icons */}
+          <nav className="flex flex-1 flex-col items-center gap-[4px]">
+            <NavIcon label="Sidebar" active={false} onClick={() => setSidebarOpen(true)}
+              d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            <NavIcon label="Search" active={false}
+              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            <NavIcon label="New Chat" active={miraMode === "new_chat"} onClick={goHome}
+              d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 0 1-.923 1.785A5.969 5.969 0 0 0 6 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337Z" />
+            <NavIcon label="Task" active={false}
+              d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            <NavIcon label="Project" active={miraMode === "CATWORK" || miraMode === "project"} onClick={() => onModeChange("CATWORK")}
+              d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+            <NavIcon label="Market" active={false}
+              d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+          </nav>
+
+          {/* User avatar */}
+          <div className="flex items-center justify-center py-[16px]">
+            <div className="flex size-[24px] items-center justify-center rounded-full bg-[#29291f] text-[10px] font-semibold text-white">Z</div>
           </div>
         </div>
       )}
@@ -274,6 +286,28 @@ function IconBtn({ d }: { d: string }) {
       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d={d} />
       </svg>
+    </button>
+  );
+}
+
+function SidebarNavBtn({ label, active, onClick, d }: {
+  label: string; active: boolean; onClick?: () => void; d: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition ${
+        active
+          ? "bg-[#141413]/[0.05] text-[#141413] font-medium"
+          : "text-[#6b6963] hover:bg-[#141413]/[0.03] hover:text-[#141413]"
+      }`}
+    >
+      <span className={`inline-flex h-5 w-5 items-center justify-center ${active ? "text-[#d97757]" : "text-[#b0aea5]"}`}>
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+        </svg>
+      </span>
+      <span>{label}</span>
     </button>
   );
 }
