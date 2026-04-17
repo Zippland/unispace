@@ -196,9 +196,7 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
 
         {/* ── 4. Datasource ── */}
         {visibleCards.has("datasource") && <SettingSection title="Datasource" open={openCards.datasource} onToggle={() => toggleCard("datasource")}>
-          <div className="max-h-[300px] overflow-y-auto -mx-[12px] -mb-[12px]">
-            <DataSourcePanel pickerOpen={false} onClosePicker={() => {}} />
-          </div>
+          <DatasourceCardContent />
         </SettingSection>}
 
         {/* ── 5. Skill ── */}
@@ -271,6 +269,106 @@ function SettingSection({ title, open, onToggle, children }: {
 }
 
 // ── ConnectorSummaryList ─────────────────────────────────────
+
+function DatasourceCardContent() {
+  const { serverUrl } = useStore();
+  const [dragOver, setDragOver] = useState(false);
+  const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (!e.dataTransfer.types.includes("x-unispace-drag")) return;
+    const dragType = e.dataTransfer.getData("x-unispace-drag");
+    if (dragType !== "session") return;
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      if (data.sessionId) {
+        await api.mountSessionAsDatasource(serverUrl, data.sessionId);
+        setRefreshKey((k) => k + 1);
+      }
+    } catch {}
+  }
+
+  return (
+    <div
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("x-unispace-drag")) { e.preventDefault(); setDragOver(true); } }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      className={`transition ${dragOver ? "rounded-lg ring-2 ring-[#d97757] ring-offset-2" : ""}`}
+    >
+      <div className="max-h-[300px] overflow-y-auto -mx-[12px]" key={refreshKey}>
+        <DataSourcePanel pickerOpen={false} onClosePicker={() => {}} />
+      </div>
+      {sessionPickerOpen ? (
+        <SessionQuickPicker onClose={() => { setSessionPickerOpen(false); setRefreshKey((k) => k + 1); }} />
+      ) : (
+        <button onClick={() => setSessionPickerOpen(true)}
+          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#e8e6dc] py-2 text-[11px] text-[#9f9c93] transition hover:border-[#d97757] hover:text-[#d97757]">
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" /></svg>
+          Mount session
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SessionQuickPicker({ onClose }: { onClose: () => void }) {
+  const { serverUrl, currentProject, projects } = useStore();
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.fetchSessions(serverUrl, true)
+      .then((list: any[]) => setSessions(list.filter((s: any) => s.projectId !== currentProject)))
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false));
+  }, [serverUrl, currentProject]);
+
+  function projectName(id?: string) {
+    return projects.find((p) => p.id === id)?.name || (id || "").slice(0, 8);
+  }
+
+  async function handleMount(sessionId: string) {
+    setBusy(sessionId);
+    try {
+      await api.mountSessionAsDatasource(serverUrl, sessionId);
+      onClose();
+    } catch {}
+    setBusy(null);
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] p-2">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-medium text-[#6b6963]">Mount a session</span>
+        <button onClick={onClose} className="text-[#b0aea5] hover:text-[#141413]">
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+      {loading ? (
+        <p className="text-[11px] text-[#b0aea5]">Loading...</p>
+      ) : sessions.length === 0 ? (
+        <p className="text-[11px] text-[#b0aea5]">No sessions from other projects</p>
+      ) : (
+        <div className="space-y-1 max-h-[200px] overflow-y-auto">
+          {sessions.map((s: any) => (
+            <div key={s.id} className="flex items-center gap-2 rounded-md px-1 py-1.5 text-[12px] hover:bg-white">
+              <span className="shrink-0 rounded bg-[#141413]/[0.06] px-1 py-0.5 text-[10px] font-medium text-[#6b6963]">{projectName(s.projectId)}</span>
+              <span className="min-w-0 flex-1 truncate text-[#29291f]">{s.title || s.id.slice(0, 8)}</span>
+              <button onClick={() => handleMount(s.id)} disabled={busy === s.id}
+                className="shrink-0 text-[10px] text-[#d97757] hover:underline disabled:opacity-50">
+                {busy === s.id ? "..." : "Mount"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ConnectorSummaryList({ onRefresh }: { onRefresh?: () => void }) {
   const { serverUrl, connected, currentProject } = useStore();

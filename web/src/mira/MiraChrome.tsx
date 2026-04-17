@@ -205,6 +205,11 @@ export function GlobalRecentsList({ onNavigate }: { onNavigate?: () => void } = 
               <button
                 key={s.id}
                 onClick={() => openSession(s)}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("application/json", JSON.stringify({ type: "session", sessionId: s.id, title: s.title || s.id.slice(0, 8), projectId: s.projectId }));
+                  e.dataTransfer.setData("x-unispace-drag", "session");
+                }}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[#6a685d] transition hover:bg-[rgba(41,41,31,0.04)] hover:text-[#29291f]"
               >
                 {pName && pName !== "mira" && (
