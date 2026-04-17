@@ -263,10 +263,10 @@ export function writeProjectSettings(
   id: string,
   partial: ProjectSettings,
 ): void {
-  const dir = projectDir(id);
-  const file = join(dir, ".claude", "settings.json");
-  const dir = join(file, "..");
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const projPath = projectDir(id);
+  const file = join(projPath, ".claude", "settings.json");
+  const settingsDir = join(file, "..");
+  if (!existsSync(settingsDir)) mkdirSync(settingsDir, { recursive: true });
 
   let existing: Record<string, unknown> = {};
   if (existsSync(file)) {
