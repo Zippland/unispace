@@ -1066,7 +1066,7 @@ export function createServer(_initialConfig: Config) {
       try {
         for await (const event of runAgent({
           prompt: expandedPrompt,
-          cwd: projectDir,
+          cwd: projDir,
           resumeSessionId: session.sdkSessionId,
           signal: ac.signal,
           agentName,
