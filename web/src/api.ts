@@ -39,11 +39,12 @@ export async function fetchProjects(url: string) {
   }>;
 }
 
-export async function switchProject(url: string, id: string) {
+export async function switchProject(url: string, idOrName: string) {
+  // Send both id and name — server resolves whichever matches
   const res = await fetch(`${url}/api/projects/current`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ id: idOrName, name: idOrName }),
   });
   if (!res.ok) throw new Error("Failed to switch project");
   return res.json();

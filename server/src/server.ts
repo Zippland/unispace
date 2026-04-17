@@ -13,6 +13,7 @@ import {
   paths,
   listProjects,
   getProjectById,
+  getProjectBySlug,
   projectDir,
   projectExists,
   cloneProject,
@@ -455,14 +456,17 @@ export function createServer(_initialConfig: Config) {
   });
 
   app.put("/api/projects/current", async (c) => {
-    const { id } = await c.req.json();
-    if (!id || !getProjectById(id)) {
+    const body = await c.req.json();
+    // Accept { id } or { name } (backward compat)
+    let resolved = body.id ? getProjectById(body.id) : undefined;
+    if (!resolved && body.name) resolved = getProjectBySlug(body.name);
+    if (!resolved) {
       return c.json({ error: "Project not found" }, 404);
     }
     const cfg = loadConfig();
-    cfg.currentProject = id;
+    cfg.currentProject = resolved.id;
     saveConfig(cfg);
-    return c.json({ ok: true, current: id });
+    return c.json({ ok: true, current: resolved.id });
   });
 
   app.post("/api/projects/rename", async (c) => {
