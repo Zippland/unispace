@@ -61,6 +61,8 @@ export interface SessionInfo {
   title?: string;
   channel?: string;
   messageCount: number;
+  projectId?: string;
+  /** @deprecated use projectId */
   projectName?: string;
 }
 

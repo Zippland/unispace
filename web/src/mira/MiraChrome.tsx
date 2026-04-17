@@ -144,7 +144,7 @@ import { useStore, type SessionInfo } from "../store";
 import * as api from "../api";
 
 export function GlobalRecentsList({ onNavigate }: { onNavigate?: () => void } = {}) {
-  const { serverUrl, setActiveSession, setActiveTab, setSessionMessages, messages } = useStore();
+  const { serverUrl, projects, setActiveSession, setActiveTab, setSessionMessages, messages } = useStore();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
 
   useEffect(() => {
@@ -155,11 +155,18 @@ export function GlobalRecentsList({ onNavigate }: { onNavigate?: () => void } = 
 
   const sorted = [...allSessions].sort((a, b) => b.createdAt - a.createdAt);
 
+  function projectName(id?: string): string | undefined {
+    if (!id) return undefined;
+    const p = projects.find((p) => p.id === id);
+    return p?.name;
+  }
+
   async function openSession(s: SessionInfo) {
     // Switch to the session's project so ChatPanel has the right context
-    if (s.projectName) {
+    const pid = s.projectId || s.projectName;
+    if (pid) {
       try {
-        await api.switchProject(serverUrl, s.projectName);
+        await api.switchProject(serverUrl, pid);
         const [p, sess, f] = await Promise.all([
           api.fetchProjects(serverUrl),
           api.fetchSessions(serverUrl),
@@ -192,20 +199,23 @@ export function GlobalRecentsList({ onNavigate }: { onNavigate?: () => void } = 
         {sorted.length === 0 ? (
           <p className="px-2 py-4 text-[12px] text-[#9f9c93]">No sessions yet</p>
         ) : (
-          sorted.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => openSession(s)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[#6a685d] transition hover:bg-[rgba(41,41,31,0.04)] hover:text-[#29291f]"
-            >
-              {s.projectName && s.projectName !== "mira" && (
-                <span className="shrink-0 rounded bg-[#f2f2ee] px-1.5 py-0.5 text-[10px] text-[#6a685d]">
-                  {s.projectName}
-                </span>
-              )}
-              <span className="truncate">{s.title || s.id}</span>
-            </button>
-          ))
+          sorted.map((s) => {
+            const pName = projectName(s.projectId);
+            return (
+              <button
+                key={s.id}
+                onClick={() => openSession(s)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[#6a685d] transition hover:bg-[rgba(41,41,31,0.04)] hover:text-[#29291f]"
+              >
+                {pName && pName !== "mira" && (
+                  <span className="shrink-0 rounded bg-[#141413]/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-[#6b6963]">
+                    {pName}
+                  </span>
+                )}
+                <span className="truncate">{s.title || s.id}</span>
+              </button>
+            );
+          })
         )}
       </div>
     </div>
