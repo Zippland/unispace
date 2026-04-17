@@ -309,7 +309,7 @@ export default function Sidebar({
   const inProject = miraMode === "project";
 
   return (
-    <div className="flex flex-col h-full bg-white/60 overflow-hidden">
+    <div className="flex flex-col h-full bg-[#f2f2ee] overflow-hidden">
       {/* ── Mira brand ────────────────────────────────────── */}
       {/*   Project mode: brand gets a "/ Project" chip and acts as a
            back button to the mode hub. Other modes: plain brand. */}
