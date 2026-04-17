@@ -84,17 +84,6 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
     });
   }, []);
 
-  // ── Card expand/collapse ──
-  const [openCards, setOpenCards] = useState<Record<string, boolean>>({
-    persona: true,
-    files: false,
-    datasource: false,
-    skills: false,
-    connectors: false,
-    dispatch: false,
-  });
-  const toggleCard = (k: string) => setOpenCards((p) => ({ ...p, [k]: !p[k] }));
-
   // ── Persona (CLAUDE.md) ──
   const hasClaude = files.some((f) => f.name === "CLAUDE.md");
   const [claudeContent, setClaudeContent] = useState<string | null>(null);
@@ -121,9 +110,10 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
   const [connectorRefreshKey, setConnectorRefreshKey] = useState(0);
 
   return (
-    <div className="w-[320px] shrink-0 overflow-y-auto p-3 space-y-3">
-        {/* ── Settings gear ── */}
-        <div className="flex justify-end" ref={settingsRef}>
+    <div className="w-[380px] shrink-0 overflow-y-auto p-3 space-y-3">
+        {/* ── Settings header ── */}
+        <div className="flex items-center justify-between" ref={settingsRef}>
+          <span className="text-[14px] font-semibold text-[#6a685d]">Setting</span>
           <div className="relative">
             <button
               onClick={() => setSettingsOpen(!settingsOpen)}
@@ -136,26 +126,40 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
               </svg>
             </button>
             {settingsOpen && (
-              <div className="absolute right-0 top-8 z-10 w-[180px] rounded-[10px] border border-[rgba(41,41,31,0.1)] bg-white py-1 shadow-lg">
-                {ALL_CARDS.map((c) => (
-                  <button
-                    key={c.key}
-                    onClick={() => toggleVisible(c.key)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-[#29291f] hover:bg-[rgba(41,41,31,0.04)]"
-                  >
-                    <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] ${visibleCards.has(c.key) ? "border-[#29291f] bg-[#29291f] text-white" : "border-[#b0aea5]"}`}>
-                      {visibleCards.has(c.key) && "\u2713"}
-                    </span>
-                    <span>{c.label}</span>
-                  </button>
-                ))}
+              <div className="absolute right-0 top-8 z-10 w-[220px] rounded-[12px] border border-[rgba(41,41,31,0.1)] bg-white py-2 shadow-[0_8px_24px_rgba(20,20,19,0.12)]">
+                {ALL_CARDS.map((c) => {
+                  const visible = visibleCards.has(c.key);
+                  return (
+                    <button
+                      key={c.key}
+                      onClick={() => toggleVisible(c.key)}
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] hover:bg-[rgba(41,41,31,0.03)]"
+                    >
+                      {/* Drag handle dots */}
+                      <svg className="h-4 w-4 shrink-0 text-[#b0aea5]" viewBox="0 0 16 16" fill="currentColor">
+                        <circle cx="5" cy="4" r="1.2" /><circle cx="11" cy="4" r="1.2" />
+                        <circle cx="5" cy="8" r="1.2" /><circle cx="11" cy="8" r="1.2" />
+                        <circle cx="5" cy="12" r="1.2" /><circle cx="11" cy="12" r="1.2" />
+                      </svg>
+                      <span className="flex-1 text-[#29291f]">{c.label}</span>
+                      {/* Eye icon */}
+                      <svg className={`h-4 w-4 shrink-0 ${visible ? "text-[#9f9c93]" : "text-[#b0aea5]/50"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        {visible ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12c1.292 4.338 5.31 7.5 10.066 7.5.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                        )}
+                      </svg>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
 
         {/* ── 1. Persona ── */}
-        {visibleCards.has("persona") && <SettingSection title="Persona" open={openCards.persona} onToggle={() => toggleCard("persona")}>
+        {visibleCards.has("persona") && <SettingSection title="Instructions/Memory">
           {claudeContent != null ? (
             <div>
               <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-[#29291f]">
@@ -183,7 +187,7 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
         </SettingSection>}
 
         {/* ── 2. Files ── */}
-        {visibleCards.has("files") && <SettingSection title="Files" open={openCards.files} onToggle={() => toggleCard("files")}>
+        {visibleCards.has("files") && <SettingSection title="Files">
           <div className="max-h-[300px] overflow-y-auto -mx-[12px]">
             <FilesPanel ref={filesPanelRef} onOpenFile={onOpenFile} />
           </div>
@@ -195,13 +199,13 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
         </SettingSection>}
 
         {/* ── 4. Datasource ── */}
-        {visibleCards.has("datasource") && <SettingSection title="Datasource" open={openCards.datasource} onToggle={() => toggleCard("datasource")}>
+        {visibleCards.has("datasource") && <SettingSection title="Data Source">
           <DatasourceCardContent />
         </SettingSection>}
 
         {/* ── 5. Skill ── */}
         {visibleCards.has("skills") && (
-          <SettingSection title="Skills" open={openCards.skills} onToggle={() => toggleCard("skills")}>
+          <SettingSection title="Skills">
             <div className="space-y-1">
               {skillsList.map((s) => (
                 <button key={s.path} onClick={() => onOpenFile(s.path, s.name)} className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-[14px] text-[#29291f] hover:bg-[rgba(41,41,31,0.06)]">
@@ -229,7 +233,7 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
         )}
 
         {/* ── 7. Connector ── */}
-        {visibleCards.has("connectors") && <SettingSection title="Connector" open={openCards.connectors} onToggle={() => toggleCard("connectors")}>
+        {visibleCards.has("connectors") && <SettingSection title="Connector">
           <ConnectorSummaryList onRefresh={() => setConnectorRefreshKey((k) => k + 1)} />
           {connectorPickerOpen ? (
             <ConnectorCatalogPicker onClose={() => { setConnectorPickerOpen(false); setConnectorRefreshKey((k) => k + 1); }} />
@@ -243,7 +247,7 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
         </SettingSection>}
 
         {/* ── 8. Dispatch ── */}
-        {visibleCards.has("dispatch") && <SettingSection title="Dispatch" open={openCards.dispatch} onToggle={() => toggleCard("dispatch")}>
+        {visibleCards.has("dispatch") && <SettingSection title="Dispatch">
           <DispatchSummaryList />
         </SettingSection>}
     </div>
@@ -252,18 +256,13 @@ export default function ProjectSettingPanel({ onOpenFile }: Props) {
 
 // ── SettingSection (collapsible card) ────────────────────────
 
-function SettingSection({ title, open, onToggle, children }: {
-  title: string; open: boolean; onToggle: () => void; children: React.ReactNode;
+function SettingSection({ title, children }: {
+  title: string; children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-[12px] border border-[rgba(41,41,31,0.1)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-      <button onClick={onToggle} className="flex w-full items-center gap-2 px-[12px] py-3 text-left hover:bg-[rgba(41,41,31,0.03)]">
-        <span className="flex-1 text-[14px] font-light text-[#9f9c93]">{title}</span>
-        <svg className={`h-3 w-3 text-[#9f9c93] transition ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-        </svg>
-      </button>
-      {open && <div className="px-[12px] pb-[12px]">{children}</div>}
+    <div className="rounded-[12px] border border-[rgba(41,41,31,0.08)] bg-[#fafaf7] transition hover:shadow-[0_4px_16px_rgba(20,20,19,0.08)]">
+      <div className="px-[14px] pt-3 pb-1 text-[14px] font-light text-[#9f9c93]">{title}</div>
+      <div className="px-[14px] pb-[14px]">{children}</div>
     </div>
   );
 }
