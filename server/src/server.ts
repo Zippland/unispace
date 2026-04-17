@@ -12,14 +12,18 @@ import {
   saveChannelsConfig,
   paths,
   listProjects,
+  getProjectById,
+  projectDir,
   projectExists,
   cloneProject,
   createBlankProject,
   deleteProject,
+  renameProject,
   listTemplates,
   createProjectFromTemplate,
   readProjectSettings,
   writeProjectSettings,
+  loadProjectRegistry,
 } from "./config";
 import {
   createSession,
@@ -229,17 +233,22 @@ async function listDir(
 
 function currentProjectDir(): string {
   const cfg = loadConfig();
-  return paths.project(cfg.currentProject);
+  return projectDir(cfg.currentProject);
 }
 
 // ── Server ────────────────────────────────────────────────────
 
 export function createServer(_initialConfig: Config) {
+  // Ensure project registry is loaded
+  loadProjectRegistry();
+
   // Ensure the "mira" home project exists (Mira main workspace)
   if (!projectExists("mira")) {
     const miraDir = paths.project("mira");
     mkdirSync(join(miraDir, "sessions"), { recursive: true });
     mkdirSync(join(miraDir, ".claude"), { recursive: true });
+    // Auto-register it
+    loadProjectRegistry();
   }
 
   const app = new Hono();
@@ -254,7 +263,7 @@ export function createServer(_initialConfig: Config) {
       name: "UniSpace",
       version: "0.3.0",
       currentProject: cfg.currentProject,
-      workDir: paths.project(cfg.currentProject),
+      workDir: projectDir(cfg.currentProject),
     });
   });
 
@@ -264,25 +273,26 @@ export function createServer(_initialConfig: Config) {
   // pretend to know those.
   app.get("/api/debug/inspect", async (c) => {
     const cfg = loadConfig();
-    const projectName = cfg.currentProject;
-    const projectDir = paths.project(projectName);
+    const currentId = cfg.currentProject;
+    const currentDir = projectDir(currentId);
+    const currentProj = getProjectById(currentId);
 
     // CLAUDE.md (project-level system prompt input)
     let claudeMd: string | null = null;
     try {
-      claudeMd = await Bun.file(paths.projectClaude(projectName)).text();
+      claudeMd = await Bun.file(join(currentDir, "CLAUDE.md")).text();
     } catch {}
 
     // .claude/settings.json
     let settings: unknown = null;
     try {
       settings = JSON.parse(
-        await Bun.file(paths.projectSettings(projectName)).text(),
+        await Bun.file(join(currentDir, ".claude", "settings.json")).text(),
       );
     } catch {}
 
     // .claude/agents/*.md → parse frontmatter + body preview
-    const agentsDir = resolve(projectDir, ".claude", "agents");
+    const agentsDir = resolve(currentDir, ".claude", "agents");
     const agents: Array<{
       name: string;
       description: string;
@@ -311,7 +321,7 @@ export function createServer(_initialConfig: Config) {
     } catch {}
 
     // .claude/skills/<name>/SKILL.md → parse each
-    const skillsDir = paths.projectSkills(projectName);
+    const skillsDir = join(currentDir, ".claude", "skills");
     const skills: Array<{
       name: string;
       description: string;
@@ -364,9 +374,10 @@ export function createServer(_initialConfig: Config) {
 
     return c.json({
       project: {
-        name: projectName,
-        path: projectDir,
-        sessionCount: listSessions(projectName).length,
+        id: currentId,
+        name: currentProj?.name || currentId,
+        path: currentDir,
+        sessionCount: listSessions(currentId).length,
       },
       claudeMd,
       settings,
@@ -405,10 +416,10 @@ export function createServer(_initialConfig: Config) {
 
   app.post("/api/projects", async (c) => {
     const { from, to } = await c.req.json();
-    if (!from || !to) return c.json({ error: "from and to required" }, 400);
+    if (!from || !to) return c.json({ error: "from (id) and to (name) required" }, 400);
     try {
-      cloneProject(from, to);
-      return c.json({ ok: true, name: to });
+      const newId = cloneProject(from, to);
+      return c.json({ ok: true, id: newId, name: to });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);
     }
@@ -425,8 +436,8 @@ export function createServer(_initialConfig: Config) {
       return c.json({ error: "templateId and projectName required" }, 400);
     }
     try {
-      createProjectFromTemplate(templateId, projectName);
-      return c.json({ ok: true, name: projectName });
+      const id = createProjectFromTemplate(templateId, projectName);
+      return c.json({ ok: true, id, name: projectName });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);
     }
@@ -436,51 +447,54 @@ export function createServer(_initialConfig: Config) {
     const { projectName } = await c.req.json();
     if (!projectName) return c.json({ error: "projectName required" }, 400);
     try {
-      createBlankProject(projectName);
-      return c.json({ ok: true, name: projectName });
+      const id = createBlankProject(projectName);
+      return c.json({ ok: true, id, name: projectName });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);
     }
   });
 
   app.put("/api/projects/current", async (c) => {
-    const { name } = await c.req.json();
-    if (!name || !projectExists(name)) {
+    const { id } = await c.req.json();
+    if (!id || !getProjectById(id)) {
       return c.json({ error: "Project not found" }, 404);
     }
     const cfg = loadConfig();
-    cfg.currentProject = name;
+    cfg.currentProject = id;
     saveConfig(cfg);
-    return c.json({ ok: true, current: name });
+    return c.json({ ok: true, current: id });
   });
 
-  app.delete("/api/projects/:name", async (c) => {
-    const name = c.req.param("name");
+  app.post("/api/projects/rename", async (c) => {
+    const { id, newName } = await c.req.json();
+    if (!id || !newName) return c.json({ error: "id and newName required" }, 400);
+    try {
+      renameProject(id, newName);
+      return c.json({ ok: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400);
+    }
+  });
+
+  app.delete("/api/projects/:id", async (c) => {
+    const id = c.req.param("id");
     const cfg = loadConfig();
 
-    // Safety: never delete the project currently in use. Client must
-    // switch away first.
-    if (name === cfg.currentProject) {
-      return c.json(
-        { error: "Cannot delete the current project. Switch away first." },
-        400,
-      );
+    if (id === cfg.currentProject) {
+      return c.json({ error: "Cannot delete the current project. Switch away first." }, 400);
     }
-    // Safety: never leave the user with zero projects.
     if (listProjects().length <= 1) {
       return c.json({ error: "Cannot delete the only remaining project." }, 400);
     }
-    if (!projectExists(name)) {
+    if (!getProjectById(id)) {
       return c.json({ error: "Project not found" }, 404);
     }
 
     try {
-      // Drop any in-memory sessions tied to this project so the UI stays
-      // consistent on next listing.
-      for (const s of listSessions(name)) {
+      for (const s of listSessions(id)) {
         deleteSession(s.id);
       }
-      deleteProject(name);
+      deleteProject(id);
       return c.json({ ok: true });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);
@@ -488,22 +502,22 @@ export function createServer(_initialConfig: Config) {
   });
 
   // Per-project settings: model + effort, persisted to .claude/settings.json
-  app.get("/api/projects/:name/settings", (c) => {
-    const name = c.req.param("name");
-    if (!projectExists(name)) return c.json({ error: "Not found" }, 404);
-    return c.json(readProjectSettings(name));
+  app.get("/api/projects/:id/settings", (c) => {
+    const id = c.req.param("id");
+    if (!getProjectById(id)) return c.json({ error: "Not found" }, 404);
+    return c.json(readProjectSettings(id));
   });
 
-  app.put("/api/projects/:name/settings", async (c) => {
-    const name = c.req.param("name");
-    if (!projectExists(name)) return c.json({ error: "Not found" }, 404);
+  app.put("/api/projects/:id/settings", async (c) => {
+    const id = c.req.param("id");
+    if (!getProjectById(id)) return c.json({ error: "Not found" }, 404);
     const body = await c.req.json();
-    writeProjectSettings(name, {
+    writeProjectSettings(id, {
       model: body.model,
       emoji: body.emoji,
       description: body.description,
     });
-    return c.json({ ok: true, settings: readProjectSettings(name) });
+    return c.json({ ok: true, settings: readProjectSettings(id) });
   });
 
   // ── Files (scoped to current project) ────────────────────
@@ -859,12 +873,12 @@ export function createServer(_initialConfig: Config) {
   // session is created, not when the agent finishes.
   app.post("/api/tasks/:name/run", async (c) => {
     const cfg = loadConfig();
-    const projectName = cfg.currentProject;
-    const workDir = paths.project(projectName);
+    const currentId = cfg.currentProject;
+    const workDir = projectDir(currentId);
     const task = await getTask(workDir, c.req.param("name"));
     if (!task) return c.json({ error: "Task not found" }, 404);
 
-    const session = createSession(projectName);
+    const session = createSession(currentId);
     session.title = `[Task] ${task.name}`;
     const userContent = composeTaskPrompt(task);
     session.messages.push({
@@ -888,7 +902,7 @@ export function createServer(_initialConfig: Config) {
     (async () => {
       try {
         const tracer = createTraceCollector({
-          project: session.projectName,
+          project: session.projectId,
           sessionId: session.id,
           prompt: userContent,
         });
@@ -914,12 +928,12 @@ export function createServer(_initialConfig: Config) {
   app.post("/api/sessions", async (c) => {
     const cfg = loadConfig();
     const body = await c.req.json().catch(() => ({}));
-    const projectName = body.project || cfg.currentProject;
+    const projId = body.project || cfg.currentProject;
     try {
-      const s = createSession(projectName);
+      const s = createSession(projId);
       return c.json({
         id: s.id,
-        projectName: s.projectName,
+        projectId: s.projectId,
         createdAt: s.createdAt,
       });
     } catch (e: any) {
@@ -934,7 +948,7 @@ export function createServer(_initialConfig: Config) {
     return c.json(
       listSessions(scope).map((s) => ({
         id: s.id,
-        projectName: s.projectName,
+        projectId: s.projectId,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
         title: s.title,
@@ -948,7 +962,7 @@ export function createServer(_initialConfig: Config) {
     if (!s) return c.json({ error: "Not found" }, 404);
     return c.json({
       id: s.id,
-      projectName: s.projectName,
+      projectId: s.projectId,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       title: s.title,
@@ -1030,16 +1044,16 @@ export function createServer(_initialConfig: Config) {
       const ac = new AbortController();
       c.req.raw.signal.addEventListener("abort", () => ac.abort());
 
-      const projectDir = paths.project(session.projectName);
+      const projDir = projectDir(session.projectId);
 
       // Expand `/cmd` slash-command tokens server-side. The original
       // text stays in session.messages so the UI shows what the user
       // typed; only the LLM payload sees the resolved bodies.
-      const expandedPrompt = await expandSlashCommands(content, projectDir);
+      const expandedPrompt = await expandSlashCommands(content, projDir);
 
       // Trace collection — every agent turn is automatically traced.
       const tracer = createTraceCollector({
-        project: session.projectName,
+        project: session.projectId,
         sessionId: session.id,
         agentName,
         prompt: content,

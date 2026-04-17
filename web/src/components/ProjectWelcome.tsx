@@ -170,6 +170,7 @@ export default function ProjectWelcome({
 
   // ── Context menu ────────────────────────────────────────────
   const [ctxMenu, setCtxMenu] = useState<{
+    id: string;
     name: string;
     x: number;
     y: number;
@@ -180,26 +181,26 @@ export default function ProjectWelcome({
 
   const closeCtx = useCallback(() => setCtxMenu(null), []);
 
-  function handleCtxAction(action: string, name: string) {
+  function handleCtxAction(action: string, id: string, displayName: string) {
     setCtxMenu(null);
     if (action === "rename") {
-      setRenameTarget(name);
-      setRenameName(name);
+      setRenameTarget(id);
+      setRenameName(displayName);
     } else if (action === "pin") {
       const { pinnedProjects, togglePinProject } = useStore.getState();
-      togglePinProject(name);
-      const wasPinned = pinnedProjects.includes(name);
-      setToast(wasPinned ? `Unpinned "${name}"` : `Pinned "${name}"`);
+      togglePinProject(id);
+      const wasPinned = pinnedProjects.includes(id);
+      setToast(wasPinned ? `Unpinned "${displayName}"` : `Pinned "${displayName}"`);
       setTimeout(() => setToast(null), 2000);
     } else if (action === "share") {
       setToast("Share — coming soon");
       setTimeout(() => setToast(null), 2000);
     } else if (action === "delete") {
-      if (window.confirm(`Delete project "${name}"? This cannot be undone.`)) {
-        api.deleteProject(serverUrl, name).then(async () => {
+      if (window.confirm(`Delete project "${displayName}"? This cannot be undone.`)) {
+        api.deleteProject(serverUrl, id).then(async () => {
           const resp = await api.fetchProjects(serverUrl);
           useStore.getState().setProjects(resp.projects, resp.current);
-          setToast(`Deleted "${name}"`);
+          setToast(`Deleted "${displayName}"`);
           setTimeout(() => setToast(null), 2000);
         });
       }
@@ -207,13 +208,12 @@ export default function ProjectWelcome({
   }
 
   async function handleRename() {
-    if (!renameTarget || !renameName.trim() || renameName === renameTarget) {
+    if (!renameTarget || !renameName.trim()) {
       setRenameTarget(null);
       return;
     }
     try {
-      await api.cloneProject(serverUrl, renameTarget, renameName.trim());
-      await api.deleteProject(serverUrl, renameTarget);
+      await api.renameProject(serverUrl, renameTarget, renameName.trim());
       const resp = await api.fetchProjects(serverUrl);
       useStore.getState().setProjects(resp.projects, resp.current);
       setRenameTarget(null);
@@ -308,12 +308,12 @@ export default function ProjectWelcome({
           >
             {[
               { key: "rename", label: "Rename" },
-              { key: "pin", label: useStore.getState().pinnedProjects.includes(ctxMenu.name) ? "Unpin" : "Pin" },
+              { key: "pin", label: useStore.getState().pinnedProjects.includes(ctxMenu.id) ? "Unpin" : "Pin" },
               { key: "share", label: "Share" },
             ].map((item) => (
               <button
                 key={item.key}
-                onClick={() => handleCtxAction(item.key, ctxMenu.name)}
+                onClick={() => handleCtxAction(item.key, ctxMenu.id, ctxMenu.name)}
                 className="flex w-full px-4 py-2 text-left text-[13px] text-[#29291f] transition hover:bg-[rgba(41,41,31,0.06)]"
               >
                 {item.label}
@@ -321,7 +321,7 @@ export default function ProjectWelcome({
             ))}
             <div className="mx-3 my-1 border-t border-[rgba(41,41,31,0.1)]" />
             <button
-              onClick={() => handleCtxAction("delete", ctxMenu.name)}
+              onClick={() => handleCtxAction("delete", ctxMenu.id, ctxMenu.name)}
               className="flex w-full px-4 py-2 text-left text-[13px] text-[#d97757] transition hover:bg-[rgba(41,41,31,0.06)]"
             >
               Delete
@@ -418,9 +418,9 @@ function MyProjectGrid({
   onSelect,
   onCtxMenu,
 }: {
-  projects: { name: string; updatedAt: number }[];
-  onSelect: (name: string) => void;
-  onCtxMenu: (m: { name: string; x: number; y: number }) => void;
+  projects: { id: string; name: string; updatedAt: number }[];
+  onSelect: (id: string) => void;
+  onCtxMenu: (m: { id: string; name: string; x: number; y: number }) => void;
 }) {
   if (projects.length === 0) {
     return (
@@ -438,10 +438,10 @@ function MyProjectGrid({
           name={p.name}
           icon={iconForProject(p.name)}
           description={formatUpdated(p.updatedAt) ? `Updated ${formatUpdated(p.updatedAt)}` : "—"}
-          onClick={() => onSelect(p.name)}
+          onClick={() => onSelect(p.id)}
           onMenuClick={(e) => {
             e.stopPropagation();
-            onCtxMenu({ name: p.name, x: e.clientX, y: e.clientY });
+            onCtxMenu({ id: p.id, name: p.name, x: e.clientX, y: e.clientY });
           }}
         />
       ))}

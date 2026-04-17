@@ -6,6 +6,7 @@ import {
   loadConfig,
   saveConfig,
   loadChannelsConfig,
+  loadProjectRegistry,
   paths,
   getDir,
   listProjects,
@@ -85,6 +86,7 @@ function onboard() {
 async function start() {
   console.log("\n  UniSpace (server)");
   ensureInit();
+  loadProjectRegistry();
 
   const config = loadConfig();
   loadAllSessions();
@@ -125,6 +127,7 @@ function web() {
 async function launch(devMode: boolean) {
   console.log(`\n  UniSpace${devMode ? " [dev]" : ""}`);
   ensureInit();
+  loadProjectRegistry();
 
   const config = loadConfig();
   loadAllSessions();

@@ -35,40 +35,53 @@ export async function fetchProjects(url: string) {
   const res = await fetch(`${url}/api/projects`);
   return res.json() as Promise<{
     current: string;
-    projects: { name: string; path: string; updatedAt: number }[];
+    projects: { id: string; name: string; slug: string; path: string; updatedAt: number }[];
   }>;
 }
 
-export async function switchProject(url: string, name: string) {
+export async function switchProject(url: string, id: string) {
   const res = await fetch(`${url}/api/projects/current`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ id }),
   });
   if (!res.ok) throw new Error("Failed to switch project");
   return res.json();
 }
 
-export async function cloneProject(url: string, from: string, to: string) {
+export async function cloneProject(url: string, sourceId: string, newName: string) {
   const res = await fetch(`${url}/api/projects`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to }),
+    body: JSON.stringify({ from: sourceId, to: newName }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Clone failed" }));
     throw new Error(err.error || "Clone failed");
   }
-  return res.json();
+  return res.json() as Promise<{ ok: boolean; id: string; name: string }>;
 }
 
-export async function deleteProject(url: string, name: string) {
-  const res = await fetch(`${url}/api/projects/${encodeURIComponent(name)}`, {
+export async function deleteProject(url: string, id: string) {
+  const res = await fetch(`${url}/api/projects/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Delete failed" }));
     throw new Error(err.error || "Delete failed");
+  }
+  return res.json();
+}
+
+export async function renameProject(url: string, id: string, newName: string) {
+  const res = await fetch(`${url}/api/projects/rename`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, newName }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Rename failed" }));
+    throw new Error(err.error || "Rename failed");
   }
   return res.json();
 }
@@ -129,17 +142,17 @@ export interface ProjectSettings {
   description?: string;
 }
 
-export async function fetchProjectSettings(url: string, name: string) {
-  const res = await fetch(`${url}/api/projects/${name}/settings`);
+export async function fetchProjectSettings(url: string, id: string) {
+  const res = await fetch(`${url}/api/projects/${encodeURIComponent(id)}/settings`);
   return res.json() as Promise<ProjectSettings>;
 }
 
 export async function updateProjectSettings(
   url: string,
-  name: string,
+  id: string,
   partial: ProjectSettings,
 ) {
-  const res = await fetch(`${url}/api/projects/${name}/settings`, {
+  const res = await fetch(`${url}/api/projects/${encodeURIComponent(id)}/settings`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(partial),

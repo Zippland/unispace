@@ -65,7 +65,9 @@ export interface SessionInfo {
 }
 
 export interface ProjectInfo {
+  id: string;
   name: string;
+  slug: string;
   path: string;
   updatedAt: number;
 }

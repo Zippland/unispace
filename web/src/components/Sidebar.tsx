@@ -217,13 +217,13 @@ export default function Sidebar({
     [recentsHeight],
   );
 
-  async function handleSwitchProject(name: string) {
-    if (name === currentProject) {
+  async function handleSwitchProject(id: string) {
+    if (id === currentProject) {
       setProjectMenuOpen(false);
       return;
     }
     try {
-      await api.switchProject(serverUrl, name);
+      await api.switchProject(serverUrl, id);
       // Refresh everything — new project has its own files/sessions
       const [projectsResp, sessions, files] = await Promise.all([
         api.fetchProjects(serverUrl),
@@ -260,7 +260,7 @@ export default function Sidebar({
       return;
     }
     try {
-      await api.cloneProject(serverUrl, currentProject, cloneName.trim());
+      await api.cloneProject(serverUrl, currentProject, cloneName.trim()); // currentProject is now id
       const projectsResp = await api.fetchProjects(serverUrl);
       useStore.getState().setProjects(projectsResp.projects, projectsResp.current);
       setCloneDialog(false);
@@ -328,7 +328,8 @@ export default function Sidebar({
                 setActiveSession(null);
                 setActiveTab(null);
                 // Switch back to mira project so Recents/ChatPanel show mira sessions
-                api.switchProject(serverUrl, "mira").then(async () => {
+                const mira = projects.find((p) => p.slug === "mira" || p.name === "mira");
+                (mira ? api.switchProject(serverUrl, mira.id) : Promise.resolve()).then(async () => {
                   const [p, s, f] = await Promise.all([
                     api.fetchProjects(serverUrl),
                     api.fetchSessions(serverUrl),
@@ -432,7 +433,7 @@ export default function Sidebar({
                         className="group flex items-center gap-2 pr-1.5 transition hover:bg-[#faf9f5]"
                       >
                         <button
-                          onClick={() => handleSwitchProject(p.name)}
+                          onClick={() => handleSwitchProject(p.id)}
                           className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-[13px] ${
                             isCurrent
                               ? "text-[#141413] font-medium"
@@ -451,7 +452,7 @@ export default function Sidebar({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setProjectDeleteTarget(p.name);
+                              setProjectDeleteTarget(p.id);
                               setProjectMenuOpen(false);
                             }}
                             title="Delete project"
